@@ -21,30 +21,40 @@ def main():
     # 示例数据
     enemy_data = EnemyData(
         name="鸟",
-        max_hp=2000,
-        attack=0,
-        defense=0,
-        magic_resistance=0,
-        attack_interval=1.0,
-        attack_range_radius=30,
-        target_value=1,
-        move_speed=30,
-        weight_level=1,
-        element_resistance=0,
+        attack_type="近程",
+        action_type="地面", 
+        hp_recovery_speed=0,
+        position="普通",
+        category="无", 
+        max_hp=7000,
+        attack=350,
+        defense=100,
+        magic_resistance=10,
+        attack_range_radius=1.0,
+        weight_level=3,
+        move_speed=1.0,
+        attack_interval=3.5,
         damage_resistance=0,
-        hp_recovery_speed=0.9,
+        element_resistance=0,
+        base_taunt_level=0,
+        target_value=1,
         brief_description="生命值略高的敌人，但攻击力为0，行动速度快，在有限空间内无法奈何任何近战者",
         brief_comment="太菜了，略过",
         abnormal_resistances={
-            "冰冻抗性": 1,
-            "沉默抗性": 0
-        },  # 示例：只有冰冻和沉默抗性（1=有抗性，0=无抗性）
+            "冰冻": 1,
+            "沉默": 0,
+            "晕眩": 1,
+            "沉睡": 0,
+            "浮空": 1,
+            "战栗": 0,
+            "恐惧": 0,
+            "诱导": 1
+        },  
         hostility_rating=1,  # 1-5星
         innovation_rating=2,  # 1-5星
         threat_rating=1,     # 1-5星
         grade="D",
-        avatar_path="example/下载.jpg",
-        screenshot_path=None
+        avatar_path="example/下载.jpg"
     )
     
     # 创建生成器

@@ -14,18 +14,23 @@ class EnemyData(BaseModel):
     grade: str = Field(..., description="等级 (S/A/B/C/D)")
     
     # 主属性
+    attack_type: str = Field(..., description="攻击方式")
+    action_type: str = Field(..., description="行动方式") 
+    hp_recovery_speed: float = Field(..., ge=0.0, description="生命恢复速度")
+    position: str = Field(..., description="地位")
+    category: str = Field(..., description="种类")
     max_hp: int = Field(..., ge=0, description="最大生命值")
     attack: int = Field(..., ge=0, description="攻击力") 
     defense: int = Field(..., ge=0, description="防御力")
     magic_resistance: int = Field(..., ge=0, description="法术抗性")
-    attack_interval: float = Field(..., ge=0.0, description="攻击间隔")
-    attack_range_radius: int = Field(..., ge=0, description="攻击范围半径")
-    target_value: int = Field(..., ge=0, description="目标价值")
-    move_speed: int = Field(..., ge=0, description="移动速度")
+    attack_range_radius: float = Field(..., ge=0, description="攻击范围半径")
     weight_level: int = Field(..., ge=0, description="重量等级")
-    element_resistance: int = Field(..., ge=0, description="元素抗性")
+    move_speed: float = Field(..., ge=0, description="移动速度")
+    attack_interval: float = Field(..., ge=0.0, description="攻击间隔")
     damage_resistance: int = Field(..., ge=0, description="损伤抗性")
-    hp_recovery_speed: float = Field(..., ge=0.0, description="生命恢复速度")
+    element_resistance: int = Field(..., ge=0, description="元素抗性")
+    base_taunt_level: int = Field(..., ge=0, description="基础嘲讽等级")
+    target_value: int = Field(..., ge=0, description="目标价值")
     
     # 简要描述
     brief_description: str = Field(..., description="简要描述")
@@ -43,7 +48,6 @@ class EnemyData(BaseModel):
     
     # 图片路径
     avatar_path: Optional[str] = Field(None, description="头像图片路径")
-    screenshot_path: Optional[str] = Field(None, description="游戏截图路径")
     
     @field_validator('grade')
     @classmethod
@@ -53,10 +57,10 @@ class EnemyData(BaseModel):
             raise ValueError('等级必须是 S/A/B/C/D 中的一个')
         return v
     
-    @field_validator('avatar_path', 'screenshot_path')
+    @field_validator('avatar_path')
     @classmethod
-    def validate_paths(cls, v):
-        """验证图片路径"""
+    def validate_avatar_path(cls, v):
+        """验证头像路径"""
         if v and not Path(v).exists():
             raise ValueError(f'图片文件不存在: {v}')
         return v
