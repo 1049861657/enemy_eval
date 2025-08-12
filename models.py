@@ -49,6 +49,10 @@ class EnemyData(BaseModel):
     # 图片路径
     avatar_path: Optional[str] = Field(None, description="头像图片路径")
     
+    # 技能与天赋&能力
+    skills: list[dict[str, str]] = Field(default_factory=list, description="技能列表，每个技能包含名称、冷却时间、消耗等信息")
+    talents_abilities: str = Field(default="", description="天赋&能力描述文本")
+    
     @field_validator('grade')
     @classmethod
     def validate_grade(cls, v):
