@@ -22,6 +22,7 @@ def main():
     enemy_data = EnemyData(
         name="鸟",
         attack_type="近战",
+        damage_type="法术",
         action_type="地面", 
         hp_recovery_speed=0,
         position="普通",

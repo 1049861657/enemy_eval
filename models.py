@@ -15,6 +15,7 @@ class EnemyData(BaseModel):
     
     # 主属性
     attack_type: str = Field(..., description="攻击方式")
+    damage_type: str = Field(..., description="伤害类型 (物理/法术)")
     action_type: str = Field(..., description="行动方式") 
     hp_recovery_speed: float = Field(..., ge=0.0, description="生命恢复速度")
     position: str = Field(..., description="地位")

@@ -109,110 +109,6 @@ class EnemyCardGenerator:
         text_x = 225 - text_width / 2
         self.canvas.drawString(enemy.name, text_x, 465, font, paint)
     
-    def _draw_main_stats_table(self, enemy: EnemyData):
-        """绘制主要属性表格形式 - 参考图样式"""
-        # 移除外边框，直接绘制表格内容
-        
-        # 字体设置 - 参考新需求图片的色彩方案
-        font_name = self.font_manager.get_font(27)
-        font_value = self.font_manager.get_font(33)
-        name_paint = skia.Paint(Color=skia.Color4f(0.3, 0.3, 0.3, 1), AntiAlias=True)  # 列名文字稍深
-        value_paint = skia.Paint(Color=skia.Color4f(0.1, 0.1, 0.1, 1), AntiAlias=True)  # 值文字更深
-        
-        # 表格数据（3行布局按新需求）
-        attrs_data = [
-            [("攻击方式", enemy.attack_type), ("行动方式", enemy.action_type), ("生命回复速度", enemy.hp_recovery_speed), ("地位", enemy.position), ("种类", enemy.category)],
-            [("最大生命值", enemy.max_hp), ("攻击力", enemy.attack), ("防御力", enemy.defense), ("法术抗性", enemy.magic_resistance), ("攻击范围半径", enemy.attack_range_radius), ("重量", enemy.weight_level)],
-            [("移动速度", enemy.move_speed), ("攻击间隔", enemy.attack_interval), ("损伤抗性", enemy.damage_resistance), ("元素抗性", enemy.element_resistance), ("基础嘲讽等级", enemy.base_taunt_level), ("目标价值", enemy.target_value)]
-        ]
-        
-        # 表格参数 - 智能动态布局，与其他框宽度一致
-        start_x = 480  # 与描述框和异常抗性框对齐
-        start_y = 180
-        cell_height = 78  # 再次增加行高避免重叠
-        total_width = 1890 - 480  # 与其他框相同的总宽度
-        
-        # 动态计算每行的列宽，确保所有行总宽度一致
-        def calculate_optimal_widths(row_data, available_width):
-            """根据内容长度智能分配列宽，确保总宽度一致"""
-            if not row_data:
-                return []
-            
-            # 计算每列内容的最小宽度需求
-            min_widths = []
-            for name, value in row_data:
-                name_len = len(str(name))
-                value_len = len(str(value))
-                # 估算最小宽度：较长文本需要更多空间
-                min_width = max(name_len, value_len) * 24 + 30  # 24px每字符+边距
-                min_widths.append(min_width)
-            
-            # 确保总宽度等于available_width
-            total_min_width = sum(min_widths)
-            if total_min_width > available_width:
-                # 按比例缩放，确保总宽度不超过available_width
-                scale = available_width / total_min_width
-                scaled_widths = [int(w * scale) for w in min_widths]
-                # 处理舍入误差，确保总宽度准确
-                diff = available_width - sum(scaled_widths)
-                if diff > 0:
-                    scaled_widths[-1] += diff  # 将剩余像素分给最后一列
-                return scaled_widths
-            else:
-                # 平均分配剩余空间，确保总宽度等于available_width
-                extra_space = available_width - total_min_width
-                extra_per_col = extra_space // len(row_data)
-                remainder = extra_space % len(row_data)
-                
-                final_widths = []
-                for i, w in enumerate(min_widths):
-                    width = w + extra_per_col
-                    if i < remainder:  # 将余数分给前几列
-                        width += 1
-                    final_widths.append(width)
-                return final_widths
-        
-        # 网格和背景paint
-        grid_paint = skia.Paint(Color=skia.Color4f(0.8, 0.8, 0.8, 1))
-        grid_paint.setStyle(skia.Paint.kStroke_Style)
-        grid_paint.setStrokeWidth(3)
-        
-        # 列名背景色 - 参考新需求图片的浅灰色背景
-        header_bg_paint = skia.Paint(Color=skia.Color4f(0.94, 0.94, 0.94, 1))
-        
-        # 绘制表格内容 - 使用智能动态布局
-        for row_idx, row_data in enumerate(attrs_data):
-            y = start_y + row_idx * cell_height
-            
-            # 为每行计算最优列宽
-            row_widths = calculate_optimal_widths(row_data, total_width)
-            
-            current_x = start_x
-            for col_idx, (name, value) in enumerate(row_data):
-                cell_width = row_widths[col_idx]
-                x = current_x
-                cell_rect = skia.Rect(x, y, x + cell_width, y + cell_height)
-                
-                # 绘制列名区域背景（上半部分）
-                header_rect = skia.Rect(x, y, x + cell_width, y + cell_height // 2)
-                self.canvas.drawRect(header_rect, header_bg_paint)
-                
-                # 绘制单元格边框
-                self.canvas.drawRect(cell_rect, grid_paint)
-                
-                # 绘制属性名（上半部分，居中对齐）
-                name_width = font_name.measureText(name)
-                name_x = x + (cell_width - name_width) / 2
-                self.canvas.drawString(name, name_x, y + 30, font_name, name_paint)
-                
-                # 绘制属性值（下半部分，居中对齐）
-                value_str = str(value) if isinstance(value, (int, str)) else f"{value:.1f}"
-                value_width = font_value.measureText(value_str)
-                value_x = x + (cell_width - value_width) / 2
-                self.canvas.drawString(value_str, value_x, y + 69, font_value, value_paint)
-                
-                # 移动到下一列
-                current_x += cell_width
     
     def _draw_unified_info_section(self, enemy: EnemyData):
         """绘制统一信息框 - 合并描述框、主要属性框和异常抗性框"""
@@ -268,9 +164,9 @@ class EnemyCardGenerator:
     def _draw_unified_stats_table(self, enemy: EnemyData, start_y: int):
         """在统一信息框中绘制主要属性表格"""
         
-        # 表格数据（3行布局按新需求）- 修复第一行缺失地位和种类
+        # 表格数据（3行布局按新需求）- 修复第一行缺失地位和种类，新增伤害类型
         attrs_data = [
-            [("攻击方式", enemy.attack_type), ("行动方式", enemy.action_type), ("生命自回速度", enemy.hp_recovery_speed), ("地位", enemy.position), ("种类", enemy.category)],
+            [("攻击方式", enemy.attack_type), ("伤害类型", enemy.damage_type), ("行动方式", enemy.action_type), ("生命自回速度", enemy.hp_recovery_speed), ("地位", enemy.position), ("种类", enemy.category)],
             [("最大生命值", enemy.max_hp), ("攻击力", enemy.attack), ("防御力", enemy.defense), ("法术抗性", enemy.magic_resistance), ("攻击范围半径", enemy.attack_range_radius), ("重量", enemy.weight_level)],
             [("移动速度", enemy.move_speed), ("攻击间隔", enemy.attack_interval), ("损伤抗性", enemy.damage_resistance), ("元素抗性", enemy.element_resistance), ("基础嘲讽等级", enemy.base_taunt_level), ("目标价值", enemy.target_value)]
         ]
@@ -299,12 +195,12 @@ class EnemyCardGenerator:
         for row_idx, row_data in enumerate(attrs_data):
             y = start_y + row_idx * cell_height
             
-            # 为每行计算最优列宽
-            row_widths = self._calculate_optimal_widths(row_data, total_width)
+            # 每行内部平均分配宽度
+            row_col_width = total_width // len(row_data)
             
             current_x = start_x
             for col_idx, (name, value) in enumerate(row_data):
-                cell_width = row_widths[col_idx]
+                cell_width = row_col_width
                 x = current_x
                 cell_rect = skia.Rect(x, y, x + cell_width, y + cell_height)
                 
@@ -551,51 +447,52 @@ class EnemyCardGenerator:
         grid_paint.setStyle(skia.Paint.kStroke_Style)
         grid_paint.setStrokeWidth(1)
         
-        # 1. 重新计算动态内容高度和绘制整个技能表格的背景
-        dynamic_content_height = sum(skill_row_heights)
-        total_height = header_height + dynamic_content_height
-        table_rect = skia.Rect(start_x, start_y, start_x + width, start_y + total_height)
-        table_bg_paint = skia.Paint(Color=skia.Color4f(1, 1, 1, 0.9), AntiAlias=True)
-        self.canvas.drawRect(table_rect, table_bg_paint)
-        self.canvas.drawRect(table_rect, border_paint)
-        
-        # 2. 绘制表头背景（更淡的颜色，比标题背景淡一些）
-        header_bg_paint = skia.Paint(Color=skia.Color4f(0.95, 0.95, 0.95, 1), AntiAlias=True)  # 比0.9更淡
-        header_rect = skia.Rect(start_x, start_y, start_x + width, start_y + header_height)
-        self.canvas.drawRect(header_rect, header_bg_paint)
-        
-        # 3. 绘制表头分隔线
-        header_line_top = skia.Path()
-        header_line_top.moveTo(start_x, start_y)
-        header_line_top.lineTo(start_x + width, start_y)
-        self.canvas.drawPath(header_line_top, border_paint)
-        
-        header_line_bottom = skia.Path()
-        header_line_bottom.moveTo(start_x, start_y + header_height)
-        header_line_bottom.lineTo(start_x + width, start_y + header_height)
-        self.canvas.drawPath(header_line_bottom, border_paint)
-        
-        # 4. 绘制技能表头 - 恢复原始列格式
-        headers = ["名称", "冷却时间", "技力消耗", "效果"]
-        current_x = start_x
-        for i, header in enumerate(headers):
-            # 绘制表头文字（居中）
-            text_x = current_x + col_widths[i] / 2 - font_header.measureText(header) / 2
-            self.canvas.drawString(header, text_x, start_y + 30, font_header, header_paint)
-            
-            # 绘制垂直分隔线（除了最后一列）
-            if i < len(headers) - 1:
-                line_x = current_x + col_widths[i]
-                line = skia.Path()
-                line.moveTo(line_x, start_y)
-                line.lineTo(line_x, start_y + header_height + dynamic_content_height)
-                self.canvas.drawPath(line, grid_paint)
-            
-            current_x += col_widths[i]
-        
-        # 5. 绘制技能数据 - 使用动态行高
-        content_start_y = start_y + header_height
+        # 1. 检查是否有技能，决定是否绘制表格
         if enemy.skills:
+            # 有技能时绘制完整表格
+            dynamic_content_height = sum(skill_row_heights)
+            total_height = header_height + dynamic_content_height
+            table_rect = skia.Rect(start_x, start_y, start_x + width, start_y + total_height)
+            table_bg_paint = skia.Paint(Color=skia.Color4f(1, 1, 1, 0.9), AntiAlias=True)
+            self.canvas.drawRect(table_rect, table_bg_paint)
+            self.canvas.drawRect(table_rect, border_paint)
+            
+            # 2. 绘制表头背景（更淡的颜色，比标题背景淡一些）
+            header_bg_paint = skia.Paint(Color=skia.Color4f(0.95, 0.95, 0.95, 1), AntiAlias=True)  # 比0.9更淡
+            header_rect = skia.Rect(start_x, start_y, start_x + width, start_y + header_height)
+            self.canvas.drawRect(header_rect, header_bg_paint)
+            
+            # 3. 绘制表头分隔线
+            header_line_top = skia.Path()
+            header_line_top.moveTo(start_x, start_y)
+            header_line_top.lineTo(start_x + width, start_y)
+            self.canvas.drawPath(header_line_top, border_paint)
+            
+            header_line_bottom = skia.Path()
+            header_line_bottom.moveTo(start_x, start_y + header_height)
+            header_line_bottom.lineTo(start_x + width, start_y + header_height)
+            self.canvas.drawPath(header_line_bottom, border_paint)
+            
+            # 4. 绘制技能表头 - 恢复原始列格式
+            headers = ["名称", "冷却时间", "技力消耗", "效果"]
+            current_x = start_x
+            for i, header in enumerate(headers):
+                # 绘制表头文字（居中）
+                text_x = current_x + col_widths[i] / 2 - font_header.measureText(header) / 2
+                self.canvas.drawString(header, text_x, start_y + 30, font_header, header_paint)
+                
+                # 绘制垂直分隔线（除了最后一列）
+                if i < len(headers) - 1:
+                    line_x = current_x + col_widths[i]
+                    line = skia.Path()
+                    line.moveTo(line_x, start_y)
+                    line.lineTo(line_x, start_y + header_height + dynamic_content_height)
+                    self.canvas.drawPath(line, grid_paint)
+                
+                current_x += col_widths[i]
+            
+            # 5. 绘制技能数据 - 使用动态行高
+            content_start_y = start_y + header_height
             current_row_y = content_start_y
             for i, skill in enumerate(enemy.skills[:3]):
                 row_height = skill_row_heights[i]
@@ -641,11 +538,19 @@ class EnemyCardGenerator:
                 # 移动到下一行
                 current_row_y += row_height
         else:
+            # 无技能时只绘制简单提示，不绘制表格框架
+            # 绘制简单的背景框
+            simple_height = 60
+            simple_rect = skia.Rect(start_x, start_y, start_x + width, start_y + simple_height)
+            table_bg_paint = skia.Paint(Color=skia.Color4f(1, 1, 1, 0.9), AntiAlias=True)
+            self.canvas.drawRect(simple_rect, table_bg_paint)
+            self.canvas.drawRect(simple_rect, border_paint)
+            
             # 无技能提示
             no_skill_text = "无特殊技能"
             no_skill_width = font_content.measureText(no_skill_text)
             no_skill_x = start_x + (width - no_skill_width) / 2
-            self.canvas.drawString(no_skill_text, no_skill_x, content_start_y + 50, font_content, content_paint)
+            self.canvas.drawString(no_skill_text, no_skill_x, start_y + 38, font_content, content_paint)
     
     def _draw_talents_section_unified(self, enemy: EnemyData, start_x: int, start_y: int, width: int, header_height: int, content_height: int, border_paint):
         """在统一表格中绘制天赋部分"""
@@ -1306,3 +1211,18 @@ class EnemyCardGenerator:
         image.save(output_path, skia.kPNG)
         
         return output_path
+    
+    def generate_card_image(self, enemy: EnemyData) -> skia.Image:
+        """生成敌人评价卡片图像对象（内存模式，不保存文件）"""
+        # 初始化画布
+        self._init_canvas()
+        
+        # 绘制各个部分
+        self._draw_avatar_section(enemy)
+        self._draw_unified_info_section(enemy)
+        skills_section_bottom = self._draw_skills_talents_section(enemy)
+        self._draw_rating_cards(enemy, skills_section_bottom)
+        self._draw_grade_section(enemy, skills_section_bottom)
+        
+        # 返回图像对象
+        return self.surface.makeImageSnapshot()
