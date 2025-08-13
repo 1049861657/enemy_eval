@@ -62,19 +62,212 @@ QPushButton:pressed {
     background-color: #dd6161;
 }
 
-QSpinBox, QDoubleSpinBox, QLineEdit {
+/* === 完美SpinBox样式 - 无间隙设计 === */
+QSpinBox, QDoubleSpinBox {
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    padding: 4px 20px 4px 8px;
+    background-color: white;
+    font-size: 14px;
+    min-height: 24px;
+    selection-background-color: #409eff;
+}
+
+QSpinBox:focus, QDoubleSpinBox:focus {
+    border-color: #409eff;
+    outline: none;
+}
+
+/* SpinBox上按钮 */
+QSpinBox::up-button, QDoubleSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 18px;
+    min-height: 13px;
+    max-height: 13px;
+    background-color: #f5f7fa;
+    border-left: 1px solid #dcdfe6;
+    border-right: 1px solid #dcdfe6;
+    border-top: 1px solid #dcdfe6;
+    border-bottom: none;
+    border-top-right-radius: 3px;
+}
+
+/* SpinBox下按钮 */
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 18px;
+    min-height: 13px;
+    max-height: 13px;
+    background-color: #f5f7fa;
+    border-left: 1px solid #dcdfe6;
+    border-right: 1px solid #dcdfe6;
+    border-bottom: 1px solid #dcdfe6;
+    border-top: none;
+    border-bottom-right-radius: 3px;
+}
+
+/* 按钮悬停效果 */
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {
+    background-color: #ecf5ff;
+}
+
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+    background-color: #ecf5ff;
+}
+
+/* 按钮按下效果 */
+QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed {
+    background-color: #d9ecff;
+}
+
+QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {
+    background-color: #d9ecff;
+}
+
+/* 箭头图标 */
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+    image: url(resource/ico/icons8-sort-up-96.png);
+    width: 10px;
+    height: 10px;
+}
+
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+    image: url(resource/ico/icons8-sort-down-96.png);
+    width: 10px;
+    height: 10px;
+}
+
+/* 禁用状态 */
+QSpinBox:disabled, QDoubleSpinBox:disabled {
+    background-color: #f5f5f5;
+    color: #c0c4cc;
+    border-color: #e4e7ed;
+}
+
+QSpinBox::up-button:disabled, QDoubleSpinBox::up-button:disabled,
+QSpinBox::down-button:disabled, QDoubleSpinBox::down-button:disabled {
+    background-color: #f5f5f5;
+    border-color: #e4e7ed;
+}
+
+/* === QLineEdit样式保持独立 === */
+QLineEdit {
     border: 1px solid #dcdfe6;
     border-radius: 4px;
     padding: 5px;
     background-color: white;
 }
 
-QSpinBox:focus, QDoubleSpinBox:focus, QLineEdit:focus {
+QLineEdit:focus {
     border-color: #409eff;
 }
 
-/* 传统 QComboBox 样式已被 ModernComboBox 组件替代 */
-/* ModernComboBox 组件拥有内置的完美样式系统 */
+/* === 完美ComboBox样式 - 统一QSS管理 === */
+QComboBox {
+    background-color: white;
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    color: #303133;
+    padding: 4px 30px 4px 8px;
+    min-width: 120px;
+    min-height: 24px;
+    selection-background-color: #409eff;
+    font-size: 14px;
+}
+
+QComboBox:editable {
+    background: white;
+}
+
+QComboBox:!editable {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #f8f8f8, stop: 0.4 #f0f0f0,
+                                stop: 0.5 #e8e8e8, stop: 1.0 #e0e0e0);
+}
+
+QComboBox:!editable:on {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                stop: 0 #e0e0e0, stop: 0.4 #e8e8e8,
+                                stop: 0.5 #f0f0f0, stop: 1.0 #f8f8f8);
+}
+
+QComboBox:hover {
+    border-color: #409eff;
+}
+
+QComboBox:focus {
+    border-color: #409eff;
+    outline: none;
+}
+
+QComboBox:on {
+    border-color: #409eff;
+    padding-top: 3px;
+    padding-left: 4px;
+}
+
+/* ComboBox下拉按钮 - 完全自定义 */
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 25px;
+    border: none;
+    background: transparent;
+}
+
+/* 隐藏原生下拉箭头，使用我们的自定义图标 */
+QComboBox::down-arrow {
+    image: url(resource/ico/icons8-expand-arrow-96.png);
+    width: 12px;
+    height: 12px;
+    right: 8px;
+}
+
+
+/* ComboBox弹出列表 */
+QComboBox QAbstractItemView {
+    background-color: white;
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    outline: none;
+    selection-background-color: #e5f3ff;
+    selection-color: #000000;
+}
+
+QComboBox QAbstractItemView::item {
+    height: 30px;
+    padding: 0 12px;
+    margin: 1px 4px;
+    border-radius: 3px;
+}
+
+QComboBox QAbstractItemView::item:hover {
+    background-color: #f5f7fa;
+    color: #303133;
+}
+
+QComboBox QAbstractItemView::item:selected {
+    background-color: #409eff;
+    color: white;
+}
+
+/* ComboBox禁用状态 */
+QComboBox:disabled {
+    background-color: #f5f5f5;
+    color: #c0c4cc;
+    border-color: #e4e7ed;
+}
+
+QComboBox::drop-down:disabled {
+    background-color: #f5f5f5;
+    border-color: #e4e7ed;
+}
+
+QComboBox::down-arrow:disabled {
+    opacity: 0.5;
+}
 
 QLabel {
     color: #606266;

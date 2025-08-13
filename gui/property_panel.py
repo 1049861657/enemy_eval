@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
                                QFileDialog, QCheckBox, QScrollArea, QFrame)
 
 from .card_model import CardModel
-from .modern_combobox import ModernComboBox, ComboBoxSize, create_combo_box
 
 
 class SkillEditWidget(QFrame):
@@ -115,11 +114,8 @@ class PropertyPanel(QWidget):
         # 技能标签页
         self._create_skills_tab()
         
-        # 评级标签页
+        # 评价标签页（包含评级和简评）
         self._create_rating_tab()
-        
-        # 简评标签页
-        self._create_comment_tab()
     
     def _create_basic_tab(self):
         """创建基础信息标签页"""
@@ -132,10 +128,8 @@ class PropertyPanel(QWidget):
         layout.addRow("敌人名称:", self.name_edit)
         
         # 等级
-        self.grade_combo = create_combo_box(
-            items=['S', 'A', 'B', 'C', 'D'],
-            size=ComboBoxSize.MEDIUM
-        )
+        self.grade_combo = QComboBox()
+        self.grade_combo.addItems(['S', 'A', 'B', 'C', 'D'])
         layout.addRow("等级:", self.grade_combo)
         
         # 头像选择
@@ -149,27 +143,23 @@ class PropertyPanel(QWidget):
         layout.addRow("头像:", avatar_layout)
         
         # 攻击方式
-        self.attack_type_combo = create_combo_box(
-            items=['近战', '远程', '近战/远程']
-        )
+        self.attack_type_combo = QComboBox()
+        self.attack_type_combo.addItems(['近战', '远程', '近战/远程'])
         layout.addRow("攻击方式:", self.attack_type_combo)
         
         # 伤害类型
-        self.damage_type_combo = create_combo_box(
-            items=['物理', '法术']
-        )
+        self.damage_type_combo = QComboBox()
+        self.damage_type_combo.addItems(['物理', '法术'])
         layout.addRow("伤害类型:", self.damage_type_combo)
         
         # 行动方式
-        self.action_type_combo = create_combo_box(
-            items=['地面', '飞行']
-        )
+        self.action_type_combo = QComboBox()
+        self.action_type_combo.addItems(['地面', '飞行'])
         layout.addRow("行动方式:", self.action_type_combo)
         
         # 地位
-        self.position_combo = create_combo_box(
-            items=['普通', '精英', '领袖']
-        )
+        self.position_combo = QComboBox()
+        self.position_combo.addItems(['普通', '精英', '领袖'])
         layout.addRow("地位:", self.position_combo)
         
         # 种类
@@ -323,63 +313,74 @@ class PropertyPanel(QWidget):
         self.tab_widget.addTab(scroll_area, "技能&天赋")
     
     def _create_rating_tab(self):
-        """创建评级标签页"""
+        """创建评价标签页（包含评级和简评）"""
         scroll_area = QScrollArea()
         scroll_widget = QWidget()
-        layout = QFormLayout(scroll_widget)
+        layout = QVBoxLayout(scroll_widget)
+        
+        # === 评级部分 ===
+        rating_group = QFrame()
+        rating_group.setFrameStyle(QFrame.Shape.Box)
+        rating_group.setStyleSheet("QFrame { border: 1px solid #ddd; border-radius: 4px; padding: 10px; margin: 5px; }")
+        rating_layout = QFormLayout(rating_group)
         
         # 评级说明
-        info_label = QLabel("各项评级范围: 1-5星")
-        info_label.setStyleSheet("color: #666; font-style: italic;")
-        layout.addRow(info_label)
+        rating_info_label = QLabel("评级 (各项评级范围: 1-5星)")
+        rating_info_label.setStyleSheet("color: #333; font-weight: bold; margin-bottom: 5px;")
+        rating_layout.addRow(rating_info_label)
         
         # 对策度
         self.hostility_spin = QSpinBox()
         self.hostility_spin.setRange(1, 5)
         self.hostility_spin.setValue(3)
-        layout.addRow("对策度:", self.hostility_spin)
+        rating_layout.addRow("对策度:", self.hostility_spin)
         
         # 创新度
         self.innovation_spin = QSpinBox()
         self.innovation_spin.setRange(1, 5)
         self.innovation_spin.setValue(3)
-        layout.addRow("创新度:", self.innovation_spin)
+        rating_layout.addRow("创新度:", self.innovation_spin)
         
         # 威胁度
         self.threat_spin = QSpinBox()
         self.threat_spin.setRange(1, 5)
         self.threat_spin.setValue(3)
-        layout.addRow("威胁度:", self.threat_spin)
+        rating_layout.addRow("威胁度:", self.threat_spin)
         
-        scroll_area.setWidget(scroll_widget)
-        scroll_area.setWidgetResizable(True)
-        self.tab_widget.addTab(scroll_area, "评级")
-    
-    def _create_comment_tab(self):
-        """创建简评标签页"""
-        scroll_area = QScrollArea()
-        scroll_widget = QWidget()
-        layout = QVBoxLayout(scroll_widget)
+        layout.addWidget(rating_group)
+        
+        # === 简评部分 ===
+        comment_group = QFrame()
+        comment_group.setFrameStyle(QFrame.Shape.Box)
+        comment_group.setStyleSheet("QFrame { border: 1px solid #ddd; border-radius: 4px; padding: 10px; margin: 5px; }")
+        comment_layout = QVBoxLayout(comment_group)
+        
+        # 简评标题
+        comment_title_label = QLabel("简评")
+        comment_title_label.setStyleSheet("color: #333; font-weight: bold; margin-bottom: 5px;")
+        comment_layout.addWidget(comment_title_label)
         
         # 简要描述
-        layout.addWidget(QLabel("简要描述:"))
+        comment_layout.addWidget(QLabel("简要描述:"))
         self.brief_description_edit = QTextEdit()
         self.brief_description_edit.setMaximumHeight(100)
         self.brief_description_edit.setPlaceholderText("敌人的基本特点和能力描述...")
-        layout.addWidget(self.brief_description_edit)
+        comment_layout.addWidget(self.brief_description_edit)
         
         # 简评内容
-        layout.addWidget(QLabel("简评内容:"))
+        comment_layout.addWidget(QLabel("简评内容:"))
         self.brief_comment_edit = QTextEdit()
         self.brief_comment_edit.setMaximumHeight(100)
         self.brief_comment_edit.setPlaceholderText("对敌人的整体评价...")
-        layout.addWidget(self.brief_comment_edit)
+        comment_layout.addWidget(self.brief_comment_edit)
         
+        layout.addWidget(comment_group)
         layout.addStretch()
         
         scroll_area.setWidget(scroll_widget)
         scroll_area.setWidgetResizable(True)
-        self.tab_widget.addTab(scroll_area, "简评")
+        self.tab_widget.addTab(scroll_area, "评价")
+    
     
     def _connect_signals(self):
         """连接信号与槽"""
