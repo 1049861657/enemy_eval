@@ -1,44 +1,26 @@
 """
-字体管理器 - 处理中文字体加载
+字体管理器 - 处理中文字体加载 (Windows专用)
 """
 
 import skia
 from pathlib import Path
-import platform
 
 class FontManager:
-    """字体管理器"""
+    """字体管理器 - Windows版本"""
     
     def __init__(self):
         self.chinese_font = None
         self._load_chinese_font()
     
     def _load_chinese_font(self):
-        """加载中文字体"""
-        system = platform.system()
-        
+        """加载Windows中文字体"""
         # Windows系统字体路径
-        if system == "Windows":
-            font_paths = [
-                "C:/Windows/Fonts/simhei.ttf",  # 黑体
-                "C:/Windows/Fonts/simsun.ttc",  # 宋体
-                "C:/Windows/Fonts/msyh.ttc",    # 微软雅黑
-                "C:/Windows/Fonts/SIMHEI.TTF",  # 黑体(大写)
-            ]
-        # macOS系统字体路径
-        elif system == "Darwin":
-            font_paths = [
-                "/System/Library/Fonts/PingFang.ttc",
-                "/System/Library/Fonts/Hiragino Sans GB.ttc",
-                "/Library/Fonts/Arial Unicode MS.ttf",
-            ]
-        # Linux系统字体路径
-        else:
-            font_paths = [
-                "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
-                "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-                "/usr/share/fonts/truetype/arphic/uming.ttc",
-            ]
+        font_paths = [
+            "C:/Windows/Fonts/simhei.ttf",  # 黑体
+            "C:/Windows/Fonts/simsun.ttc",  # 宋体
+            "C:/Windows/Fonts/msyh.ttc",    # 微软雅黑
+            "C:/Windows/Fonts/SIMHEI.TTF",  # 黑体(大写)
+        ]
         
         # 尝试加载字体
         for font_path in font_paths:
