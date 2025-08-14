@@ -8,7 +8,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import track
 
-from card_generator import EnemyCardGenerator
+from core import EnemyCardGenerator
 from models import EnemyData
 
 console = Console()

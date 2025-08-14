@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QSplitter, QStatusBar, QFileDialog,
                                QMessageBox, QProgressBar)
 
-from card_generator import EnemyCardGenerator
+from core import EnemyCardGenerator
 from .card_model import CardModel
 from .preview_widget import PreviewWidget
 from .property_panel import PropertyPanel
