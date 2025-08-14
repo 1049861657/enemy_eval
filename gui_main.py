@@ -23,26 +23,12 @@ except ImportError as e:
 
 def create_splash_screen():
     """创建启动画面"""
-    # 创建一个简单的启动画面
-    pixmap = QPixmap(400, 300)
-    pixmap.fill(Qt.GlobalColor.white)
+    cover_path = Path(__file__).parent / "resource" / "pic" / "封面.png"
+    pixmap = QPixmap(str(cover_path))
     
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    
-    # 绘制背景渐变
-    gradient_rect = pixmap.rect()
-    painter.setBrush(QBrush(Qt.GlobalColor.blue, Qt.BrushStyle.LinearGradientPattern))
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.drawRect(gradient_rect)
-    
-    # 绘制标题
-    painter.setPen(QPen(Qt.GlobalColor.white))
-    title_font = QFont("Arial", 20, QFont.Weight.Bold)
-    painter.setFont(title_font)
-    painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "敌人评价卡片编辑器\\n\\n正在启动...")
-    
-    painter.end()
+    # 智能缩放到最佳显示尺寸
+    pixmap = pixmap.scaled(800, 600, Qt.AspectRatioMode.KeepAspectRatio, 
+                          Qt.TransformationMode.SmoothTransformation)
     
     splash = QSplashScreen(pixmap)
     splash.show()
