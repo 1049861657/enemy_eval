@@ -25,22 +25,22 @@ def create_splash_screen():
     """创建启动画面"""
     # 创建一个简单的启动画面
     pixmap = QPixmap(400, 300)
-    pixmap.fill(Qt.white)
+    pixmap.fill(Qt.GlobalColor.white)
     
     painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     
     # 绘制背景渐变
     gradient_rect = pixmap.rect()
-    painter.setBrush(QBrush(Qt.blue, Qt.LinearGradientPattern))
-    painter.setPen(Qt.NoPen)
+    painter.setBrush(QBrush(Qt.GlobalColor.blue, Qt.BrushStyle.LinearGradientPattern))
+    painter.setPen(Qt.PenStyle.NoPen)
     painter.drawRect(gradient_rect)
     
     # 绘制标题
-    painter.setPen(QPen(Qt.white))
-    title_font = QFont("Arial", 20, QFont.Bold)
+    painter.setPen(QPen(Qt.GlobalColor.white))
+    title_font = QFont("Arial", 20, QFont.Weight.Bold)
     painter.setFont(title_font)
-    painter.drawText(pixmap.rect(), Qt.AlignCenter, "敌人评价卡片编辑器\\n\\n正在启动...")
+    painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "敌人评价卡片编辑器\\n\\n正在启动...")
     
     painter.end()
     
@@ -87,7 +87,7 @@ def show_dependency_error(missing_deps):
     app = QApplication(sys.argv)
     
     msg = QMessageBox()
-    msg.setIcon(QMessageBox.Critical)
+    msg.setIcon(QMessageBox.Icon.Critical)
     msg.setWindowTitle("依赖项缺失")
     msg.setText("缺少必要的依赖项，程序无法启动。")
     
@@ -99,7 +99,7 @@ def show_dependency_error(missing_deps):
     detail_text += f"pip install {' '.join(missing_deps)}"
     
     msg.setDetailedText(detail_text)
-    msg.setStandardButtons(QMessageBox.Ok)
+    msg.setStandardButtons(QMessageBox.StandardButton.Ok)
     
     msg.exec()
     return False
@@ -148,11 +148,11 @@ def main():
         
         # 显示错误对话框
         msg = QMessageBox()
-        msg.setIcon(QMessageBox.Critical)
+        msg.setIcon(QMessageBox.Icon.Critical)
         msg.setWindowTitle("启动失败")
         msg.setText("程序启动时发生错误。")
         msg.setDetailedText(f"错误详情:\\n{str(e)}")
-        msg.setStandardButtons(QMessageBox.Ok)
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
         msg.exec()
         
         return 1

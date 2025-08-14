@@ -2,78 +2,25 @@
 主窗口 - 敌人评价卡片实时编辑器主界面
 """
 from pathlib import Path
+import logging
 
-import skia
-from PySide6.QtCore import Qt, QThread, Signal, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QSplitter, QStatusBar, QFileDialog,
                                QMessageBox, QProgressBar)
 
-from core import EnemyCardGenerator
 from .card_model import CardModel
 from .preview_widget import PreviewWidget
 from .property_panel import PropertyPanel
+from utils import (AdaptiveDebouncer, CardGeneratorThread, error_handler, 
+                   EnemyEvalException, ValidationError, RenderError, categorize_error_message)
 
-
-class CardGeneratorThread(QThread):
-    """卡片生成线程，避免UI阻塞"""
-    
-    cardGenerated = Signal(object)  # 生成完成信号，传递QPixmap对象
-    errorOccurred = Signal(str)  # 错误信号
-    
-    def __init__(self, enemy_data, save_to_file=False, output_path=None):
-        super().__init__()
-        self.enemy_data = enemy_data
-        self.save_to_file = save_to_file
-        self.output_path = output_path
-        
-    def run(self):
-        """在后台线程中生成卡片"""
-        try:
-            generator = EnemyCardGenerator()
-            
-            if self.save_to_file:
-                # 保存到文件模式
-                output_path = generator.generate_card(self.enemy_data, self.output_path)
-                self.cardGenerated.emit(output_path)
-            else:
-                # 内存预览模式
-                skia_image = generator.generate_card_image(self.enemy_data)
-                
-                # 转换为QPixmap
-                width = skia_image.width()
-                height = skia_image.height()
-                
-                # 获取图像数据
-                image_info = skia.ImageInfo.MakeN32Premul(width, height)
-                row_bytes = width * 4
-                
-                # 创建缓冲区
-                import array
-                pixel_buffer = array.array('B', [0] * (width * height * 4))
-                
-                # 读取像素数据
-                success = skia_image.readPixels(image_info, pixel_buffer, row_bytes, 0, 0)
-                if not success:
-                    raise Exception("无法读取图像像素数据")
-                
-                pixels = bytes(pixel_buffer)
-                
-                # 创建QImage - 修复颜色问题
-                from PySide6.QtGui import QImage, QPixmap
-                qimage = QImage(pixels, width, height, QImage.Format.Format_RGBA8888_Premultiplied)
-                # 转换颜色通道顺序 BGRA -> RGBA
-                qimage = qimage.rgbSwapped()
-                qpixmap = QPixmap.fromImage(qimage)
-                
-                self.cardGenerated.emit(qpixmap)
-                
-        except Exception as e:
-            self.errorOccurred.emit(str(e))
+# 设置日志
+logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
-    """主窗口类"""
+    """主窗口类 - 专注于UI管理和用户交互"""
     
     def __init__(self):
         super().__init__()
@@ -81,6 +28,7 @@ class MainWindow(QMainWindow):
         self.generator_thread = None
         self.last_generated_path = ""
         self.last_generated_pixmap = None
+        self._debouncer = AdaptiveDebouncer(min_delay=50, max_delay=200)
         
         self.setWindowTitle("敌人评价卡片实时编辑器 v1.0")
         self.setGeometry(100, 100, 1400, 900)
@@ -220,33 +168,38 @@ class MainWindow(QMainWindow):
         self.preview_widget.exportRequested.connect(self._export_image)
     
     def _on_data_changed(self):
-        """数据变化时的处理"""
-        # 使用防抖动：延迟500毫秒后生成，避免频繁更新
-        if hasattr(self, '_update_timer'):
-            self._update_timer.stop()
-        
-        self._update_timer = QTimer()
-        self._update_timer.setSingleShot(True)
-        self._update_timer.timeout.connect(self._generate_card)
-        self._update_timer.start(500)  # 500毫秒延迟
+        """数据变化时的处理 - 使用自适应防抖"""
+        self._debouncer.debounce(self._generate_card)
     
     def _generate_card(self):
-        """生成卡片"""
+        """生成卡片 - 优化线程管理"""
+        # 如果有正在运行的线程，优雅停止
         if self.generator_thread and self.generator_thread.isRunning():
-            return  # 避免重复生成
+            self.generator_thread.requestInterruption()
+            self.generator_thread.quit()
+            self.generator_thread.wait(1000)  # 最多等待1秒
         
         self.status_bar.showMessage("正在生成卡片...")
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)  # 无限进度条
         
-        # 启动生成线程（内存预览模式）
-        self.generator_thread = CardGeneratorThread(self.card_model.enemy_data, save_to_file=False)
-        self.generator_thread.cardGenerated.connect(self._on_card_generated)
-        self.generator_thread.errorOccurred.connect(self._on_generation_error)
+        # 重用线程对象，减少创建开销
+        if self.generator_thread is None or self.generator_thread.isFinished():
+            self.generator_thread = CardGeneratorThread(self.card_model.enemy_data, save_to_file=False)
+            self.generator_thread.cardGenerated.connect(self._on_card_generated)
+            self.generator_thread.errorOccurred.connect(self._on_generation_error)
+        else:
+            # 更新数据而不重新创建线程
+            self.generator_thread.enemy_data = self.card_model.enemy_data
+        
         self.generator_thread.start()
     
     def _on_card_generated(self, result):
-        """卡片生成完成"""
+        """卡片生成完成 - 优化内存管理"""
+        # 清理旧的QPixmap内存
+        if hasattr(self, 'last_generated_pixmap') and self.last_generated_pixmap:
+            self.last_generated_pixmap = None
+        
         if isinstance(result, str):
             # 文件路径模式（导出时）
             self.last_generated_path = result
@@ -261,11 +214,15 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(False)
     
     def _on_generation_error(self, error_message: str):
-        """生成错误处理"""
+        """生成错误处理 - 标准化错误显示"""
         self.progress_bar.setVisible(False)
         self.status_bar.showMessage("生成失败")
         
-        QMessageBox.critical(self, "生成错误", f"卡片生成失败:\n{error_message}")
+        # 使用工具函数分类错误消息
+        title, message = categorize_error_message(error_message)
+        
+        logger.error(f"卡片生成失败: {error_message}")
+        QMessageBox.critical(self, title, message)
     
     def _new_card(self):
         """新建卡片"""
@@ -277,33 +234,44 @@ class MainWindow(QMainWindow):
             self._generate_card()
     
     def _open_file(self):
-        """打开配置文件"""
+        """打开配置文件 - 增强错误处理"""
         file_path, _ = QFileDialog.getOpenFileName(
             self, "打开配置文件", "", "JSON文件 (*.json);;所有文件 (*)"
         )
         
         if file_path:
-            if self.card_model.load_from_file(file_path):
-                self.property_panel.refresh_from_model()
-                self.status_bar.showMessage(f"已加载: {Path(file_path).name}")
-            else:
-                QMessageBox.warning(self, "加载失败", "无法加载配置文件，请检查文件格式。")
+            try:
+                with error_handler("加载配置文件"):
+                    if self.card_model.load_from_file(file_path):
+                        self.property_panel.refresh_from_model()
+                        self.status_bar.showMessage(f"已加载: {Path(file_path).name}")
+                        self._generate_card()  # 自动刷新预览
+                    else:
+                        raise ValidationError("无效的配置文件格式")
+            except EnemyEvalException as e:
+                title, message = categorize_error_message(str(e))
+                QMessageBox.warning(self, title, message)
     
     def _save_config(self):
-        """保存配置文件"""
+        """保存配置文件 - 增强错误处理"""
         file_path, _ = QFileDialog.getSaveFileName(
             self, "保存配置文件", f"{self.card_model.enemy_data.name}_config.json", 
             "JSON文件 (*.json);;所有文件 (*)"
         )
         
         if file_path:
-            if self.card_model.save_to_file(file_path):
-                self.status_bar.showMessage(f"已保存: {Path(file_path).name}")
-            else:
-                QMessageBox.warning(self, "保存失败", "无法保存配置文件。")
+            try:
+                with error_handler("保存配置文件"):
+                    if self.card_model.save_to_file(file_path):
+                        self.status_bar.showMessage(f"已保存: {Path(file_path).name}")
+                    else:
+                        raise ValidationError("保存操作失败")
+            except EnemyEvalException as e:
+                title, message = categorize_error_message(str(e))
+                QMessageBox.warning(self, title, message)
     
     def _export_image(self):
-        """导出图片"""
+        """导出图片 - 增强错误处理"""
         if not hasattr(self, 'last_generated_pixmap') or self.last_generated_pixmap is None:
             QMessageBox.information(self, "提示", "请先生成卡片。")
             return
@@ -315,12 +283,17 @@ class MainWindow(QMainWindow):
         
         if file_path:
             try:
-                # 直接从内存中的QPixmap保存
-                self.last_generated_pixmap.save(file_path)
-                self.status_bar.showMessage(f"已导出: {Path(file_path).name}")
-                QMessageBox.information(self, "导出成功", f"图片已保存到:\n{file_path}")
-            except Exception as e:
-                QMessageBox.critical(self, "导出失败", f"无法导出图片:\n{str(e)}")
+                with error_handler("导出图片"):
+                    # 直接从内存中的QPixmap保存
+                    success = self.last_generated_pixmap.save(file_path)
+                    if not success:
+                        raise RenderError("图片保存失败")
+                    
+                    self.status_bar.showMessage(f"已导出: {Path(file_path).name}")
+                    QMessageBox.information(self, "导出成功", f"图片已保存到:\n{file_path}")
+            except EnemyEvalException as e:
+                title, message = categorize_error_message(str(e))
+                QMessageBox.critical(self, title, message)
     
     def _reset_data(self):
         """重置数据"""
@@ -331,16 +304,32 @@ class MainWindow(QMainWindow):
     def _show_about(self):
         """显示关于对话框"""
         QMessageBox.about(self, "关于", 
-            "敌人评价卡片实时编辑器 v1.0\\n\\n"
-            "一个现代化的敌人评价卡片生成工具\\n"
-            "支持实时预览和属性编辑\\n\\n"
+            "敌人评价卡片实时编辑器 v1.0\n\n"
+            "一个现代化的敌人评价卡片生成工具\n"
+            "支持实时预览和属性编辑\n\n"
             "技术栈: Python 3.12 + PySide6 + Skia-Python"
         )
     
     def closeEvent(self, event):
-        """窗口关闭事件"""
-        if self.generator_thread and self.generator_thread.isRunning():
-            self.generator_thread.quit()
-            self.generator_thread.wait()
+        """窗口关闭事件 - 优雅清理资源"""
+        try:
+            with error_handler("清理资源", silent=True):
+                # 优雅停止线程
+                if self.generator_thread and self.generator_thread.isRunning():
+                    self.generator_thread.requestInterruption()
+                    self.generator_thread.quit()
+                    if not self.generator_thread.wait(3000):  # 最多等待3秒
+                        logger.warning("线程未能在预期时间内停止")
+                        self.generator_thread.terminate()
+                
+                # 清理内存
+                if hasattr(self, 'last_generated_pixmap') and self.last_generated_pixmap:
+                    self.last_generated_pixmap = None
+                
+                # 清理防抖器
+                if hasattr(self, '_debouncer'):
+                    self._debouncer.cleanup()
+        except Exception:
+            pass  # 静默失败，不影响关闭
         
         event.accept()
