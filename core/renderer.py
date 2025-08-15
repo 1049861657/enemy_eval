@@ -730,27 +730,6 @@ class EnemyCardGenerator:
                     # 空心星星
                     self._empty_star(star_x, star_y, star_size)
     
-    def _split_text(self, text: str, max_chars: int) -> list[str]:
-        """将长文本分割成多行"""
-        if len(text) <= max_chars:
-            return [text]
-        
-        lines = []
-        while text:
-            if len(text) <= max_chars:
-                lines.append(text)
-                break
-            # 在合适位置分割
-            split_pos = max_chars
-            while split_pos > 0 and text[split_pos] not in '，。！？；':
-                split_pos -= 1
-            if split_pos == 0:
-                split_pos = max_chars
-            
-            lines.append(text[:split_pos])
-            text = text[split_pos:].lstrip('，。！？；')
-        
-        return lines
     
     def _wrap_text(self, text: str, max_width: int, font_size: int) -> list[str]:
         """高性能文本换行 - 使用缓存的文本布局"""
@@ -894,7 +873,7 @@ class EnemyCardGenerator:
         comment_text_paint = skia.Paint(Color=skia.Color4f(0.4, 0.4, 0.4, 1), AntiAlias=True)
         
         # 分行显示简评内容
-        lines = self._split_text(enemy.brief_comment, 40)
+        lines = self._wrap_text(enemy.brief_comment, 1200, 33)  # 使用统一的换行逻辑
         max_lines = 3  # 最多显示3行
         for i, line in enumerate(lines[:max_lines]):
             y_pos = grade_start_y + 75 + i * 45  # 动态调整位置

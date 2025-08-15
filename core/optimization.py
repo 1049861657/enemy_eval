@@ -154,56 +154,85 @@ class RenderResourceManager:
         return result
     
     def _wrap_text_optimized(self, text: str, max_width: int, font: skia.Font) -> List[str]:
-        """优化的文本换行算法"""
+        """优化的文本换行算法 - 支持中文避头尾规则和主动换行"""
         if not text:
             return [""]
+        
+        # 处理主动换行符
+        if '\n' in text:
+            manual_lines = text.split('\n')
+            result_lines = []
+            for line in manual_lines:
+                if line:
+                    result_lines.extend(self._wrap_text_optimized(line, max_width, font))
+                else:
+                    result_lines.append("")
+            return result_lines
         
         if font.measureText(text) <= max_width:
             return [text]
         
+        # 避头尾规则定义
+        cannot_start_line = "，。！？；、）】｝\"'》』"  # 不能在行首的字符
+        cannot_end_line = "\"'（【｛《「"  # 不能在行尾的字符
+        
         lines = []
-        words = []
-        current_word = ""
-        
-        # 优化的分词逻辑
-        for char in text:
-            if char in "，。！？；、 ":
-                if current_word:
-                    words.append(current_word)
-                    current_word = ""
-                if char != " ":
-                    words.append(char)
-            else:
-                current_word += char
-        
-        if current_word:
-            words.append(current_word)
-        
-        # 优化的行构建
         current_line = ""
-        for word in words:
-            test_line = current_line + word
+        i = 0
+        
+        while i < len(text):
+            char = text[i]
+            test_line = current_line + char
+            
+            # 检查当前字符是否能放在当前行
             if font.measureText(test_line) <= max_width:
                 current_line = test_line
+                i += 1
             else:
+                # 当前字符放不下，需要换行
                 if current_line:
-                    lines.append(current_line.strip())
-                    current_line = word
-                else:
-                    # 单词过长，强制分割
-                    while word:
-                        for i in range(len(word), 0, -1):
-                            if font.measureText(word[:i]) <= max_width:
-                                lines.append(word[:i])
-                                word = word[i:]
-                                break
+                    # 检查避头尾规则
+                    final_line = current_line
+                    next_char = char
+                    
+                    # 如果下一个字符不能在行首，尝试将其挤到当前行
+                    if next_char in cannot_start_line:
+                        # 尝试移动当前行最后的一些字符到下一行
+                        if len(current_line) > 1:
+                            # 找到合适的断点
+                            for j in range(len(current_line) - 1, 0, -1):
+                                split_char = current_line[j-1]
+                                if split_char not in cannot_end_line:
+                                    # 在这里分割
+                                    final_line = current_line[:j]
+                                    remaining = current_line[j:] + next_char
+                                    if font.measureText(remaining) <= max_width:
+                                        lines.append(final_line)
+                                        current_line = remaining
+                                        i += 1
+                                        break
+                            else:
+                                # 找不到合适断点，强制换行
+                                lines.append(current_line)
+                                current_line = next_char
+                                i += 1
                         else:
-                            lines.append(word[:1])
-                            word = word[1:]
-                    current_line = ""
+                            # 当前行只有一个字符，强制换行
+                            lines.append(current_line)
+                            current_line = next_char
+                            i += 1
+                    else:
+                        # 正常换行
+                        lines.append(current_line)
+                        current_line = next_char
+                        i += 1
+                else:
+                    # 当前行为空，单个字符就超宽，强制添加
+                    current_line = char
+                    i += 1
         
         if current_line:
-            lines.append(current_line.strip())
+            lines.append(current_line)
         
         return lines if lines else [""]
     
