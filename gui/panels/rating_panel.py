@@ -5,11 +5,12 @@
 import math
 from typing import Optional
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                               QTextEdit, QFrame, QScrollArea)
+                               QTextEdit, QFrame, QScrollArea, QMenu)
 from PySide6.QtCore import Signal, Qt, QPoint
 from PySide6.QtGui import QPainter, QColor, QPen, QPolygon
 
 from ..card_model import CardModel
+from ..detailed_editor_dialog import DetailedEditorDialog
 from ..styles import (STAR_RATING_STYLE, RATING_GROUP_STYLE, DESCRIPTION_GROUP_STYLE,
                      COMMENT_GROUP_STYLE, RATING_TITLE_STYLE, DESCRIPTION_TITLE_STYLE,
                      COMMENT_TITLE_STYLE, CONTENT_AREA_STYLE, RATING_LABEL_STYLE,
@@ -229,6 +230,7 @@ class RatingPanel(QWidget):
         self.brief_description_edit.setMaximumHeight(160)
         self.brief_description_edit.setPlaceholderText("敌人的基本特点和能力描述...")
         self.brief_description_edit.setStyleSheet(DETAILED_TEXT_EDIT_STYLE)
+        self._setup_text_edit_events(self.brief_description_edit, "敌人描述详细编辑")
         description_content_layout.addWidget(self.brief_description_edit)
         description_main_layout.addWidget(description_content_widget)
         
@@ -259,6 +261,7 @@ class RatingPanel(QWidget):
         self.brief_comment_edit.setMaximumHeight(160)
         self.brief_comment_edit.setPlaceholderText("对敌人的整体评价...")
         self.brief_comment_edit.setStyleSheet(DETAILED_TEXT_EDIT_STYLE)
+        self._setup_text_edit_events(self.brief_comment_edit, "简要评价详细编辑")
         comment_content_layout.addWidget(self.brief_comment_edit)
         comment_main_layout.addWidget(comment_content_widget)
         
@@ -316,3 +319,37 @@ class RatingPanel(QWidget):
     def refresh_from_model(self):
         """外部调用刷新接口"""
         self._refresh_from_model()
+    
+    def _setup_text_edit_events(self, text_edit: QTextEdit, dialog_title: str):
+        """为文本编辑器设置详细编辑事件"""
+        # 右键菜单事件
+        def contextMenuEvent(event):
+            menu = text_edit.createStandardContextMenu()
+            menu.addSeparator()
+            
+            # 详细编辑选项
+            detailed_edit_action = menu.addAction("📝 详细编辑")
+            detailed_edit_action.triggered.connect(
+                lambda: self._open_detailed_editor(text_edit, dialog_title)
+            )
+            
+            menu.exec_(event.globalPos())
+            event.accept()
+        
+        # 重写事件处理
+        text_edit.contextMenuEvent = contextMenuEvent
+    
+    def _open_detailed_editor(self, text_edit: QTextEdit, dialog_title: str):
+        """打开详细编辑对话框"""
+        current_text = text_edit.toPlainText()
+        placeholder = text_edit.placeholderText()
+        
+        accepted, new_text = DetailedEditorDialog.edit_text(
+            title=dialog_title,
+            initial_text=current_text,
+            placeholder=placeholder,
+            parent=self
+        )
+        
+        if accepted:
+            text_edit.setPlainText(new_text)

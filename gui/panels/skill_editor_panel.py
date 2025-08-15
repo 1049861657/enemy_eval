@@ -4,12 +4,51 @@
 
 from typing import Optional, List, Dict
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                               QPushButton, QTextEdit, QScrollArea)
-from PySide6.QtCore import Signal
-from PySide6.QtGui import QIcon
+                               QPushButton, QTextEdit, QScrollArea, QMenu)
+from PySide6.QtCore import Signal, Qt
+from PySide6.QtGui import QIcon, QAction
 
 from ..card_model import CardModel
 from ..styles import ADD_BUTTON_STYLE, TEXT_EDIT_STYLE, SKILL_EDIT_STYLE, REMOVE_BUTTON_STYLE
+from ..detailed_editor_dialog import DetailedEditorDialog
+
+
+class DetailedTextEdit(QTextEdit):
+    """支持详细编辑的文本框"""
+    
+    def __init__(self, title: str = "详细编辑", parent=None):
+        super().__init__(parent)
+        self.edit_title = title
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
+    
+    
+    def _show_context_menu(self, position):
+        """显示右键菜单"""
+        menu = self.createStandardContextMenu()
+        menu.addSeparator()
+        
+        # 添加详细编辑选项
+        detail_action = QAction("📝 详细编辑", self)
+        detail_action.triggered.connect(self._open_detailed_editor)
+        menu.addAction(detail_action)
+        
+        menu.exec(self.mapToGlobal(position))
+    
+    def _open_detailed_editor(self):
+        """打开详细编辑器"""
+        current_text = self.toPlainText()
+        placeholder = self.placeholderText()
+        
+        confirmed, new_text = DetailedEditorDialog.edit_text(
+            f"{self.edit_title} - 详细编辑",
+            current_text,
+            placeholder,
+            self
+        )
+        
+        if confirmed:
+            self.setPlainText(new_text)
 
 
 class SkillEditWidget(QWidget):
@@ -76,8 +115,8 @@ class SkillEditWidget(QWidget):
         form_layout.addRow("技力消耗:", self.cost_edit)
         
         # 技能效果
-        self.effect_edit = QTextEdit()
-        self.effect_edit.setMinimumHeight(30)
+        self.effect_edit = DetailedTextEdit("技能效果")
+        self.effect_edit.setFixedHeight(80)
         self.effect_edit.setPlaceholderText("技能效果描述...")
         self.effect_edit.textChanged.connect(self._on_skill_changed)
         form_layout.addRow("效果:", self.effect_edit)
@@ -90,6 +129,7 @@ class SkillEditWidget(QWidget):
         self.cooldown_edit.setText(skill_data.get('冷却时间', ''))
         self.cost_edit.setText(skill_data.get('技力消耗', ''))
         self.effect_edit.setPlainText(skill_data.get('效果', ''))
+    
     
     def _on_skill_changed(self):
         """技能数据变化"""
@@ -170,8 +210,8 @@ class SkillEditorPanel(QWidget):
         talents_header.setStyleSheet("font-weight: bold; font-size: 16px; color: #2c3e50; margin-top: 20px;")
         layout.addWidget(talents_header)
         
-        self.talents_edit = QTextEdit()
-        self.talents_edit.setMaximumHeight(120)
+        self.talents_edit = DetailedTextEdit("天赋 & 能力")
+        self.talents_edit.setFixedHeight(150)
         self.talents_edit.setPlaceholderText("描述敌人的天赋和特殊能力...")
         self.talents_edit.setStyleSheet(TEXT_EDIT_STYLE)
         layout.addWidget(self.talents_edit)
@@ -184,6 +224,7 @@ class SkillEditorPanel(QWidget):
         # 主布局
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(scroll_area)
+    
     
     def _connect_signals(self):
         """连接信号与槽"""

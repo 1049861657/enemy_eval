@@ -154,9 +154,13 @@ class RenderResourceManager:
         return result
     
     def _wrap_text_optimized(self, text: str, max_width: int, font: skia.Font) -> List[str]:
-        """优化的文本换行算法 - 支持中文避头尾规则和主动换行"""
+        """优化的文本换行算法 - 支持中文避头尾规则、主动换行和制表符处理"""
         if not text:
             return [""]
+        
+        # 处理制表符 - 转换为4个空格
+        if '\t' in text:
+            text = text.replace('\t', '    ')
         
         # 处理主动换行符
         if '\n' in text:
