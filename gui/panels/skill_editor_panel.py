@@ -3,14 +3,15 @@
 """
 
 from typing import Optional, List, Dict
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                               QPushButton, QTextEdit, QScrollArea, QMenu)
+
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QIcon, QAction
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+                               QPushButton, QTextEdit, QScrollArea)
 
 from ..card_model import CardModel
-from ..styles import ADD_BUTTON_STYLE, TEXT_EDIT_STYLE, SKILL_EDIT_STYLE, REMOVE_BUTTON_STYLE
 from ..detailed_editor_dialog import DetailedEditorDialog
+from ..styles import ADD_BUTTON_STYLE, TEXT_EDIT_STYLE, SKILL_EDIT_STYLE, REMOVE_BUTTON_STYLE
 
 
 class DetailedTextEdit(QTextEdit):
@@ -69,8 +70,8 @@ class SkillEditWidget(QWidget):
     
     def _create_ui(self):
         """创建UI"""
-        from PySide6.QtWidgets import QFormLayout, QLineEdit, QTextEdit
-        
+        from PySide6.QtWidgets import QFormLayout, QLineEdit
+
         layout = QVBoxLayout(self)
         
         # 添加标题栏（技能序号和删除按钮）
@@ -82,7 +83,8 @@ class SkillEditWidget(QWidget):
         self.remove_btn.setFixedSize(24, 24)
         
         # 设置删除图标
-        icon_path = "resource/ico/icons8-delete-96.png"
+        from utils import resource_manager
+        icon_path = resource_manager.get_icon_path("icons8-delete-96.png")
         self.remove_btn.setIcon(QIcon(icon_path))
         self.remove_btn.setIconSize(self.remove_btn.size())
         self.remove_btn.setStyleSheet(REMOVE_BUTTON_STYLE)

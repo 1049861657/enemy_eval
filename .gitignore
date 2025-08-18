@@ -21,11 +21,17 @@ ENV/
 Thumbs.db
 
 # Output files
- output_*.png
+output_*.png
 
 # Temporary files
 *.tmp
 *.temp
 
-#用户自身资源
+# PyInstaller 打包相关
+build/
+dist/
+*.spec.bak
+*.egg-info/
+
+# 用户自身资源
 /enemy

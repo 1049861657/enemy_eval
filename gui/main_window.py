@@ -50,10 +50,13 @@ class MainWindow(QMainWindow):
         
     def _load_styles(self):
         """加载样式文件"""
+        from utils import resource_manager
+        
         style_path = Path(__file__).parent / "styles.qss"
         if style_path.exists():
             with open(style_path, 'r', encoding='utf-8') as f:
-                self.setStyleSheet(f.read())
+                styles = resource_manager.get_qss_with_resources(f.read())
+                self.setStyleSheet(styles)
     
     def _create_menu_bar(self):
         """创建菜单栏"""

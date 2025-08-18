@@ -24,8 +24,9 @@ except ImportError as e:
 
 def create_splash_screen():
     """创建启动画面"""
-    cover_path = Path(__file__).parent / "resource" / "pic" / "封面.png"
-    pixmap = QPixmap(str(cover_path))
+    from utils import resource_manager
+    cover_path = resource_manager.get_pic_path("封面.png")
+    pixmap = QPixmap(cover_path)
     
     # 智能缩放到最佳显示尺寸
     pixmap = pixmap.scaled(800, 600, Qt.AspectRatioMode.KeepAspectRatio, 
