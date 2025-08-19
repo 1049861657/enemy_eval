@@ -13,6 +13,8 @@ from typing import Dict, Optional, Tuple, List
 
 import skia
 
+# 全局共享图像缓存，确保所有实例能共享预下载的图片
+_GLOBAL_IMAGE_CACHE: Dict[str, skia.Image] = {}
 
 @dataclass
 class TextLayoutResult:
@@ -54,8 +56,8 @@ class RenderResourceManager:
         # 文本布局缓存 - 智能缓存测量结果
         self._text_layout_cache: Dict[str, TextLayoutResult] = {}
         
-        # 图像缓存 - 缓存处理过的图像
-        self._image_cache: Dict[str, skia.Image] = {}
+        # 图像缓存 - 使用全局共享缓存
+        self._image_cache = _GLOBAL_IMAGE_CACHE
         
         # 性能统计
         self._stats = {
@@ -272,23 +274,47 @@ class ImageProcessor:
 
     # noinspection PyUnreachableCode
     def load_avatar_optimized(self, path: str, target_size: Tuple[int, int] = (330, 330)) -> Optional[skia.Image]:
-        """优化的头像加载，带缓存和高质量缩放"""
-        if not path or not Path(path).exists():
+        """优化的头像加载，带缓存和高质量缩放，支持网络URL"""
+        if not path:
             return None
         
-        # 生成缓存键
-        cache_key = f"{path}_{target_size}_{Path(path).stat().st_mtime}"
+        # 导入网络工具（按需导入，减少启动时间）
+        from utils.network_image import is_url, get_url_cache_key
         
-        # 检查缓存
-        if cache_key in self.cache_manager._image_cache:
-            self.cache_manager._stats['image_cache_hits'] += 1
-            return self.cache_manager._image_cache[cache_key]
-        
-        try:
+        # 区分本地文件和网络URL
+        if is_url(path):
+            # 网络图片处理 - 优化：优先使用缓存，避免渲染时网络阻塞
+            cache_key = f"{get_url_cache_key(path)}_{target_size}"
+            
+            # 检查缓存
+            if cache_key in self.cache_manager._image_cache:
+                self.cache_manager._stats['image_cache_hits'] += 1
+                return self.cache_manager._image_cache[cache_key]
+            
+            # 渲染时快速失败：如果缓存中没有，直接返回None避免阻塞
+            # 网络图片应该在数据获取阶段预下载到缓存
+            print(f"网络图片未预缓存，跳过加载以避免渲染阻塞: {path}")
+            return None
+        else:
+            # 本地文件处理（保持原逻辑）
+            if not Path(path).exists():
+                return None
+            
+            # 生成缓存键
+            cache_key = f"{path}_{target_size}_{Path(path).stat().st_mtime}"
+            
+            # 检查缓存
+            if cache_key in self.cache_manager._image_cache:
+                self.cache_manager._stats['image_cache_hits'] += 1
+                return self.cache_manager._image_cache[cache_key]
+            
             # 直接Skia加载
             original_image = self.load_image_direct(path)
             if not original_image:
                 return None
+        
+        # 统一的缩放和缓存处理
+        try:
             # 高质量缩放 - 使用正确的API
             if (original_image.width(), original_image.height()) != target_size:
                 target_w, target_h = target_size

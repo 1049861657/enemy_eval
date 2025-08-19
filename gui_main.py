@@ -115,9 +115,6 @@ def main():
     app.processEvents()
     
     try:
-        # 模拟加载时间
-        QTimer.singleShot(1500, splash.close)
-        
         # 创建主窗口
         main_window = MainWindow()
         

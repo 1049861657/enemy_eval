@@ -65,9 +65,23 @@ class EnemyData(BaseModel):
     @field_validator('avatar_path')
     @classmethod
     def validate_avatar_path(cls, v):
-        """验证头像路径"""
-        if v and not Path(v).exists():
-            raise ValueError(f'图片文件不存在: {v}')
+        """验证头像路径，支持本地文件和网络URL"""
+        if not v:
+            return v
+            
+        # 导入网络工具（按需导入）
+        from utils.network_image import is_url
+        
+        if is_url(v):
+            # 网络URL基础验证
+            from urllib.parse import urlparse
+            parsed = urlparse(v)
+            if not all([parsed.scheme, parsed.netloc]):
+                raise ValueError(f'无效的图片URL: {v}')
+        else:
+            # 本地文件路径验证
+            if not Path(v).exists():
+                raise ValueError(f'图片文件不存在: {v}')
         return v
 
 class CardStyle(BaseModel):

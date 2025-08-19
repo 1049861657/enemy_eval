@@ -112,8 +112,8 @@ class EnemyCardGenerator:
         border_paint.setStrokeWidth(6)
         self.canvas.drawRoundRect(avatar_rect, 18, 18, border_paint)
         
-        # 高性能头像处理 - 直接Skia处理，带缓存
-        if enemy.avatar_path and Path(enemy.avatar_path).exists():
+        # 高性能头像处理 - 支持本地文件和网络URL
+        if enemy.avatar_path:
             skia_img = self.image_processor.load_avatar_optimized(
                 enemy.avatar_path, target_size=(330, 330)
             )

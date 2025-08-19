@@ -5,7 +5,7 @@ from .debouncer import AdaptiveDebouncer
 from .error_handler import EnemyEvalException, RenderError, ValidationError, error_handler, categorize_error_message
 from .thread_manager import CardGeneratorThread
 from .prts_scraper import fetch_enemy_data
-from .prts_integration import PRTSIntegration
+from .network_image import is_url, download_image_data
 from .resource_manager import resource_manager
 
 __all__ = [
@@ -17,6 +17,7 @@ __all__ = [
     'categorize_error_message',
     'CardGeneratorThread',
     'fetch_enemy_data',
-    'PRTSIntegration',
+    'is_url',
+    'download_image_data',
     'resource_manager'
 ]

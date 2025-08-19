@@ -10,10 +10,11 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QSplitter, QSt
                                QMessageBox, QProgressBar, QInputDialog)
 
 from utils import (AdaptiveDebouncer, CardGeneratorThread, error_handler,
-                   EnemyEvalException, ValidationError, RenderError, categorize_error_message, PRTSIntegration)
+                   EnemyEvalException, ValidationError, RenderError, categorize_error_message, fetch_enemy_data)
 from .card_model import CardModel
 from .preview_widget import PreviewWidget
 from .property_panel import PropertyPanel
+from .prts_reference_dialog import PrtsReferenceDialog
 
 # 设置日志
 logger = logging.getLogger(__name__)
@@ -322,13 +323,10 @@ class MainWindow(QMainWindow):
     
     def _reference_prts(self):
         """参考PRTS功能 - 输入敌人名称获取数据"""
-        enemy_name, ok = QInputDialog.getText(
-            self, "参考PRTS", "请输入要查询的敌人名称:",
-            text=""
-        )
-        
-        if ok and enemy_name.strip():
-            self._fetch_prts_data(enemy_name.strip())
+        enemy_name, ok = PrtsReferenceDialog.get_enemy_name_input(self,"PRTS参考")
+
+        if ok and enemy_name:
+            self._fetch_prts_data(enemy_name)
     
     def _fetch_prts_data(self, enemy_name: str):
         """获取PRTS数据并填充到当前模型"""
@@ -337,8 +335,8 @@ class MainWindow(QMainWindow):
         self.progress_bar.setRange(0, 0)
         
         try:
-            # 使用PRTS集成工具获取并转换数据
-            enemy_data, error_msg = PRTSIntegration.fetch_and_convert(enemy_name)
+            # 使用集成的PRTS接口获取并转换数据
+            enemy_data, error_msg = fetch_enemy_data(enemy_name)
             
             if enemy_data:
                 # 更新卡片模型
