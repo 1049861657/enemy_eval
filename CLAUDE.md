@@ -119,3 +119,6 @@ enemy_eval/
 - **错误处理**: 分类异常处理、用户友好错误提示
 - **配置管理**: JSON配置文件、类型安全验证
 - **多线程**: 异步渲染、UI防抖、线程池管理
+
+## 打包语句
+pyinstaller --clean --windowed --add-data "resource;resource" --add-data "gui;gui" --name enemyEval gui_main.py

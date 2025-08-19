@@ -1,19 +1,19 @@
 """
 主窗口 - 敌人评价卡片实时编辑器主界面
 """
-from pathlib import Path
 import logging
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QSplitter, QStatusBar, QFileDialog,
-                               QMessageBox, QProgressBar)
+                               QMessageBox, QProgressBar, QInputDialog)
 
+from utils import (AdaptiveDebouncer, CardGeneratorThread, error_handler,
+                   EnemyEvalException, ValidationError, RenderError, categorize_error_message, PRTSIntegration)
 from .card_model import CardModel
 from .preview_widget import PreviewWidget
 from .property_panel import PropertyPanel
-from utils import (AdaptiveDebouncer, CardGeneratorThread, error_handler, 
-                   EnemyEvalException, ValidationError, RenderError, categorize_error_message)
 
 # 设置日志
 logger = logging.getLogger(__name__)
@@ -101,6 +101,13 @@ class MainWindow(QMainWindow):
         
         # 编辑菜单
         edit_menu = menubar.addMenu("编辑")
+        
+        # 参考PRTS
+        prts_action = QAction("参考PRTS", self)
+        prts_action.triggered.connect(self._reference_prts)
+        edit_menu.addAction(prts_action)
+        
+        edit_menu.addSeparator()
         
         # 重置
         reset_action = QAction("重置数据", self)
@@ -312,6 +319,49 @@ class MainWindow(QMainWindow):
             "支持实时预览和属性编辑\n\n"
             "技术栈: Python 3.12 + PySide6 + Skia-Python"
         )
+    
+    def _reference_prts(self):
+        """参考PRTS功能 - 输入敌人名称获取数据"""
+        enemy_name, ok = QInputDialog.getText(
+            self, "参考PRTS", "请输入要查询的敌人名称:",
+            text=""
+        )
+        
+        if ok and enemy_name.strip():
+            self._fetch_prts_data(enemy_name.strip())
+    
+    def _fetch_prts_data(self, enemy_name: str):
+        """获取PRTS数据并填充到当前模型"""
+        self.status_bar.showMessage(f"正在从PRTS获取「{enemy_name}」的数据...")
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)
+        
+        try:
+            # 使用PRTS集成工具获取并转换数据
+            enemy_data, error_msg = PRTSIntegration.fetch_and_convert(enemy_name)
+            
+            if enemy_data:
+                # 更新卡片模型
+                self.card_model.set_enemy_data(enemy_data)
+                self.property_panel.refresh_from_model()
+                self.status_bar.showMessage(f"已成功导入「{enemy_name}」的PRTS数据")
+                self._generate_card()  # 刷新预览
+                QMessageBox.information(self, "导入成功", f"已成功从PRTS导入「{enemy_name}」的数据。")
+            else:
+                # 处理错误
+                if "未找到敌人" in error_msg:
+                    QMessageBox.warning(self, "未找到敌人", error_msg)
+                else:
+                    QMessageBox.critical(self, "获取失败", error_msg)
+                self.status_bar.showMessage("获取PRTS数据失败")
+                
+        except Exception as e:
+            logger.error(f"PRTS数据获取失败: {e}")
+            QMessageBox.critical(self, "获取失败", f"获取PRTS数据时发生错误：{str(e)}")
+            self.status_bar.showMessage("获取PRTS数据失败")
+        finally:
+            self.progress_bar.setVisible(False)
+    
     
     def closeEvent(self, event):
         """窗口关闭事件 - 优雅清理资源"""

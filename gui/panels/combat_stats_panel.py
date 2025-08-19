@@ -175,7 +175,7 @@ class CombatStatsPanel(QWidget):
         self.attack_range_spin.setValue(data.attack_range_radius)
         
         # 应用攻击方式的控制逻辑
-        if data.attack_type == "近战":
+        if data.attack_type in ["近战", "不攻击"]:
             self.attack_range_spin.setEnabled(False)
         else:
             self.attack_range_spin.setEnabled(True)

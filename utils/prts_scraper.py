@@ -88,6 +88,21 @@ class PRTSScraper:
             if not cells:
                 continue
                 
+            # 处理描述信息（在级别0表格中的"描述"行）
+            if len(cells) == 1:
+                cell_text = self._clean_text(cells[0].get_text())
+                if cell_text == '描述':
+                    # 查找下一行的描述内容
+                    next_row = row.find_next_sibling('tr')
+                    if next_row:
+                        next_cells = next_row.find_all(['td', 'th'])
+                        if len(next_cells) == 1:
+                            description = self._clean_text(next_cells[0].get_text())
+                            if description and description != '描述':
+                                data['brief_description'] = description
+                    continue
+            
+                
             # 处理基本信息行（名称、地位、种类）
             if len(cells) >= 2:
                 cell_texts = [self._clean_text(cell.get_text()) for cell in cells]

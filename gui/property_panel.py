@@ -90,7 +90,8 @@ class PropertyPanel(QWidget):
         """处理攻击方式变化"""
         if property_name == 'attack_type':
             # 通知战斗面板更新攻击范围控制
-            self.combat_panel.set_attack_range_enabled(value != "近战")
+            # 近战和不攻击类型都不能设置攻击范围
+            self.combat_panel.set_attack_range_enabled(value not in ["近战", "不攻击"])
     def _on_skill_changed(self, skill_index: int, skill_data: dict):
         """技能变化处理"""
         self.card_model.update_skill(skill_index, skill_data)

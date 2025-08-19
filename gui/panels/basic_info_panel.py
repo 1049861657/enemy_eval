@@ -50,12 +50,12 @@ class BasicInfoPanel(QWidget):
         
         # 攻击方式
         self.attack_type_combo = QComboBox()
-        self.attack_type_combo.addItems(['近战', '远程', '近战/远程'])
+        self.attack_type_combo.addItems(['近战', '远程', '近战/远程','不攻击'])
         layout.addRow("攻击方式:", self.attack_type_combo)
         
         # 伤害类型
         self.damage_type_combo = QComboBox()
-        self.damage_type_combo.addItems(['物理', '法术'])
+        self.damage_type_combo.addItems(['物理', '法术','治疗','无'])
         layout.addRow("伤害类型:", self.damage_type_combo)
         
         # 行动方式
