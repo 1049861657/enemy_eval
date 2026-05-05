@@ -35,3 +35,6 @@ dist/
 
 # 用户自身资源
 /enemy
+
+# PRTS 调试导出（敌人 parse dump）
+data/prts_debug/
