@@ -10,12 +10,13 @@ from rich.progress import track
 
 from core import EnemyCardGenerator
 from models import EnemyData, SkillEntry
+from utils.app_version import get_app_version
 
 console = Console()
 
 def main():
     """主程序入口"""
-    console.print("[bold green]🎮 敌人评价卡片生成器 v0.1.0[/bold green]")
+    console.print(f"[bold green]🎮 敌人评价卡片生成器 v{get_app_version()}[/bold green]")
     console.print("[dim]Powered by Skia-Python & 2025最新技术栈[/dim]\n")
     
     # 示例数据

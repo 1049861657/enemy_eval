@@ -14,6 +14,8 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent))
 
+from utils.app_version import get_app_version
+
 try:
     from gui.main_window import MainWindow
 except ImportError as e:
@@ -103,7 +105,7 @@ def main():
     # 创建应用程序
     app = QApplication(sys.argv)
     app.setApplicationName("敌人评价卡片编辑器")
-    app.setApplicationVersion("1.0")
+    app.setApplicationVersion(get_app_version())
     app.setApplicationDisplayName("敌人评价卡片实时编辑器")
     app.setOrganizationName("Enemy Eval Team")
     

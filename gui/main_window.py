@@ -20,6 +20,7 @@ from utils import (
     categorize_error_message,
     error_handler,
     fetch_enemy_data,
+    get_app_version,
 )
 from .card_model import CardModel
 from .preview_widget import PreviewWidget
@@ -42,8 +43,9 @@ class MainWindow(QMainWindow):
         self.last_generated_pixmap = None
         self._preview_revision = 0
         self._debouncer = AdaptiveDebouncer(min_delay=200, max_delay=520)
-        
-        self.setWindowTitle("敌人评价卡片实时编辑器 v1.0")
+
+        self._app_version = get_app_version()
+        self.setWindowTitle(f"敌人评价卡片实时编辑器 v{self._app_version}")
         self.setGeometry(100, 100, 1400, 900)
         self.setMinimumSize(1200, 800)
         
@@ -342,8 +344,10 @@ class MainWindow(QMainWindow):
     
     def _show_about(self):
         """显示关于对话框"""
-        QMessageBox.about(self, "关于", 
-            "敌人评价卡片实时编辑器 v1.0\n\n"
+        QMessageBox.about(
+            self,
+            "关于",
+            f"敌人评价卡片实时编辑器 v{self._app_version}\n\n"
             "一个现代化的敌人评价卡片生成工具\n"
             "支持实时预览和属性编辑\n\n"
             "技术栈: Python 3.12 + PySide6 + Skia-Python"

@@ -1,6 +1,7 @@
 """
 Utils模块 - 工具类和辅助函数
 """
+from .app_version import get_app_version
 from .debouncer import AdaptiveDebouncer
 from .error_handler import EnemyEvalException, RenderError, ValidationError, error_handler, categorize_error_message
 from .thread_manager import CardGeneratorThread
@@ -9,6 +10,7 @@ from .network_image import is_url, download_image_data
 from .resource_manager import resource_manager
 
 __all__ = [
+    'get_app_version',
     'AdaptiveDebouncer',
     'EnemyEvalException', 
     'RenderError', 
