@@ -14,7 +14,7 @@ import requests
 import skia
 
 from core.optimization import _GLOBAL_IMAGE_CACHE
-from models import EnemyData
+from models import EnemyData, SkillEntry
 from utils.network_image import download_image_data, get_url_cache_key, is_url
 logger = logging.getLogger(__name__)
 
@@ -262,12 +262,12 @@ def _merge_skill_slots(
         acc[idx].update(part)
 
 
-def _skill_slots_to_card_skills(slots: dict[int, dict[str, str]]) -> list[dict[str, str]]:
+def _skill_slots_to_card_skills(slots: dict[int, dict[str, str]]) -> list[SkillEntry]:
     """
     转为 EnemyData / GUI 使用的技能列表：
     名称、冷却时间（初动/回转）、技力消耗、效果。
     """
-    out: list[dict[str, str]] = []
+    out: list[SkillEntry] = []
     for i in sorted(slots.keys()):
         d = slots[i]
         name = _strip_wiki_html_comments((d.get("名称") or "").strip()).strip()
@@ -285,12 +285,12 @@ def _skill_slots_to_card_skills(slots: dict[int, dict[str, str]]) -> list[dict[s
             cool = ""
         sp = (d.get("技力消耗") or "").strip()
         out.append(
-            {
-                "名称": name or f"技能{i}",
-                "冷却时间": cool,
-                "技力消耗": sp,
-                "效果": effect,
-            }
+            SkillEntry(
+                名称=name or f"技能{i}",
+                冷却时间=cool,
+                技力消耗=sp,
+                效果=effect,
+            )
         )
     return out
 
@@ -377,7 +377,9 @@ def merge_wikitext_enemy(wikitext: str) -> Optional[dict[str, Any]]:
         merged.update(part)
     if ab_acc:
         merged["abnormal_resistances"] = ab_acc
-    merged["skills"] = _skill_slots_to_card_skills(skill_slots)
+    merged["skills"] = [
+        s.model_dump() for s in _skill_slots_to_card_skills(skill_slots)
+    ]
 
     if merged.get("brief_description_common") and not merged.get("brief_description"):
         merged["brief_description"] = merged.pop("brief_description_common")
@@ -590,22 +592,23 @@ def to_enemy_data(raw: dict[str, Any], fallback_name: str) -> Optional[EnemyData
         return None
 
 
-def _normalize_skills_payload(raw: Any) -> list[dict[str, str]]:
-    """保证 skills 为 list[{名称, 冷却时间, 技力消耗, 效果}]，值均为 str。"""
+def _normalize_skills_payload(raw: Any) -> list[SkillEntry]:
+    """保证 skills 为 list[SkillEntry]。"""
     if not isinstance(raw, list):
         return []
-    out: list[dict[str, str]] = []
+    out: list[SkillEntry] = []
     for item in raw:
-        if not isinstance(item, dict):
-            continue
-        out.append(
-            {
-                "名称": str(item.get("名称", "") or ""),
-                "冷却时间": str(item.get("冷却时间", "") or ""),
-                "技力消耗": str(item.get("技力消耗", "") or ""),
-                "效果": str(item.get("效果", "") or ""),
-            }
-        )
+        if isinstance(item, SkillEntry):
+            out.append(item)
+        elif isinstance(item, dict):
+            out.append(
+                SkillEntry(
+                    名称=str(item.get("名称", "") or ""),
+                    冷却时间=str(item.get("冷却时间", "") or ""),
+                    技力消耗=str(item.get("技力消耗", "") or ""),
+                    效果=str(item.get("效果", "") or ""),
+                )
+            )
     return out
 
 

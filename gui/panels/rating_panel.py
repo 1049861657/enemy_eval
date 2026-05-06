@@ -6,7 +6,7 @@ import math
 from typing import Optional
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                                QTextEdit, QFrame, QScrollArea, QMenu)
-from PySide6.QtCore import Signal, Qt, QPoint
+from PySide6.QtCore import Signal, Qt, QPoint, QEvent, QTimer
 from PySide6.QtGui import QPainter, QColor, QPen, QPolygon
 
 from ..card_model import CardModel
@@ -255,12 +255,19 @@ class RatingPanel(QWidget):
         comment_content_layout = QVBoxLayout(comment_content_widget)
         comment_content_layout.setContentsMargins(15, 15, 15, 15)
         
-        # 简评内容
+        # 简评内容（随正文增高，不设上限；外层 ScrollArea 负责整体滚动）
         self.brief_comment_edit = QTextEdit()
         self.brief_comment_edit.setMinimumHeight(120)
-        self.brief_comment_edit.setMaximumHeight(160)
         self.brief_comment_edit.setPlaceholderText("对敌人的整体评价...")
         self.brief_comment_edit.setStyleSheet(DETAILED_TEXT_EDIT_STYLE)
+        self.brief_comment_edit.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.brief_comment_edit.installEventFilter(self)
+        doc_layout = self.brief_comment_edit.document().documentLayout()
+        doc_layout.documentSizeChanged.connect(
+            lambda _size: self._adjust_brief_comment_height()
+        )
         self._setup_text_edit_events(self.brief_comment_edit, "简要评价详细编辑")
         comment_content_layout.addWidget(self.brief_comment_edit)
         comment_main_layout.addWidget(comment_content_widget)
@@ -270,10 +277,56 @@ class RatingPanel(QWidget):
         
         scroll_area.setWidget(scroll_widget)
         scroll_area.setWidgetResizable(True)
+
+        self._syncing_ui = False
+        self._text_debounce_ms = 280
+        self._desc_timer = QTimer(self)
+        self._desc_timer.setSingleShot(True)
+        self._desc_timer.timeout.connect(self._flush_description_changed)
+        self._comment_timer = QTimer(self)
+        self._comment_timer.setSingleShot(True)
+        self._comment_timer.timeout.connect(self._flush_comment_changed)
         
         # 主布局
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(scroll_area)
+
+    def eventFilter(self, obj, event):
+        if obj is self.brief_comment_edit and event.type() == QEvent.Type.Resize:
+            self._adjust_brief_comment_height()
+        return super().eventFilter(obj, event)
+
+    def _adjust_brief_comment_height(self):
+        """按换行后的文档高度拉伸简评框，避免内部滚动条。"""
+        te = self.brief_comment_edit
+        w = te.viewport().width()
+        if w <= 0:
+            return
+        doc = te.document()
+        doc.setTextWidth(max(w, 50))
+        doc_h = doc.size().height()
+        m = te.contentsMargins()
+        fw = te.frameWidth()
+        pad = m.top() + m.bottom() + fw * 2 + 12
+        line_h = te.fontMetrics().height()
+        new_h = int(math.ceil(doc_h)) + pad
+        te.setFixedHeight(max(120, new_h, line_h * 4))
+
+    def _schedule_description_changed(self):
+        if self._syncing_ui:
+            return
+        self._desc_timer.start(self._text_debounce_ms)
+
+    def _schedule_comment_changed(self):
+        if self._syncing_ui:
+            return
+        self._comment_timer.start(self._text_debounce_ms)
+
+    def _flush_description_changed(self):
+        self.descriptionChanged.emit(self.brief_description_edit.toPlainText())
+
+    def _flush_comment_changed(self):
+        self.commentChanged.emit(self.brief_comment_edit.toPlainText())
 
     def _connect_signals(self):
         """连接信号与槽"""
@@ -288,11 +341,8 @@ class RatingPanel(QWidget):
         self.threat_rating.valueChanged.connect(
             lambda value: self.ratingChanged.emit('threat_rating', value))
         
-        # 描述和评价
-        self.brief_description_edit.textChanged.connect(
-            lambda: self.descriptionChanged.emit(self.brief_description_edit.toPlainText()))
-        self.brief_comment_edit.textChanged.connect(
-            lambda: self.commentChanged.emit(self.brief_comment_edit.toPlainText()))
+        self.brief_description_edit.textChanged.connect(self._schedule_description_changed)
+        self.brief_comment_edit.textChanged.connect(self._schedule_comment_changed)
     
     def set_card_model(self, card_model: CardModel):
         """设置数据模型"""
@@ -304,17 +354,29 @@ class RatingPanel(QWidget):
         """从模型刷新UI数据"""
         if not self.card_model:
             return
-            
-        data = self.card_model.enemy_data
-        
-        # 评级
-        self.hostility_rating.setValue(data.hostility_rating)
-        self.innovation_rating.setValue(data.innovation_rating)
-        self.threat_rating.setValue(data.threat_rating)
-        
-        # 描述和评价
-        self.brief_description_edit.setPlainText(data.brief_description)
-        self.brief_comment_edit.setPlainText(data.brief_comment)
+
+        self._desc_timer.stop()
+        self._comment_timer.stop()
+        self._syncing_ui = True
+        try:
+            data = self.card_model.enemy_data
+
+            stars = (self.hostility_rating, self.innovation_rating, self.threat_rating)
+            for rw in stars:
+                rw.blockSignals(True)
+            try:
+                self.hostility_rating.setValue(data.hostility_rating)
+                self.innovation_rating.setValue(data.innovation_rating)
+                self.threat_rating.setValue(data.threat_rating)
+            finally:
+                for rw in stars:
+                    rw.blockSignals(False)
+
+            self.brief_description_edit.setPlainText(data.brief_description)
+            self.brief_comment_edit.setPlainText(data.brief_comment)
+            self._adjust_brief_comment_height()
+        finally:
+            self._syncing_ui = False
     
     def refresh_from_model(self):
         """外部调用刷新接口"""

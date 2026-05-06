@@ -3,7 +3,7 @@
 包含卡片渲染、性能优化、字体管理等基础功能
 """
 
-from .renderer import EnemyCardGenerator
+from .render import EnemyCardGenerator
 from .optimization import (
     RenderResourceManager, 
     ImageProcessor, 

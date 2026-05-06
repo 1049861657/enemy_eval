@@ -2,12 +2,14 @@
 技能编辑面板 - 处理敌人的技能和天赋编辑
 """
 
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Union
 
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal, Qt, QTimer
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                QPushButton, QTextEdit, QScrollArea)
+
+from models import SkillEntry
 
 from ..card_model import CardModel
 from ..detailed_editor_dialog import DetailedEditorDialog
@@ -58,10 +60,19 @@ class SkillEditWidget(QWidget):
     skillChanged = Signal(int, dict)  # 技能变化信号
     removeRequested = Signal(int)     # 请求删除信号
     
-    def __init__(self, skill_index: int, skill_data: Dict[str, str] = None):
+    def __init__(
+        self,
+        skill_index: int,
+        skill_data: Union[SkillEntry, Dict[str, str], None] = None,
+    ):
         super().__init__()
         self.skill_index = skill_index
         self.setStyleSheet(SKILL_EDIT_STYLE)
+        self._suppress_skill_emit = False
+        self._skill_timer = QTimer(self)
+        self._skill_timer.setSingleShot(True)
+        self._skill_timer.timeout.connect(self._emit_skill_payload)
+        self._skill_debounce_ms = 240
         self._create_ui()
         
         # 如果有初始数据，填入
@@ -101,45 +112,57 @@ class SkillEditWidget(QWidget):
         # 技能名称
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText("技能名称")
-        self.name_edit.textChanged.connect(self._on_skill_changed)
+        self.name_edit.textChanged.connect(self._schedule_skill_changed)
         form_layout.addRow("名称:", self.name_edit)
         
         # 冷却时间
         self.cooldown_edit = QLineEdit()
         self.cooldown_edit.setPlaceholderText("如: 3/6 (初动/回转)")
-        self.cooldown_edit.textChanged.connect(self._on_skill_changed)
+        self.cooldown_edit.textChanged.connect(self._schedule_skill_changed)
         form_layout.addRow("冷却时间:", self.cooldown_edit)
         
         # 技力消耗
         self.cost_edit = QLineEdit()
         self.cost_edit.setPlaceholderText("可选，如: 10")
-        self.cost_edit.textChanged.connect(self._on_skill_changed)
+        self.cost_edit.textChanged.connect(self._schedule_skill_changed)
         form_layout.addRow("技力消耗:", self.cost_edit)
         
         # 技能效果
         self.effect_edit = DetailedTextEdit("技能效果")
         self.effect_edit.setFixedHeight(80)
         self.effect_edit.setPlaceholderText("技能效果描述...")
-        self.effect_edit.textChanged.connect(self._on_skill_changed)
+        self.effect_edit.textChanged.connect(self._schedule_skill_changed)
         form_layout.addRow("效果:", self.effect_edit)
         
         layout.addLayout(form_layout)
     
-    def _load_skill_data(self, skill_data: Dict[str, str]):
+    def _load_skill_data(self, skill_data: Union[SkillEntry, Dict[str, str]]):
         """加载技能数据"""
-        self.name_edit.setText(skill_data.get('名称', ''))
-        self.cooldown_edit.setText(skill_data.get('冷却时间', ''))
-        self.cost_edit.setText(skill_data.get('技力消耗', ''))
-        self.effect_edit.setPlainText(skill_data.get('效果', ''))
-    
-    
-    def _on_skill_changed(self):
-        """技能数据变化"""
+        s = (
+            skill_data
+            if isinstance(skill_data, SkillEntry)
+            else SkillEntry.model_validate(skill_data)
+        )
+        self._suppress_skill_emit = True
+        try:
+            self.name_edit.setText(s.名称)
+            self.cooldown_edit.setText(s.冷却时间)
+            self.cost_edit.setText(s.技力消耗)
+            self.effect_edit.setPlainText(s.效果)
+        finally:
+            self._suppress_skill_emit = False
+
+    def _schedule_skill_changed(self):
+        if self._suppress_skill_emit:
+            return
+        self._skill_timer.start(self._skill_debounce_ms)
+
+    def _emit_skill_payload(self):
         skill_data = {
-            '名称': self.name_edit.text(),
-            '冷却时间': self.cooldown_edit.text(),
-            '技力消耗': self.cost_edit.text(),
-            '效果': self.effect_edit.toPlainText()
+            "名称": self.name_edit.text(),
+            "冷却时间": self.cooldown_edit.text(),
+            "技力消耗": self.cost_edit.text(),
+            "效果": self.effect_edit.toPlainText(),
         }
         self.skillChanged.emit(self.skill_index, skill_data)
     
@@ -172,6 +195,11 @@ class SkillEditorPanel(QWidget):
         super().__init__(parent)
         self.card_model = card_model
         self.skill_widgets: List[SkillEditWidget] = []
+        self._syncing_talents = False
+        self._talents_timer = QTimer(self)
+        self._talents_timer.setSingleShot(True)
+        self._talents_timer.timeout.connect(self._flush_talents_changed)
+        self._talents_debounce_ms = 280
         self._create_ui()
         if card_model:
             self._connect_signals()
@@ -226,13 +254,20 @@ class SkillEditorPanel(QWidget):
         # 主布局
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(scroll_area)
-    
+
+    def _schedule_talents_changed(self):
+        if self._syncing_talents:
+            return
+        self._talents_timer.start(self._talents_debounce_ms)
+
+    def _flush_talents_changed(self):
+        self.talentsChanged.emit(self.talents_edit.toPlainText())
+
     def _connect_signals(self):
         """连接信号与槽"""
         if not self.card_model:
             return
-        self.talents_edit.textChanged.connect(
-            lambda: self.talentsChanged.emit(self.talents_edit.toPlainText()))
+        self.talents_edit.textChanged.connect(self._schedule_talents_changed)
     
     def _add_skill(self):
         """添加新技能"""
@@ -308,8 +343,12 @@ class SkillEditorPanel(QWidget):
             self.skill_widgets.append(skill_widget)
             self.skills_layout.addWidget(skill_widget)
         
-        # 天赋能力
-        self.talents_edit.setPlainText(data.talents_abilities)
+        self._talents_timer.stop()
+        self._syncing_talents = True
+        try:
+            self.talents_edit.setPlainText(data.talents_abilities)
+        finally:
+            self._syncing_talents = False
     
     def refresh_from_model(self):
         """外部调用刷新接口"""

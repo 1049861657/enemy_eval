@@ -21,12 +21,26 @@
 enemy_eval/
 ├── main.py                 # 命令行程序入口
 ├── gui_main.py            # GUI程序入口
-├── models.py              # Pydantic数据模型定义
+├── models/                # Pydantic 数据模型（EnemyData、技能等）
+│   ├── __init__.py
+│   ├── enemy_data.py
+│   ├── skill_entry.py
+│   └── card_style.py
 ├── core/                  # 核心基础逻辑模块
-│   ├── __init__.py        # 模块入口
-│   ├── renderer.py        # 高性能卡片渲染器(原card_generator)
-│   ├── fonts.py           # 字体管理器(原font_manager)
-│   └── optimization.py    # 性能优化和资源管理
+│   ├── __init__.py        # 导出 EnemyCardGenerator 等
+│   ├── fonts.py           # 字体管理器
+│   ├── optimization.py    # 性能优化和资源管理
+│   └── render/            # 卡片渲染子系统（模块化拆分）
+│       ├── __init__.py    # 导出 EnemyCardGenerator
+│       ├── generator.py   # EnemyCardGenerator：画布池、渐变、分区编排
+│       ├── layout.py      # 纵向占位测算（与绘制共用公式，无 Canvas）
+│       ├── wiki_text.py   # Wikitext / Skia 段落绘制
+│       ├── stars.py       # 评级星级绘制
+│       └── sections/      # 分区绘制
+│           ├── avatar.py
+│           ├── info.py           # 描述、属性表、异常抗性
+│           ├── skills_talents.py # 技能与天赋表
+│           └── rating_grade.py   # 左侧评级卡、底部等级与简评
 ├── utils/                 # 工具类模块
 │   ├── __init__.py
 │   ├── debouncer.py       # 自适应防抖器
@@ -72,10 +86,11 @@ enemy_eval/
 ## 开发指导
 
 ### 模块架构约定
-- **core/**: 核心逻辑
-- **utils/**: 通用工具类
+- **core/**: 核心逻辑；对外仍通过 `from core import EnemyCardGenerator` 使用渲染器
+- **core/render/**: 布局测算、Wiki 文本、分区绘制与 `generator` 编排，便于扩展与维护
+- **utils/**: 通用工具类（注意：`thread_manager` 在运行时再导入 `EnemyCardGenerator`，避免与 `core` 循环依赖）
 - **gui/**: 界面相关
-- **models.py**: 数据模型统一管理
+- **models/**: 数据模型统一管理（Pydantic）
 - 模块间通过明确的接口导入，避免循环依赖
 
 ### GUI 开发约定
@@ -99,7 +114,7 @@ enemy_eval/
 
 ### 配置文件管理
 - 所有配置使用 JSON 格式存储在 `data/` 目录
-- 配置结构由 `models.py` 中的 Pydantic 模型定义
+- 配置结构由 `models/` 包中的 Pydantic 模型定义
 - 文件命名格式: `{敌人名称}_config.json`
 
 ### 代码风格约定
@@ -112,8 +127,8 @@ enemy_eval/
 - GUI界面支持实时预览和属性编辑
 
 ## 版本信息
-当前版本实现了模块化重构的GUI编辑器和命令行工具，支持:
-- **核心功能**: 实时卡片预览、高性能渲染引擎
+当前版本实现了模块化重构的 GUI 编辑器和命令行工具，支持:
+- **核心功能**: 实时卡片预览、`core/render` 分包的高性能渲染管线
 - **GUI编辑**: 模块化属性面板、技能动态编辑、样式管理
 - **性能优化**: 资源复用池、智能缓存、性能提升75%
 - **错误处理**: 分类异常处理、用户友好错误提示

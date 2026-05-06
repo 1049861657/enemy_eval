@@ -1,6 +1,8 @@
 """
 主窗口 - 敌人评价卡片实时编辑器主界面
 """
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 
@@ -9,8 +11,16 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QSplitter, QStatusBar, QFileDialog,
                                QMessageBox, QProgressBar, QInputDialog)
 
-from utils import (AdaptiveDebouncer, CardGeneratorThread, error_handler,
-                   EnemyEvalException, ValidationError, RenderError, categorize_error_message, fetch_enemy_data)
+from utils import (
+    AdaptiveDebouncer,
+    CardGeneratorThread,
+    EnemyEvalException,
+    RenderError,
+    ValidationError,
+    categorize_error_message,
+    error_handler,
+    fetch_enemy_data,
+)
 from .card_model import CardModel
 from .preview_widget import PreviewWidget
 from .property_panel import PropertyPanel
@@ -27,9 +37,11 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.card_model = CardModel(self)
         self.generator_thread = None
+        self._orphan_render_threads: list[CardGeneratorThread] = []
         self.last_generated_path = ""
         self.last_generated_pixmap = None
-        self._debouncer = AdaptiveDebouncer(min_delay=50, max_delay=200)
+        self._preview_revision = 0
+        self._debouncer = AdaptiveDebouncer(min_delay=200, max_delay=520)
         
         self.setWindowTitle("敌人评价卡片实时编辑器 v1.0")
         self.setGeometry(100, 100, 1400, 900)
@@ -182,35 +194,49 @@ class MainWindow(QMainWindow):
         """数据变化时的处理 - 使用自适应防抖"""
         self._debouncer.debounce(self._generate_card)
     
+    def _release_finished_render_thread(self, thread: CardGeneratorThread) -> None:
+        """旧渲染线程结束后释放 Python 引用；未完成时严禁让 GC 回收 QThread。"""
+        try:
+            self._orphan_render_threads.remove(thread)
+        except ValueError:
+            pass
+        thread.deleteLater()
+
     def _generate_card(self):
-        """生成卡片 - 优化线程管理"""
-        # 如果有正在运行的线程，优雅停止
-        if self.generator_thread and self.generator_thread.isRunning():
-            self.generator_thread.requestInterruption()
-            self.generator_thread.quit()
-            self.generator_thread.wait(1000)  # 最多等待1秒
-        
+        """生成卡片：不在主线程等待线程结束，避免打字时界面卡住。"""
+        self._preview_revision += 1
+        rev = self._preview_revision
+
+        prev = self.generator_thread
+        self.generator_thread = CardGeneratorThread(
+            self.card_model.enemy_data, revision=rev, save_to_file=False
+        )
+        self.generator_thread.cardGenerated.connect(self._on_card_generated)
+        self.generator_thread.errorOccurred.connect(self._on_generation_error)
+
+        if prev is not None:
+            prev.requestInterruption()
+            if prev.isRunning():
+                self._orphan_render_threads.append(prev)
+                prev.finished.connect(
+                    lambda thr=prev: self._release_finished_render_thread(thr)
+                )
+            else:
+                prev.deleteLater()
+
         self.status_bar.showMessage("正在生成卡片...")
         self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0)  # 无限进度条
-        
-        # 重用线程对象，减少创建开销
-        if self.generator_thread is None or self.generator_thread.isFinished():
-            self.generator_thread = CardGeneratorThread(self.card_model.enemy_data, save_to_file=False)
-            self.generator_thread.cardGenerated.connect(self._on_card_generated)
-            self.generator_thread.errorOccurred.connect(self._on_generation_error)
-        else:
-            # 更新数据而不重新创建线程
-            self.generator_thread.enemy_data = self.card_model.enemy_data
-        
+        self.progress_bar.setRange(0, 0)
+
         self.generator_thread.start()
     
-    def _on_card_generated(self, result):
-        """卡片生成完成 - 优化内存管理"""
-        # 清理旧的QPixmap内存
-        if hasattr(self, 'last_generated_pixmap') and self.last_generated_pixmap:
+    def _on_card_generated(self, result, revision: int):
+        """卡片生成完成 - 忽略过期的后台结果"""
+        if revision != self._preview_revision:
+            return
+        if hasattr(self, "last_generated_pixmap") and self.last_generated_pixmap:
             self.last_generated_pixmap = None
-        
+
         if isinstance(result, str):
             # 文件路径模式（导出时）
             self.last_generated_path = result
@@ -224,8 +250,10 @@ class MainWindow(QMainWindow):
         
         self.progress_bar.setVisible(False)
     
-    def _on_generation_error(self, error_message: str):
-        """生成错误处理 - 标准化错误显示"""
+    def _on_generation_error(self, error_message: str, revision: int):
+        """生成错误处理 - 忽略已过期任务的错误提示"""
+        if revision != self._preview_revision:
+            return
         self.progress_bar.setVisible(False)
         self.status_bar.showMessage("生成失败")
         
@@ -365,22 +393,25 @@ class MainWindow(QMainWindow):
         """窗口关闭事件 - 优雅清理资源"""
         try:
             with error_handler("清理资源", silent=True):
-                # 优雅停止线程
-                if self.generator_thread and self.generator_thread.isRunning():
-                    self.generator_thread.requestInterruption()
-                    self.generator_thread.quit()
-                    if not self.generator_thread.wait(3000):  # 最多等待3秒
-                        logger.warning("线程未能在预期时间内停止")
-                        self.generator_thread.terminate()
-                
-                # 清理内存
-                if hasattr(self, 'last_generated_pixmap') and self.last_generated_pixmap:
+                threads: list[CardGeneratorThread] = list(self._orphan_render_threads)
+                if self.generator_thread is not None:
+                    threads.append(self.generator_thread)
+                for t in threads:
+                    if t.isRunning():
+                        t.requestInterruption()
+                for t in threads:
+                    if t.isRunning():
+                        if not t.wait(3000):
+                            logger.warning("渲染线程未能在预期时间内停止")
+                            t.terminate()
+                            t.wait(1000)
+
+                if hasattr(self, "last_generated_pixmap") and self.last_generated_pixmap:
                     self.last_generated_pixmap = None
-                
-                # 清理防抖器
-                if hasattr(self, '_debouncer'):
+
+                if hasattr(self, "_debouncer"):
                     self._debouncer.cleanup()
         except Exception:
-            pass  # 静默失败，不影响关闭
-        
+            pass
+
         event.accept()

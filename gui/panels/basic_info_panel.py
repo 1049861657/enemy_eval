@@ -5,7 +5,7 @@
 from typing import Optional
 from PySide6.QtWidgets import (QWidget, QFormLayout, QLineEdit, QComboBox, 
                                QHBoxLayout, QPushButton, QFileDialog, QScrollArea)
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, QTimer
 
 from ..card_model import CardModel
 
@@ -18,6 +18,14 @@ class BasicInfoPanel(QWidget):
     def __init__(self, card_model: Optional[CardModel] = None, parent=None):
         super().__init__(parent)
         self.card_model = card_model
+        self._syncing_ui = False
+        self._text_debounce_ms = 220
+        self._name_timer = QTimer(self)
+        self._name_timer.setSingleShot(True)
+        self._name_timer.timeout.connect(self._emit_name_changed)
+        self._avatar_timer = QTimer(self)
+        self._avatar_timer.setSingleShot(True)
+        self._avatar_timer.timeout.connect(self._emit_avatar_changed)
         self._create_ui()
         if card_model:
             self._connect_signals()
@@ -82,18 +90,32 @@ class BasicInfoPanel(QWidget):
         # 主布局
         main_layout = QFormLayout(self)
         main_layout.addWidget(scroll_area)
-    
+
+    def _schedule_name_changed(self):
+        if self._syncing_ui:
+            return
+        self._name_timer.start(self._text_debounce_ms)
+
+    def _emit_name_changed(self):
+        self.propertyChanged.emit("name", self.name_edit.text())
+
+    def _schedule_avatar_changed(self):
+        if self._syncing_ui:
+            return
+        self._avatar_timer.start(self._text_debounce_ms)
+
+    def _emit_avatar_changed(self):
+        self.propertyChanged.emit("avatar_path", self.avatar_edit.text())
+
     def _connect_signals(self):
         """连接信号与槽"""
         if not self.card_model:
             return
             
-        self.name_edit.textChanged.connect(
-            lambda: self.propertyChanged.emit('name', self.name_edit.text()))
+        self.name_edit.textChanged.connect(self._schedule_name_changed)
         self.grade_combo.currentTextChanged.connect(
             lambda: self.propertyChanged.emit('grade', self.grade_combo.currentText()))
-        self.avatar_edit.textChanged.connect(
-            lambda: self.propertyChanged.emit('avatar_path', self.avatar_edit.text()))
+        self.avatar_edit.textChanged.connect(self._schedule_avatar_changed)
         self.attack_type_combo.currentTextChanged.connect(
             lambda: self.propertyChanged.emit('attack_type', self.attack_type_combo.currentText()))
         self.damage_type_combo.currentTextChanged.connect(
@@ -123,16 +145,22 @@ class BasicInfoPanel(QWidget):
         """从模型刷新UI数据"""
         if not self.card_model:
             return
-            
-        data = self.card_model.enemy_data
-        self.name_edit.setText(data.name)
-        self.grade_combo.setCurrentText(data.grade)
-        self.avatar_edit.setText(data.avatar_path or "")
-        self.attack_type_combo.setCurrentText(data.attack_type)
-        self.damage_type_combo.setCurrentText(data.damage_type)
-        self.action_type_combo.setCurrentText(data.action_type)
-        self.position_combo.setCurrentText(data.position)
-        self.category_combo.setCurrentText(data.category)
+
+        self._name_timer.stop()
+        self._avatar_timer.stop()
+        self._syncing_ui = True
+        try:
+            data = self.card_model.enemy_data
+            self.name_edit.setText(data.name)
+            self.grade_combo.setCurrentText(data.grade)
+            self.avatar_edit.setText(data.avatar_path or "")
+            self.attack_type_combo.setCurrentText(data.attack_type)
+            self.damage_type_combo.setCurrentText(data.damage_type)
+            self.action_type_combo.setCurrentText(data.action_type)
+            self.position_combo.setCurrentText(data.position)
+            self.category_combo.setCurrentText(data.category)
+        finally:
+            self._syncing_ui = False
     
     def refresh_from_model(self):
         """外部调用刷新接口"""

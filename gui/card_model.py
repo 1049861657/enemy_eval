@@ -7,7 +7,7 @@ from typing import Dict, Any
 
 from PySide6.QtCore import QObject, Signal
 
-from models import EnemyData
+from models import EnemyData, SkillEntry
 
 
 class CardModel(QObject):
@@ -74,25 +74,19 @@ class CardModel(QObject):
             except Exception as e:
                 print(f"数据验证失败: {e}")
     
-    def update_skill(self, index: int, skill_data: Dict[str, str]):
+    def update_skill(self, index: int, skill_data: Dict[str, str] | SkillEntry):
         """更新技能数据"""
+        entry = (
+            skill_data
+            if isinstance(skill_data, SkillEntry)
+            else SkillEntry.model_validate(skill_data)
+        )
         skills = list(self._enemy_data.skills)
-        
-        # 扩展技能列表到足够的长度
         while len(skills) <= index:
-            skills.append({
-                "名称": "",
-                "冷却时间": "",
-                "技力消耗": "",
-                "效果": ""
-            })
-        
-        skills[index] = skill_data
-        
-        # 移除空技能
-        skills = [skill for skill in skills if any(skill.values())]
-        
-        self.update_property('skills', skills)
+            skills.append(SkillEntry())
+        skills[index] = entry
+        skills = [s for s in skills if s.is_nonempty()]
+        self.update_property("skills", skills)
     
     def update_abnormal_resistance(self, resistance_name: str, value: float):
         """更新异常抗性"""

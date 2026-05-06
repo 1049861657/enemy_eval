@@ -60,9 +60,9 @@ class ImageLabel(QLabel):
         # 计算缩放后的尺寸
         scaled_size = self.original_pixmap.size() * self.scale_factor
         scaled_pixmap = self.original_pixmap.scaled(
-            scaled_size, 
-            Qt.AspectRatioMode.KeepAspectRatio, 
-            Qt.TransformationMode.SmoothTransformation
+            scaled_size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.FastTransformation,
         )
         
         self.setPixmap(scaled_pixmap)
@@ -314,22 +314,12 @@ class PreviewWidget(QWidget):
             self._show_error_message("无法加载图片数据")
             return
         
-        # 直接使用更大的固定值作为基准，确保图片能占满预览区域
-        # 从图片看，预览区域应该至少有1200x800的空间
-        available_width = 1200  # 更大的预览宽度
-        available_height = 800   # 更大的预览高度
-        
-        # 打印调试信息
-        print(f"available_size: {available_width} x {available_height}")
-        print(f"pixmap_size: {pixmap.width()} x {pixmap.height()}")
-        
-        # 计算合适的缩放比例（100%对应完整显示在预览区域内）
+        available_width = 1200
+        available_height = 800
+
         scale_x = available_width / pixmap.width()
         scale_y = available_height / pixmap.height()
-        optimal_scale = min(scale_x, scale_y)  # 不限制最大值，让它自适应
-        
-        print(f"calculated optimal_scale: {optimal_scale}")
-        print(f"scale_x: {scale_x}, scale_y: {scale_y}")
+        optimal_scale = min(scale_x, scale_y)
         
         # 设置调整后的图片到ImageLabel
         self.image_label.original_pixmap = pixmap
