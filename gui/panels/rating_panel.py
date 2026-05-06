@@ -274,7 +274,7 @@ class RatingPanel(QWidget):
         # 主布局
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(scroll_area)
-    
+
     def _connect_signals(self):
         """连接信号与槽"""
         if not self.card_model:

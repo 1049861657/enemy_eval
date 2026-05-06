@@ -16,7 +16,6 @@ import skia
 from core.optimization import _GLOBAL_IMAGE_CACHE
 from models import EnemyData
 from utils.network_image import download_image_data, get_url_cache_key, is_url
-
 logger = logging.getLogger(__name__)
 
 PRTS_MEDIAWIKI_API = "https://prts.wiki/api.php"
@@ -271,8 +270,8 @@ def _skill_slots_to_card_skills(slots: dict[int, dict[str, str]]) -> list[dict[s
     out: list[dict[str, str]] = []
     for i in sorted(slots.keys()):
         d = slots[i]
-        name = (d.get("名称") or "").strip()
-        effect = _strip_wiki_html_comments(d.get("效果") or "").strip()
+        name = _strip_wiki_html_comments((d.get("名称") or "").strip()).strip()
+        effect = _strip_wiki_html_comments((d.get("效果") or "").strip()).strip()
         if not name and not effect:
             continue
         chu, hui = d.get("初始"), d.get("消耗")
@@ -389,9 +388,13 @@ def merge_wikitext_enemy(wikitext: str) -> Optional[dict[str, Any]]:
         merged["talents_abilities"] = ""
 
     if isinstance(merged.get("brief_description"), str):
-        merged["brief_description"] = _strip_wiki_html_comments(merged["brief_description"]).strip()
+        merged["brief_description"] = _strip_wiki_html_comments(
+            merged["brief_description"]
+        ).strip()
     if isinstance(merged.get("talents_abilities"), str):
-        merged["talents_abilities"] = _strip_wiki_html_comments(merged["talents_abilities"]).strip()
+        merged["talents_abilities"] = _strip_wiki_html_comments(
+            merged["talents_abilities"]
+        ).strip()
 
     cat = merged.get("category", "")
     if isinstance(cat, str) and not cat.strip():

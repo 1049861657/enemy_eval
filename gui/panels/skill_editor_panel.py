@@ -112,7 +112,7 @@ class SkillEditWidget(QWidget):
         
         # 技力消耗
         self.cost_edit = QLineEdit()
-        self.cost_edit.setPlaceholderText("可选，如: 10 (空白显示斜线)")
+        self.cost_edit.setPlaceholderText("可选，如: 10")
         self.cost_edit.textChanged.connect(self._on_skill_changed)
         form_layout.addRow("技力消耗:", self.cost_edit)
         
@@ -227,12 +227,10 @@ class SkillEditorPanel(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(scroll_area)
     
-    
     def _connect_signals(self):
         """连接信号与槽"""
         if not self.card_model:
             return
-            
         self.talents_edit.textChanged.connect(
             lambda: self.talentsChanged.emit(self.talents_edit.toPlainText()))
     

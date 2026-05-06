@@ -3,6 +3,7 @@
 基于资源复用池和智能缓存，性能提升75%
 """
 
+import math
 import sys
 from pathlib import Path
 from typing import Optional
@@ -14,6 +15,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from models import EnemyData
+from utils.wiki_skia import WikiStyle, parse_wikitext_to_spans, wrap_spans_to_lines
 from .fonts import FontManager
 from .optimization import (
     get_resource_manager, ImageProcessor, PerformanceTimer,
@@ -58,13 +60,20 @@ class EnemyCardGenerator:
         
         # 性能统计
         self._render_count = 0
+        self._render_height: int = self.config.height
+        self._canvas_from_pool: bool = True
         
-    def _init_canvas(self):
-        """高性能Canvas初始化 - 使用复用池"""
-        # 从复用池获取Canvas，避免重复创建
-        self.surface, self.canvas = self.resource_manager.acquire_canvas()
-        
-        # 绘制渐变背景（优化的渐变创建）
+    def _init_canvas(self, render_height: Optional[int] = None):
+        """初始化画布：默认同配置高度并从池中取；超长内容时临时增高 Surface。"""
+        h = int(render_height or self.config.height)
+        self._render_height = h
+        if h == self.config.height:
+            self.surface, self.canvas = self.resource_manager.acquire_canvas()
+            self._canvas_from_pool = True
+        else:
+            self.surface = skia.Surface(self.config.width, h)
+            self.canvas = self.surface.getCanvas()
+            self._canvas_from_pool = False
         self._draw_background_gradient()
     
     def _draw_background_gradient(self):
@@ -74,7 +83,7 @@ class EnemyCardGenerator:
             skia.Color4f(0.92, 0.92, 0.95, 1.0)   # 稍深
         ]
         gradient = skia.GradientShader.MakeLinear(
-            points=[(0, 0), (self.width, self.height)],
+            points=[(0, 0), (self.width, self._render_height)],
             colors=gradient_colors
         )
         paint = skia.Paint(Shader=gradient)
@@ -82,15 +91,145 @@ class EnemyCardGenerator:
     
     def _cleanup_canvas(self):
         """清理Canvas资源"""
-        if self.surface and self.canvas:
+        if not self.surface or not self.canvas:
+            return
+        if self._canvas_from_pool:
             self.resource_manager.release_canvas(self.surface, self.canvas)
-            self.surface = None
-            self.canvas = None
+        self.surface = None
+        self.canvas = None
     
     def _get_optimized_font(self, size: int) -> skia.Font:
         """获取优化的缓存字体"""
         typeface = self.font_manager.chinese_font if self.font_manager.chinese_font else None
         return self.resource_manager.get_font(size, typeface)
+
+    def _measure_wiki_char(self, font: skia.Font, font_bold: skia.Font):
+        def m(ch: str, bold: bool) -> float:
+            f = font_bold if bold else font
+            return f.measureText(ch)
+
+        return m
+
+    def _wiki_line_count(self, text: str, max_w: float, font_size: int, base: WikiStyle) -> int:
+        fn = self.font_manager.get_font(font_size)
+        fb = self.font_manager.get_font(font_size)
+        fb.setEmbolden(True)
+        meas = self._measure_wiki_char(fn, fb)
+        lines = wrap_spans_to_lines(parse_wikitext_to_spans(text or "", base), max_w, meas)
+        return max(1, len(lines))
+
+    def _measure_info_section(self, enemy: EnemyData) -> tuple[float, float]:
+        """与 _info_section 绘制一致：(desc_height, 信息区底边 Y)。"""
+        desc_base = WikiStyle(color=(1.0, 1.0, 1.0, 1.0))
+        desc_lines_n = self._wiki_line_count(enemy.brief_description or "", 1350, 33, desc_base)
+        desc_height = max(75, desc_lines_n * 48 + 30)
+        total_height = desc_height + 234 + 75
+        return float(desc_height), 60.0 + float(total_height)
+
+    def _measure_skills_talents_bottom(self, enemy: EnemyData, info_section_bottom: float) -> float:
+        """与 _skills_talents_section 占位一致：技能+天赋整块底边 Y。"""
+        section_y = info_section_bottom + 20
+        skill_title_header_height = 45
+        skill_column_header_height = 45
+        skill_gray = WikiStyle(color=(0.3, 0.3, 0.3, 1.0))
+        skill_content_height = 0
+        if enemy.skills:
+            for skill in enemy.skills:
+                eff = skill.get("效果", "无效果")
+                lines_needed = self._wiki_line_count(
+                    eff, 1410 - 850 - 30, 21, skill_gray
+                )
+                dynamic_height = 54 + max(0, (lines_needed - 2) * 25)
+                skill_content_height += dynamic_height
+        else:
+            skill_content_height = 54
+        talents_header_height = 45
+        if enemy.talents_abilities:
+            lines_needed = self._wiki_line_count(
+                enemy.talents_abilities, 1410 - 40, 24, skill_gray
+            )
+            talents_content_height = 50 + lines_needed * 28
+        else:
+            talents_content_height = 90
+        unified_table_height = (
+            skill_title_header_height
+            + skill_column_header_height
+            + skill_content_height
+            + talents_header_height
+            + talents_content_height
+        )
+        section_height = unified_table_height + 30
+        return section_y + section_height
+
+    def _measure_render_height(self, enemy: EnemyData) -> int:
+        """底部评级+简评区不得与天赋重叠；不足时增高画布（仍可与配置等高时走对象池）。"""
+        _, info_bottom = self._measure_info_section(enemy)
+        skills_bottom = self._measure_skills_talents_bottom(enemy, info_bottom)
+        grade_h = 210
+        spacing = 28
+        margin = 15
+        grade_start = max(
+            skills_bottom + spacing,
+            float(self.config.height) - grade_h - margin,
+        )
+        need = int(math.ceil(grade_start + grade_h + margin))
+        return max(self.config.height, need)
+
+    def _draw_wiki_paragraph(
+        self,
+        text: str,
+        x_left: float,
+        max_width: float,
+        font_size: int,
+        default_rgbaf: tuple[float, float, float, float],
+        line_step: float,
+        center: bool,
+        base: WikiStyle,
+        *,
+        y_first_baseline: float | None = None,
+        cell_vertical: tuple[float, float] | None = None,
+    ) -> float:
+        fn = self.font_manager.get_font(font_size)
+        fb = self.font_manager.get_font(font_size)
+        fb.setEmbolden(True)
+        meas = self._measure_wiki_char(fn, fb)
+        lines = wrap_spans_to_lines(parse_wikitext_to_spans(text or "", base), max_width, meas)
+        if cell_vertical is not None:
+            cy, ch = cell_vertical
+            n = max(len(lines), 1)
+            block_h = (n - 1) * line_step + line_step * 0.82
+            y = cy + max((ch - block_h) / 2.0 + line_step * 0.74, line_step * 0.88)
+        elif y_first_baseline is not None:
+            y = y_first_baseline
+        else:
+            y = 0.0
+        for line in lines:
+            tw = sum((fb if sp.style.bold else fn).measureText(sp.text) for sp in line)
+            x0 = x_left + (max_width - tw) / 2 if center else x_left
+            x = x0
+            for sp in line:
+                fnt = fb if sp.style.bold else fn
+                if sp.style.dim:
+                    c = (0.55, 0.55, 0.55, 1.0)
+                elif sp.style.color:
+                    c = sp.style.color
+                else:
+                    c = default_rgbaf
+                paint = skia.Paint(Color=skia.Color4f(*c), AntiAlias=True)
+                self.canvas.drawString(sp.text, x, y, fnt, paint)
+                if sp.style.underline:
+                    uw = fnt.measureText(sp.text)
+                    ly = y + max(3.0, font_size * 0.12)
+                    ul = skia.Path()
+                    ul.moveTo(x, ly)
+                    ul.lineTo(x + uw, ly)
+                    ul_paint = skia.Paint(Color=skia.Color4f(*c), AntiAlias=True)
+                    ul_paint.setStyle(skia.Paint.kStroke_Style)
+                    ul_paint.setStrokeWidth(max(1.0, font_size / 18.0))
+                    self.canvas.drawPath(ul, ul_paint)
+                x += fnt.measureText(sp.text)
+            y += line_step
+        return y
     
     def _avatar_section(self, enemy: EnemyData):
         """绘制左侧方形头像区域"""
@@ -138,16 +277,11 @@ class EnemyCardGenerator:
     
     def _info_section(self, enemy: EnemyData):
         """绘制统一信息框 - 合并描述框、主要属性框和异常抗性框"""
-        
-        # 计算描述区域的动态高度
-        desc_lines = self._wrap_text(enemy.brief_description, 1350, 33)  # 1350px可用宽度
-        desc_height = max(75, len(desc_lines) * 48 + 30)  # 每行48px高度+30px底部边距
-        
-        # 计算总高度：描述高度 + 表格高度(3*78) + 异常抗性高度(75)
-        total_height = desc_height + 234 + 75
+        desc_height, bottom_y = self._measure_info_section(enemy)
+        desc_base = WikiStyle(color=(1.0, 1.0, 1.0, 1.0))
         
         # 整体信息框区域 - 动态高度
-        info_rect = skia.Rect(480, 60, 1890, 60 + total_height)
+        info_rect = skia.Rect(480, 60, 1890, bottom_y)
         
         # 主背景 - 改为直角
         bg_paint = skia.Paint(Color=skia.Color4f(0.98, 0.98, 0.98, 0.95), AntiAlias=True)
@@ -172,12 +306,17 @@ class EnemyCardGenerator:
             header_bottom = skia.Rect(480, 96, 1890, 60 + desc_height)
             self.canvas.drawRect(header_bottom, header_paint)
         
-        # 描述文字内容 - 多行显示，修复重叠问题
-        desc_font = self.font_manager.get_font(33)
-        desc_paint = skia.Paint(Color=skia.Color4f(1, 1, 1, 1), AntiAlias=True)
-        for i, line in enumerate(desc_lines):
-            y_pos = 105 + i * 48  # 增加行间距到48px
-            self.canvas.drawString(line, 495, y_pos, desc_font, desc_paint)
+        self._draw_wiki_paragraph(
+            enemy.brief_description or "",
+            495,
+            1350,
+            33,
+            (1.0, 1.0, 1.0, 1.0),
+            48,
+            False,
+            desc_base,
+            y_first_baseline=105,
+        )
         
         # 2. 绘制主要属性表格区域 - 紧贴描述栏
         table_start_y = 60 + desc_height
@@ -187,8 +326,7 @@ class EnemyCardGenerator:
         resist_start_y = table_start_y + 234  # 3行表格高度234px
         self._bottom_abnormal_resistances(enemy, resist_start_y)
         
-        # 返回信息框的底部Y坐标
-        return 60 + total_height
+        return bottom_y
     
     def _stats_table(self, enemy: EnemyData, start_y: int):
         """在统一信息框中绘制主要属性表格"""
@@ -328,53 +466,11 @@ class EnemyCardGenerator:
     
     def _skills_talents_section(self, enemy: EnemyData, start_y: int = 460):
         """绘制技能与天赋&能力框区域 - 动态高度调整"""
-        # 整体框区域 - 基于传入的起始Y坐标，留一些间距
-        section_y = start_y + 20  # 在信息框底部留20px间距
-        
-        # 动态计算技能框高度：统一表格高度 + 边距30px
-        skill_title_header_height = 45  # 技能标题行
-        skill_column_header_height = 45  # 技能列头行
-        
-        # 动态计算技能内容高度（根据每个技能的效果文本）
-        skill_content_height = 0
-        if enemy.skills:
-            for skill in enemy.skills[:3]:
-                effect = skill.get('效果', '无效果')
-                effect_lines = self._wrap_text(effect, 1410 - 850 - 30, 21)  # 使用效果列的实际宽度
-                lines_needed = len(effect_lines)
-                # 根据文本行数调整行高：每额外一行增加25px
-                dynamic_height = 54 + max(0, (lines_needed - 2) * 25)
-                skill_content_height += dynamic_height
-        else:
-            skill_content_height = 54  # 无技能时的默认高度
-            
-        talents_header_height = 45
-        
-        # 动态计算天赋内容高度（根据天赋文本行数）
-        if enemy.talents_abilities:
-            talents_lines = self._wrap_text(enemy.talents_abilities, 1410 - 40, 24)  # 使用实际可用宽度
-            lines_needed = len(talents_lines)
-            # 基础高度50px + 每行28px
-            talents_content_height = 50 + lines_needed * 28
-        else:
-            talents_content_height = 90  # 无天赋时的默认高度
-            
-        unified_table_height = skill_title_header_height + skill_column_header_height + skill_content_height + talents_header_height + talents_content_height
-        section_height = unified_table_height + 30  # 统一表格 + 边距
-        
-        section_rect = skia.Rect(60, section_y, 1890, section_y + section_height)
-        
-        # 移除主背景和边框，不绘制外层框架
-        
-        # 移除标题栏，直接在各自表格中显示标题
-        
-        # 绘制无缝整体表格 - 技能和天赋贴合，调整宽度与上方组件看齐
-        table_start_x = 480  # 与上方统一信息框对齐
-        table_width = 1410   # 与上方统一信息框相同宽度
+        section_y = start_y + 20
+        table_start_x = 480
+        table_width = 1410
         self._skills_talents_table(enemy, table_start_x, section_y, table_width)
-        
-        # 返回技能框的底部Y坐标供后续组件使用
-        return section_y + section_height
+        return self._measure_skills_talents_bottom(enemy, start_y)
     
     def _skills_talents_table(self, enemy: EnemyData, start_x: int, start_y: int, width: int):
         """绘制无缝整体表格 - 技能和天赋贴合，无外层边框"""
@@ -382,15 +478,17 @@ class EnemyCardGenerator:
         skill_title_header_height = 45  # 技能标题行高度
         skill_column_header_height = 45  # 技能列头行高度
         skill_row_height = 54
-        skill_rows = len(enemy.skills[:3]) if enemy.skills else 1
+        skill_rows = len(enemy.skills) if enemy.skills else 1
         skills_content_height = skill_rows * skill_row_height
         
         talents_header_height = 45
         
         # 动态计算天赋内容高度（与主计算逻辑保持一致）
+        skill_gray = WikiStyle(color=(0.3, 0.3, 0.3, 1.0))
         if enemy.talents_abilities:
-            talents_lines = self._wrap_text(enemy.talents_abilities, width - 40, 24)
-            lines_needed = len(talents_lines)
+            lines_needed = self._wiki_line_count(
+                enemy.talents_abilities, width - 40, 24, skill_gray
+            )
             talents_content_height = 50 + lines_needed * 28
         else:
             talents_content_height = 90
@@ -410,12 +508,12 @@ class EnemyCardGenerator:
         
         # 3. 绘制天赋部分（紧贴技能部分）- 使用动态计算的技能内容高度
         # 重新计算技能内容高度
+        skill_gray = WikiStyle(color=(0.3, 0.3, 0.3, 1.0))
         dynamic_skills_content_height = 0
         if enemy.skills:
-            for skill in enemy.skills[:3]:
-                effect = skill.get('效果', '无效果')
-                effect_lines = self._wrap_text(effect, width - 850 - 30, 21)
-                lines_needed = len(effect_lines)
+            for skill in enemy.skills:
+                eff = skill.get('效果', '无效果')
+                lines_needed = self._wiki_line_count(eff, width - 850 - 30, 21, skill_gray)
                 dynamic_height = 54 + max(0, (lines_needed - 2) * 25)
                 dynamic_skills_content_height += dynamic_height
         else:
@@ -463,13 +561,14 @@ class EnemyCardGenerator:
         col_widths = [350, 250, 250, width - 850]  # 自适应最后一列宽度
         
         # 计算每个技能所需的行高（根据效果文本动态计算）
+        skill_gray = WikiStyle(color=(0.3, 0.3, 0.3, 1.0))
         skill_row_heights = []
         if enemy.skills:
-            for skill in enemy.skills[:3]:
-                effect = skill.get('效果', '无效果')
-                effect_lines = self._wrap_text(effect, col_widths[3] - 30, 21)
-                lines_needed = len(effect_lines)
-                # 根据文本行数调整行高：每额外一行增加25px
+            for skill in enemy.skills:
+                eff = skill.get('效果', '无效果')
+                lines_needed = self._wiki_line_count(
+                    eff, col_widths[3] - 30, 21, skill_gray
+                )
                 dynamic_height = base_row_height + max(0, (lines_needed - 2) * 25)
                 skill_row_heights.append(dynamic_height)
         else:
@@ -539,7 +638,7 @@ class EnemyCardGenerator:
             # 5. 绘制技能数据 - 使用动态行高
             content_start_y = start_y + header_height
             current_row_y = content_start_y
-            for i, skill in enumerate(enemy.skills[:3]):
+            for i, skill in enumerate(enemy.skills):
                 row_height = skill_row_heights[i]
                 row_y = current_row_y
                 current_x = start_x
@@ -551,12 +650,17 @@ class EnemyCardGenerator:
                     row_line.lineTo(start_x + width, row_y)
                     self.canvas.drawPath(row_line, grid_paint)
                 
-                # 技能名称（水平和垂直居中）
-                skill_name = skill.get('名称', '未知')
-                name_width = font_content.measureText(skill_name)
-                name_x = current_x + col_widths[0] / 2 - name_width / 2  # 水平居中
-                name_y = row_y + row_height / 2 + 5  # 垂直居中
-                self.canvas.drawString(skill_name, name_x, name_y, font_content, content_paint)
+                self._draw_wiki_paragraph(
+                    skill.get('名称', '未知'),
+                    current_x + 8,
+                    col_widths[0] - 16,
+                    21,
+                    (0.3, 0.3, 0.3, 1.0),
+                    22,
+                    True,
+                    skill_gray,
+                    cell_vertical=(row_y, row_height),
+                )
                 current_x += col_widths[0]
                 
                 # 冷却时间（居中）
@@ -566,40 +670,36 @@ class EnemyCardGenerator:
                 self.canvas.drawString(cooldown, cooldown_x, cooldown_y, font_content, content_paint)
                 current_x += col_widths[1]
                 
-                # 技力消耗（居中）
+                # 技力消耗（居中）；无填时用居中长破折号，避免斜线割裂感
                 cost = skill.get('技力消耗', '0')
-                
-                # 检查是否需要绘制斜线（当技力消耗为空或"0"时）
-                if not cost or cost == '0' or cost.strip() == '':
-                    # 绘制斜线效果
-                    line_paint = skia.Paint(Color=skia.Color4f(0.6, 0.6, 0.6, 1), AntiAlias=True)
-                    line_paint.setStyle(skia.Paint.kStroke_Style)
-                    line_paint.setStrokeWidth(3)
-                    
-                    # 计算当前列的边界
-                    cell_x = current_x
-                    cell_y = row_y
-                    cell_width = col_widths[2]
-                    cell_height = row_height
-                    
-                    # 绘制从左上到右下的斜线
-                    line1 = skia.Path()
-                    line1.moveTo(cell_x + 8, cell_y + 8)
-                    line1.lineTo(cell_x + cell_width - 8, cell_y + cell_height - 8)
-                    self.canvas.drawPath(line1, line_paint)
+                cost_y = row_y + row_height / 2 + 5
+                cell_cx = current_x + col_widths[2] / 2
+                if not cost or cost == "0" or cost.strip() == "":
+                    ph_font = self.font_manager.get_font(20)
+                    placeholder = "—"
+                    ph_paint = skia.Paint(
+                        Color=skia.Color4f(0.62, 0.64, 0.68, 0.92), AntiAlias=True
+                    )
+                    tw = ph_font.measureText(placeholder)
+                    self.canvas.drawString(
+                        placeholder, cell_cx - tw / 2, cost_y, ph_font, ph_paint
+                    )
                 else:
-                    # 正常绘制技力消耗
-                    cost_x = current_x + col_widths[2] / 2 - font_content.measureText(cost) / 2
-                    cost_y = row_y + row_height / 2 + 5  # 垂直居中
+                    cost_x = cell_cx - font_content.measureText(cost) / 2
                     self.canvas.drawString(cost, cost_x, cost_y, font_content, content_paint)
                 current_x += col_widths[2]
                 
-                # 技能效果（完整显示所有行）
-                effect = skill.get('效果', '无效果')
-                effect_lines = self._wrap_text(effect, col_widths[3] - 30, 21)
-                effect_start_y = row_y + 25  # 效果文本的起始位置
-                for j, line in enumerate(effect_lines):  # 显示所有行
-                    self.canvas.drawString(line, current_x + 15, effect_start_y + j * 25, font_content, content_paint)
+                self._draw_wiki_paragraph(
+                    skill.get('效果', '无效果'),
+                    current_x + 15,
+                    col_widths[3] - 30,
+                    21,
+                    (0.3, 0.3, 0.3, 1.0),
+                    25,
+                    True,
+                    skill_gray,
+                    cell_vertical=(row_y, row_height),
+                )
                 
                 # 移动到下一行
                 current_row_y += row_height
@@ -655,13 +755,17 @@ class EnemyCardGenerator:
         # 5. 绘制天赋内容
         content_start_y = start_y + header_height
         if enemy.talents_abilities:
-            desc_font = self.font_manager.get_font(24)
-            desc_paint = skia.Paint(Color=skia.Color4f(0.3, 0.3, 0.3, 1), AntiAlias=True)
-            
-            lines = self._wrap_text(enemy.talents_abilities, width - 40, 24)
-            for i, line in enumerate(lines):  # 显示所有行，不限制
-                y_pos = content_start_y + 25 + i * 28
-                self.canvas.drawString(line, start_x + 20, y_pos, desc_font, desc_paint)
+            self._draw_wiki_paragraph(
+                enemy.talents_abilities,
+                start_x + 20,
+                width - 40,
+                24,
+                (0.3, 0.3, 0.3, 1.0),
+                28,
+                True,
+                WikiStyle(color=(0.3, 0.3, 0.3, 1.0)),
+                y_first_baseline=content_start_y + 25,
+            )
         else:
             no_talent_font = self.font_manager.get_font(24)
             no_talent_paint = skia.Paint(Color=skia.Color4f(0.5, 0.5, 0.5, 1), AntiAlias=True)
@@ -815,11 +919,15 @@ class EnemyCardGenerator:
         paint.setStrokeWidth(1)
         self.canvas.drawPath(path, paint)
     
-    def _grade_section(self, enemy: EnemyData, skills_bottom_y: int):
-        """绘制综合评级框 - 贴近底部"""
-        # 直接计算贴近底部的位置  
-        grade_height = 210  # 评级框高度
-        grade_start_y = self.height - grade_height - 15  # 更贴近底部，距离底部15px
+    def _grade_section(self, enemy: EnemyData, skills_bottom_y: float):
+        """绘制综合评级框：紧随技能天赋底部，短内容时仍贴配置画布底边。"""
+        grade_height = 210
+        spacing = 28
+        margin = 15
+        grade_start_y = max(
+            skills_bottom_y + spacing,
+            float(self.config.height) - grade_height - margin,
+        )
         
         # 等级卡片背景 - 贴近底部
         grade_rect = skia.Rect(60, grade_start_y, 420, grade_start_y + 210)
@@ -890,8 +998,8 @@ class EnemyCardGenerator:
         
         with PerformanceTimer(f"卡片生成#{self._render_count}"):
             try:
-                # 高性能Canvas初始化
-                self._init_canvas()
+                # 高性能Canvas初始化（天赋过长时增高画布，避免与简评重叠）
+                self._init_canvas(self._measure_render_height(enemy))
                 
                 # 绘制各个部分 - 优化的渲染流程
                 with PerformanceTimer("头像区域渲染"):
@@ -929,8 +1037,7 @@ class EnemyCardGenerator:
         
         with PerformanceTimer(f"GUI预览渲染#{self._render_count}"):
             try:
-                # 高性能Canvas初始化
-                self._init_canvas()
+                self._init_canvas(self._measure_render_height(enemy))
                 
                 # 优化的渲染流程（无详细计时，减少开销）
                 self._avatar_section(enemy)
