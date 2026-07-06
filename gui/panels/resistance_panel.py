@@ -67,13 +67,14 @@ class ResistancePanel(QWidget):
     
     def _connect_signals(self):
         """连接信号与槽"""
-        if not self.card_model:
+        if not self.card_model or getattr(self, '_signals_connected', False):
             return
-            
+
         for name, checkbox in self.resistance_checkboxes.items():
             checkbox.stateChanged.connect(
                 lambda state, resistance=name: self.resistanceChanged.emit(
                     resistance, 1.0 if state == Qt.CheckState.Checked.value else 0.0))
+        self._signals_connected = True
     
     def set_card_model(self, card_model: CardModel):
         """设置数据模型"""

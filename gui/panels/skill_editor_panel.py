@@ -265,9 +265,10 @@ class SkillEditorPanel(QWidget):
 
     def _connect_signals(self):
         """连接信号与槽"""
-        if not self.card_model:
+        if not self.card_model or getattr(self, '_signals_connected', False):
             return
         self.talents_edit.textChanged.connect(self._schedule_talents_changed)
+        self._signals_connected = True
     
     def _add_skill(self):
         """添加新技能"""

@@ -330,9 +330,9 @@ class RatingPanel(QWidget):
 
     def _connect_signals(self):
         """连接信号与槽"""
-        if not self.card_model:
+        if not self.card_model or getattr(self, '_signals_connected', False):
             return
-            
+
         # 评级
         self.hostility_rating.valueChanged.connect(
             lambda value: self.ratingChanged.emit('hostility_rating', value))
@@ -343,6 +343,7 @@ class RatingPanel(QWidget):
         
         self.brief_description_edit.textChanged.connect(self._schedule_description_changed)
         self.brief_comment_edit.textChanged.connect(self._schedule_comment_changed)
+        self._signals_connected = True
     
     def set_card_model(self, card_model: CardModel):
         """设置数据模型"""

@@ -109,9 +109,9 @@ class BasicInfoPanel(QWidget):
 
     def _connect_signals(self):
         """连接信号与槽"""
-        if not self.card_model:
+        if not self.card_model or getattr(self, '_signals_connected', False):
             return
-            
+
         self.name_edit.textChanged.connect(self._schedule_name_changed)
         self.grade_combo.currentTextChanged.connect(
             lambda: self.propertyChanged.emit('grade', self.grade_combo.currentText()))
@@ -126,6 +126,7 @@ class BasicInfoPanel(QWidget):
             lambda: self.propertyChanged.emit('position', self.position_combo.currentText()))
         self.category_combo.currentTextChanged.connect(
             lambda: self.propertyChanged.emit('category', self.category_combo.currentText()))
+        self._signals_connected = True
     
     def _select_avatar(self):
         """选择头像文件"""

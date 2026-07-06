@@ -118,9 +118,9 @@ class CombatStatsPanel(QWidget):
     
     def _connect_signals(self):
         """连接信号与槽"""
-        if not self.card_model:
+        if not self.card_model or getattr(self, '_signals_connected', False):
             return
-            
+
         self.max_hp_spin.valueChanged.connect(
             lambda: self.propertyChanged.emit('max_hp', self.max_hp_spin.value()))
         self.hp_recovery_spin.valueChanged.connect(
@@ -147,6 +147,7 @@ class CombatStatsPanel(QWidget):
             lambda: self.propertyChanged.emit('base_taunt_level', self.taunt_spin.value()))
         self.target_value_spin.valueChanged.connect(
             lambda: self.propertyChanged.emit('target_value', self.target_value_spin.value()))
+        self._signals_connected = True
     
     def set_attack_range_enabled(self, enabled: bool):
         """设置攻击范围是否可编辑"""
@@ -166,28 +167,41 @@ class CombatStatsPanel(QWidget):
         """从模型刷新UI数据"""
         if not self.card_model:
             return
-            
+
         data = self.card_model.enemy_data
-        self.max_hp_spin.setValue(data.max_hp)
-        self.hp_recovery_spin.setValue(data.hp_recovery_speed)
-        self.attack_spin.setValue(data.attack)
-        self.attack_interval_spin.setValue(data.attack_interval)
-        self.attack_range_spin.setValue(data.attack_range_radius)
-        
-        # 应用攻击方式的控制逻辑
-        if data.attack_type in ["近战", "不攻击"]:
-            self.attack_range_spin.setEnabled(False)
-        else:
-            self.attack_range_spin.setEnabled(True)
-            
-        self.defense_spin.setValue(data.defense)
-        self.magic_resistance_spin.setValue(data.magic_resistance)
-        self.damage_resistance_spin.setValue(data.damage_resistance)
-        self.element_resistance_spin.setValue(data.element_resistance)
-        self.move_speed_spin.setValue(data.move_speed)
-        self.weight_spin.setValue(data.weight_level)
-        self.taunt_spin.setValue(data.base_taunt_level)
-        self.target_value_spin.setValue(data.target_value)
+        spins = (
+            self.max_hp_spin, self.hp_recovery_spin, self.attack_spin,
+            self.attack_interval_spin, self.attack_range_spin, self.defense_spin,
+            self.magic_resistance_spin, self.damage_resistance_spin,
+            self.element_resistance_spin, self.move_speed_spin,
+            self.weight_spin, self.taunt_spin, self.target_value_spin,
+        )
+        for spin in spins:
+            spin.blockSignals(True)
+        try:
+            self.max_hp_spin.setValue(data.max_hp)
+            self.hp_recovery_spin.setValue(data.hp_recovery_speed)
+            self.attack_spin.setValue(data.attack)
+            self.attack_interval_spin.setValue(data.attack_interval)
+            self.attack_range_spin.setValue(data.attack_range_radius)
+
+            # 应用攻击方式的控制逻辑
+            if data.attack_type in ["近战", "不攻击"]:
+                self.attack_range_spin.setEnabled(False)
+            else:
+                self.attack_range_spin.setEnabled(True)
+
+            self.defense_spin.setValue(data.defense)
+            self.magic_resistance_spin.setValue(data.magic_resistance)
+            self.damage_resistance_spin.setValue(data.damage_resistance)
+            self.element_resistance_spin.setValue(data.element_resistance)
+            self.move_speed_spin.setValue(data.move_speed)
+            self.weight_spin.setValue(data.weight_level)
+            self.taunt_spin.setValue(data.base_taunt_level)
+            self.target_value_spin.setValue(data.target_value)
+        finally:
+            for spin in spins:
+                spin.blockSignals(False)
     
     def refresh_from_model(self):
         """外部调用刷新接口"""

@@ -57,6 +57,8 @@ class PropertyPanel(QWidget):
     
     def _connect_signals(self):
         """连接子面板信号与槽"""
+        if getattr(self, '_signals_connected', False):
+            return
         # 基础信息面板
         self.basic_panel.propertyChanged.connect(self._update_property)
         
@@ -78,6 +80,7 @@ class PropertyPanel(QWidget):
         
         # 处理攻击方式变化的特殊逻辑
         self.basic_panel.propertyChanged.connect(self._handle_attack_type_change)
+        self._signals_connected = True
     def _update_property(self, property_name: str, value):
         """更新属性"""
         self.card_model.update_property(property_name, value)

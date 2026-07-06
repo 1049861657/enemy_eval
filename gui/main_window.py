@@ -185,12 +185,16 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("就绪")
     
     def _connect_signals(self):
-        """连接信号与槽"""
+        """连接信号与槽（一次性，仅在 __init__ 中调用）"""
+        self._connect_model_signals()
+
+        # 预览组件的导出信号（preview_widget 生命周期内只需连接一次）
+        self.preview_widget.exportRequested.connect(self._export_image)
+
+    def _connect_model_signals(self):
+        """连接当前 card_model 的信号，可在 card_model 被替换后重复调用"""
         # 数据模型变化时重新生成卡片
         self.card_model.dataChanged.connect(self._on_data_changed)
-        
-        # 预览组件的导出信号
-        self.preview_widget.exportRequested.connect(self._export_image)
     
     def _on_data_changed(self):
         """数据变化时的处理 - 使用自适应防抖"""
@@ -277,7 +281,7 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             self.card_model = CardModel(self)
             self.property_panel.set_card_model(self.card_model)
-            self._connect_signals()
+            self._connect_model_signals()
             self._generate_card()
     
     def _open_file(self):
