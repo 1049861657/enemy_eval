@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """
-MediaWiki API 实验脚本：连通性探测 + 新管线 utils.prts_mediawiki_pipeline 验证。
+MediaWiki API 人工联网冒烟脚本（非自动化测试，不接入 CI/pytest discovery）。
+
+连通性探测 + utils.prts_mediawiki_pipeline 管线人工核对；需要真实访问 https://prts.wiki。
+自动化单元测试见 tests/（覆盖同一管线的纯函数部分，无需联网）。
 
 用法（项目根目录）:
-  uv run python scripts/test_mediawiki_api.py
-  uv run python scripts/test_mediawiki_api.py 格罗莫夫
-  uv run python scripts/test_mediawiki_api.py 浮士德 --dump   # → data/prts_debug/浮士德/
+  uv run python scripts/smoke_mediawiki_api.py
+  uv run python scripts/smoke_mediawiki_api.py 格罗莫夫
+  uv run python scripts/smoke_mediawiki_api.py 浮士德 --dump   # → data/prts_debug/浮士德/
 """
 
 from __future__ import annotations
