@@ -7,14 +7,16 @@
 
 import hashlib
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Optional, Tuple, List
 
 import skia
 
-# 全局共享图像缓存，确保所有实例能共享预下载的图片
-_GLOBAL_IMAGE_CACHE: Dict[str, skia.Image] = {}
+# 全局共享图像缓存，确保所有实例能共享预下载的图片；OrderedDict 以支持真 LRU
+# （命中时 move_to_end 刷新最近使用位置，超限时从最前端淘汰最久未使用的项）。
+_GLOBAL_IMAGE_CACHE: "OrderedDict[str, skia.Image]" = OrderedDict()
 
 @dataclass
 class TextLayoutResult:
@@ -43,14 +45,16 @@ class RenderConfig:
 class RenderResourceManager:
     """渲染资源复用池 - 核心性能优化"""
     
-    def __init__(self, config: RenderConfig = None):
+    def __init__(self, config: Optional[RenderConfig] = None):
         self.config = config or RenderConfig()
         
         # Canvas复用池 - 避免频繁创建Surface
         self._canvas_pool: List[Tuple[skia.Surface, skia.Canvas]] = []
         self._canvas_in_use: set = set()
         
-        # 字体缓存 - 避免重复加载
+        # 字体缓存 - 避免重复加载。无容量上限：key 是 (size, id(typeface)) 组合，
+        # 本项目内 size 取值是有限枚举（各绘制点固定字号），实际增长上限很低，
+        # 无需引入淘汰逻辑；若未来 size 来源变为不可控的动态值，需要重新评估。
         self._font_cache: Dict[int, skia.Font] = {}
         
         # 文本布局缓存 - 智能缓存测量结果
@@ -247,10 +251,10 @@ class RenderResourceManager:
         return self._stats.copy()
     
     def clear_caches(self):
-        """清空所有缓存"""
+        """清空所有缓存（挂在应用退出前调用，见 gui/main_window.py::closeEvent）。"""
+        self._font_cache.clear()
         self._text_layout_cache.clear()
         self._image_cache.clear()
-        print("✅ 所有缓存已清空")
 
 
 class ImageProcessor:
@@ -289,6 +293,7 @@ class ImageProcessor:
             # 检查缓存
             if cache_key in self.cache_manager._image_cache:
                 self.cache_manager._stats['image_cache_hits'] += 1
+                self.cache_manager._image_cache.move_to_end(cache_key)
                 return self.cache_manager._image_cache[cache_key]
             
             # 渲染时快速失败：如果缓存中没有，直接返回None避免阻塞
@@ -306,6 +311,7 @@ class ImageProcessor:
             # 检查缓存
             if cache_key in self.cache_manager._image_cache:
                 self.cache_manager._stats['image_cache_hits'] += 1
+                self.cache_manager._image_cache.move_to_end(cache_key)
                 return self.cache_manager._image_cache[cache_key]
             
             # 直接Skia加载
@@ -342,11 +348,10 @@ class ImageProcessor:
                 scaled_image = original_image
             
             # 缓存结果
+            # 真 LRU 清理：命中已在读取处 move_to_end，这里淘汰最久未使用（最前端）的一项
             if len(self.cache_manager._image_cache) >= self.cache_manager.config.image_cache_size:
-                # LRU清理：移除第一个
-                first_key = next(iter(self.cache_manager._image_cache))
-                del self.cache_manager._image_cache[first_key]
-            
+                self.cache_manager._image_cache.popitem(last=False)
+
             self.cache_manager._image_cache[cache_key] = scaled_image
             return scaled_image
             

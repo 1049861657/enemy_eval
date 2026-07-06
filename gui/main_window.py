@@ -38,7 +38,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.card_model = CardModel(self)
         self.generator_thread = None
-        self._orphan_render_threads: list[CardGeneratorThread] = []
+        self._pending_render = False
         self.last_generated_path = ""
         self.last_generated_pixmap = None
         self._preview_revision = 0
@@ -196,35 +196,41 @@ class MainWindow(QMainWindow):
         """数据变化时的处理 - 使用自适应防抖"""
         self._debouncer.debounce(self._generate_card)
     
-    def _release_finished_render_thread(self, thread: CardGeneratorThread) -> None:
-        """旧渲染线程结束后释放 Python 引用；未完成时严禁让 GC 回收 QThread。"""
-        try:
-            self._orphan_render_threads.remove(thread)
-        except ValueError:
-            pass
+    def _on_render_thread_finished(self, thread: CardGeneratorThread) -> None:
+        """渲染线程结束后的统一收尾：释放引用，若有排队请求则用最新数据立即发起。"""
         thread.deleteLater()
+        if self.generator_thread is thread:
+            self.generator_thread = None
+        if self._pending_render:
+            self._pending_render = False
+            self._start_render_thread()
 
     def _generate_card(self):
-        """生成卡片：不在主线程等待线程结束，避免打字时界面卡住。"""
+        """请求生成卡片：任意时刻只允许一个渲染线程运行，不在主线程等待线程结束。
+
+        若已有线程在跑，只请求中断并标记排队，真正的新线程延迟到旧线程的
+        `finished` 信号触发时才创建——用那时最新的 `card_model.enemy_data`
+        快照渲染，从而在不阻塞 UI 的前提下保证渲染线程始终串行，杜绝并发
+        访问 core.optimization 全局单例（Canvas 池/字体缓存/图像缓存）。
+        """
+        if self.generator_thread is not None and self.generator_thread.isRunning():
+            self.generator_thread.requestInterruption()
+            self._pending_render = True
+            return
+        self._start_render_thread()
+
+    def _start_render_thread(self) -> None:
         self._preview_revision += 1
         rev = self._preview_revision
 
-        prev = self.generator_thread
         self.generator_thread = CardGeneratorThread(
             self.card_model.enemy_data, revision=rev, save_to_file=False
         )
         self.generator_thread.cardGenerated.connect(self._on_card_generated)
         self.generator_thread.errorOccurred.connect(self._on_generation_error)
-
-        if prev is not None:
-            prev.requestInterruption()
-            if prev.isRunning():
-                self._orphan_render_threads.append(prev)
-                prev.finished.connect(
-                    lambda thr=prev: self._release_finished_render_thread(thr)
-                )
-            else:
-                prev.deleteLater()
+        self.generator_thread.finished.connect(
+            lambda thr=self.generator_thread: self._on_render_thread_finished(thr)
+        )
 
         self.status_bar.showMessage("正在生成卡片...")
         self.progress_bar.setVisible(True)
@@ -397,24 +403,23 @@ class MainWindow(QMainWindow):
         """窗口关闭事件 - 优雅清理资源"""
         try:
             with error_handler("清理资源", silent=True):
-                threads: list[CardGeneratorThread] = list(self._orphan_render_threads)
-                if self.generator_thread is not None:
-                    threads.append(self.generator_thread)
-                for t in threads:
-                    if t.isRunning():
-                        t.requestInterruption()
-                for t in threads:
-                    if t.isRunning():
-                        if not t.wait(3000):
-                            logger.warning("渲染线程未能在预期时间内停止")
-                            t.terminate()
-                            t.wait(1000)
+                t = self.generator_thread
+                if t is not None and t.isRunning():
+                    t.requestInterruption()
+                    if not t.wait(3000):
+                        logger.warning("渲染线程未能在预期时间内停止")
+                        t.terminate()
+                        t.wait(1000)
 
                 if hasattr(self, "last_generated_pixmap") and self.last_generated_pixmap:
                     self.last_generated_pixmap = None
 
                 if hasattr(self, "_debouncer"):
                     self._debouncer.cleanup()
+
+                from core.optimization import get_resource_manager
+
+                get_resource_manager().clear_caches()
         except Exception:
             pass
 
