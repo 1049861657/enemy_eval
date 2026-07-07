@@ -2,12 +2,15 @@
 网络图片支持工具 - 最小侵入性实现
 """
 
-import io
 import hashlib
+import io
+import logging
 from typing import Optional
-from urllib.request import urlopen
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.error import URLError, HTTPError
+from urllib.request import urlopen
+
+logger = logging.getLogger(__name__)
 
 
 def is_url(path: str) -> bool:
@@ -15,7 +18,8 @@ def is_url(path: str) -> bool:
     try:
         parsed = urlparse(path)
         return parsed.scheme in ('http', 'https')
-    except:
+    except ValueError:
+        # urlparse 对畸形字符串（如包含非法端口号）通常抛 ValueError
         return False
 
 
@@ -65,8 +69,8 @@ def download_image_data(url: str, timeout: int = 10, max_size: int = 10 * 1024 *
             
             return data.getvalue()
             
-    except (URLError, HTTPError, OSError, Exception):
-        # 所有网络和解析错误都静默处理
+    except (URLError, HTTPError, OSError, ValueError) as e:
+        logger.debug("下载网络图片失败 %s: %s", url, e)
         return None
 
 

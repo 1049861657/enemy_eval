@@ -1,13 +1,15 @@
 ---
 name: git-commit-release
-description: 为 enemy-eval 仓库生成规范化 git commit message，并在用户明确要求发版时按 SemVer 规则自适应更新 pyproject.toml 版本号与 CHANGELOG.md。涉及"生成 commit"、"写提交信息"、"发版"、"release"、"bump 版本"等请求时使用。
+description: 为 enemy-eval 仓库生成规范化 git commit message，并在用户明确要求发版时按 SemVer 规则自适应更新 pyproject.toml 版本号与 CHANGELOG.md。仅当用户在本轮对话中明确提出"生成 commit"、"写提交信息"、"帮我提交"、"发版"、"release"、"bump 版本"等请求时使用；改动做完、测试通过后，即使看起来"该提交了"，也不要主动调用本 skill 或执行 git commit——停下来汇报结果，等待用户明确要求。
 ---
 
 # Git Commit & 版本发布助手
 
 本 skill 覆盖两个独立场景，不要混淆：
 
-- **场景 A：生成 commit message**（几乎每次改动后都可能用到）
+**硬约束：本 skill 不主动触发。** 无论改动大小、测试是否通过，只要用户没有在本轮明确说"提交"/"commit"/"发版"/"release"类的话，完成改动和验证后就应该停下汇报，不得自行进入下面任何场景并执行 `git commit`。
+
+- **场景 A：生成 commit message**（仅在用户明确要求时执行）
 - **场景 B：发版 / release**（仅当用户明确要求"发版"、"release"、"bump 版本"时才执行，参见 `CLAUDE.md` 第 49 行约束）
 
 ---

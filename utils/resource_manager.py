@@ -4,7 +4,6 @@
 """
 
 import sys
-import os
 from pathlib import Path
 
 
@@ -20,7 +19,7 @@ class ResourceManager:
     
     def get_resource_path(self, relative_path: str) -> str:
         """获取资源文件完整路径"""
-        return os.path.join(self._base_path, relative_path).replace('\\', '/')
+        return Path(self._base_path, relative_path).as_posix()
     
     def get_icon_path(self, icon_name: str) -> str:
         """获取图标路径"""

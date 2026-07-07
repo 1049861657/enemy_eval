@@ -6,6 +6,7 @@
 """
 
 import hashlib
+import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
@@ -16,7 +17,13 @@ import skia
 
 # 全局共享图像缓存，确保所有实例能共享预下载的图片；OrderedDict 以支持真 LRU
 # （命中时 move_to_end 刷新最近使用位置，超限时从最前端淘汰最久未使用的项）。
+# 渲染线程（CardGeneratorThread）与 PRTS 拉取线程（PrtsFetchThread，见
+# utils/thread_manager.py + core/render/avatar_prefetch.py）可能并发读写这个
+# 模块级字典，因此配一把最小粒度的锁：只保护这一个全局缓存，不为整个
+# RenderResourceManager 加锁（Canvas 池/字体缓存/文本布局缓存目前仍只在单一
+# 串行化的渲染线程内访问，见 gui/main_window.py 的渲染排队机制）。
 _GLOBAL_IMAGE_CACHE: "OrderedDict[str, skia.Image]" = OrderedDict()
+_GLOBAL_IMAGE_CACHE_LOCK = threading.Lock()
 
 @dataclass
 class TextLayoutResult:
@@ -254,7 +261,8 @@ class RenderResourceManager:
         """清空所有缓存（挂在应用退出前调用，见 gui/main_window.py::closeEvent）。"""
         self._font_cache.clear()
         self._text_layout_cache.clear()
-        self._image_cache.clear()
+        with _GLOBAL_IMAGE_CACHE_LOCK:
+            self._image_cache.clear()
 
 
 class ImageProcessor:
@@ -291,10 +299,11 @@ class ImageProcessor:
             cache_key = f"{get_url_cache_key(path)}_{target_size}"
             
             # 检查缓存
-            if cache_key in self.cache_manager._image_cache:
-                self.cache_manager._stats['image_cache_hits'] += 1
-                self.cache_manager._image_cache.move_to_end(cache_key)
-                return self.cache_manager._image_cache[cache_key]
+            with _GLOBAL_IMAGE_CACHE_LOCK:
+                if cache_key in self.cache_manager._image_cache:
+                    self.cache_manager._stats['image_cache_hits'] += 1
+                    self.cache_manager._image_cache.move_to_end(cache_key)
+                    return self.cache_manager._image_cache[cache_key]
             
             # 渲染时快速失败：如果缓存中没有，直接返回None避免阻塞
             # 网络图片应该在数据获取阶段预下载到缓存
@@ -309,10 +318,11 @@ class ImageProcessor:
             cache_key = f"{path}_{target_size}_{Path(path).stat().st_mtime}"
             
             # 检查缓存
-            if cache_key in self.cache_manager._image_cache:
-                self.cache_manager._stats['image_cache_hits'] += 1
-                self.cache_manager._image_cache.move_to_end(cache_key)
-                return self.cache_manager._image_cache[cache_key]
+            with _GLOBAL_IMAGE_CACHE_LOCK:
+                if cache_key in self.cache_manager._image_cache:
+                    self.cache_manager._stats['image_cache_hits'] += 1
+                    self.cache_manager._image_cache.move_to_end(cache_key)
+                    return self.cache_manager._image_cache[cache_key]
             
             # 直接Skia加载
             original_image = self.load_image_direct(path)
@@ -349,10 +359,10 @@ class ImageProcessor:
             
             # 缓存结果
             # 真 LRU 清理：命中已在读取处 move_to_end，这里淘汰最久未使用（最前端）的一项
-            if len(self.cache_manager._image_cache) >= self.cache_manager.config.image_cache_size:
-                self.cache_manager._image_cache.popitem(last=False)
-
-            self.cache_manager._image_cache[cache_key] = scaled_image
+            with _GLOBAL_IMAGE_CACHE_LOCK:
+                if len(self.cache_manager._image_cache) >= self.cache_manager.config.image_cache_size:
+                    self.cache_manager._image_cache.popitem(last=False)
+                self.cache_manager._image_cache[cache_key] = scaled_image
             return scaled_image
             
         except Exception as e:

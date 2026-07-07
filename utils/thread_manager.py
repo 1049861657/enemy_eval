@@ -86,3 +86,50 @@ class CardGeneratorThread(QThread):
 
         except Exception as e:
             raise RenderError(f"图像转换失败: {str(e)}") from e
+
+
+class PrtsFetchThread(QThread):
+    """PRTS 数据拉取线程：避免 fetch_enemy_data 的两次 HTTP 请求 + 头像下载/解码阻塞主线程。"""
+
+    fetchFinished = Signal(object, object)  # (Optional[EnemyData], Optional[str] error_msg)
+
+    def __init__(self, enemy_name: str):
+        super().__init__()
+        self.enemy_name = enemy_name
+
+    def run(self):
+        """在后台线程中拉取 PRTS 数据并预下载头像。"""
+        from core.render.avatar_prefetch import preload_prts_avatar_image
+        from utils.prts_enemy_builder import strip_debug_keys, to_enemy_data
+        from utils.prts_mediawiki_pipeline import (
+            error_message_for_raw,
+            fetch_enemy_from_prts_mediawiki,
+        )
+
+        try:
+            if self.isInterruptionRequested():
+                return
+
+            raw = fetch_enemy_from_prts_mediawiki(self.enemy_name)
+            if self.isInterruptionRequested():
+                return
+
+            if "error" in raw:
+                self.fetchFinished.emit(None, error_message_for_raw(raw, self.enemy_name))
+                return
+
+            clean = strip_debug_keys(raw)
+            if clean.get("avatar_path"):
+                preload_prts_avatar_image(clean["avatar_path"])
+
+            if self.isInterruptionRequested():
+                return
+
+            enemy_data = to_enemy_data(clean, self.enemy_name)
+            if enemy_data:
+                self.fetchFinished.emit(enemy_data, None)
+            else:
+                self.fetchFinished.emit(None, "PRTS数据格式不兼容，无法导入。")
+        except Exception as e:
+            if not self.isInterruptionRequested():
+                self.fetchFinished.emit(None, f"获取PRTS数据时发生错误：{str(e)}")

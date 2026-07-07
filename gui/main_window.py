@@ -15,11 +15,11 @@ from utils import (
     AdaptiveDebouncer,
     CardGeneratorThread,
     EnemyEvalException,
+    PrtsFetchThread,
     RenderError,
     ValidationError,
     categorize_error_message,
     error_handler,
-    fetch_enemy_data,
     get_app_version,
 )
 from .card_model import CardModel
@@ -38,6 +38,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.card_model = CardModel(self)
         self.generator_thread = None
+        self.prts_fetch_thread = None
         self._pending_render = False
         self.last_generated_path = ""
         self.last_generated_pixmap = None
@@ -365,42 +366,53 @@ class MainWindow(QMainWindow):
     
     def _reference_prts(self):
         """参考PRTS功能 - 输入敌人名称获取数据"""
+        if self.prts_fetch_thread is not None and self.prts_fetch_thread.isRunning():
+            QMessageBox.information(self, "请稍候", "已有一个PRTS数据请求正在进行中，请等待其完成。")
+            return
+
         enemy_name, ok = PrtsReferenceDialog.get_enemy_name_input(self,"PRTS参考")
 
         if ok and enemy_name:
             self._fetch_prts_data(enemy_name)
-    
+
     def _fetch_prts_data(self, enemy_name: str):
-        """获取PRTS数据并填充到当前模型"""
+        """异步获取PRTS数据并填充到当前模型：起后台线程，不阻塞主线程/事件循环。"""
         self.status_bar.showMessage(f"正在从PRTS获取「{enemy_name}」的数据...")
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)
-        
-        try:
-            # 使用集成的PRTS接口获取并转换数据
-            enemy_data, error_msg = fetch_enemy_data(enemy_name)
-            
-            if enemy_data:
-                # 更新卡片模型
-                self.card_model.set_enemy_data(enemy_data)
-                self.property_panel.refresh_from_model()
-                self.status_bar.showMessage(f"已成功导入「{enemy_name}」的PRTS数据")
-                self._generate_card()  # 刷新预览
-                QMessageBox.information(self, "导入成功", f"已成功从PRTS导入「{enemy_name}」的数据。")
+
+        thread = PrtsFetchThread(enemy_name)
+        thread.fetchFinished.connect(
+            lambda enemy_data, error_msg, name=enemy_name: self._on_prts_fetch_finished(
+                name, enemy_data, error_msg
+            )
+        )
+        thread.finished.connect(lambda thr=thread: self._on_prts_thread_finished(thr))
+        self.prts_fetch_thread = thread
+        thread.start()
+
+    def _on_prts_fetch_finished(self, enemy_name: str, enemy_data, error_msg):
+        """PrtsFetchThread 结果回调：更新模型/提示，不在此处清理线程引用（由 finished 信号统一处理）。"""
+        self.progress_bar.setVisible(False)
+        if enemy_data is not None:
+            self.card_model.set_enemy_data(enemy_data)
+            self.property_panel.refresh_from_model()
+            self.status_bar.showMessage(f"已成功导入「{enemy_name}」的PRTS数据")
+            self._generate_card()  # 刷新预览
+            QMessageBox.information(self, "导入成功", f"已成功从PRTS导入「{enemy_name}」的数据。")
+        else:
+            error_msg = error_msg or "未知错误"
+            if "未找到敌人" in error_msg:
+                QMessageBox.warning(self, "未找到敌人", error_msg)
             else:
-                # 处理错误
-                if "未找到敌人" in error_msg:
-                    QMessageBox.warning(self, "未找到敌人", error_msg)
-                else:
-                    QMessageBox.critical(self, "获取失败", error_msg)
-                self.status_bar.showMessage("获取PRTS数据失败")
-                
-        except Exception as e:
-            logger.error(f"PRTS数据获取失败: {e}")
-            QMessageBox.critical(self, "获取失败", f"获取PRTS数据时发生错误：{str(e)}")
+                QMessageBox.critical(self, "获取失败", error_msg)
             self.status_bar.showMessage("获取PRTS数据失败")
-        finally:
-            self.progress_bar.setVisible(False)
+
+    def _on_prts_thread_finished(self, thread: "PrtsFetchThread") -> None:
+        """线程结束后释放引用，避免悬挂 QThread 对象。"""
+        thread.deleteLater()
+        if self.prts_fetch_thread is thread:
+            self.prts_fetch_thread = None
     
     
     def closeEvent(self, event):
@@ -414,6 +426,14 @@ class MainWindow(QMainWindow):
                         logger.warning("渲染线程未能在预期时间内停止")
                         t.terminate()
                         t.wait(1000)
+
+                pt = self.prts_fetch_thread
+                if pt is not None and pt.isRunning():
+                    pt.requestInterruption()
+                    if not pt.wait(3000):
+                        logger.warning("PRTS拉取线程未能在预期时间内停止")
+                        pt.terminate()
+                        pt.wait(1000)
 
                 if hasattr(self, "last_generated_pixmap") and self.last_generated_pixmap:
                     self.last_generated_pixmap = None

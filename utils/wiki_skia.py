@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import Callable
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_balanced(s: str, start: int, open_s: str, close_s: str) -> tuple[int, str]:
@@ -71,6 +74,7 @@ def _css_color(spec: str) -> tuple[float, float, float, float]:
         return (0.0, 0.92, 0.92, 1.0)
     if sl == "blue":
         return (0.15, 0.45, 0.85, 1.0)
+    logger.debug("_css_color: 未识别的颜色名 %r，回退为默认蓝灰色", spec)
     return (0.2, 0.45, 0.75, 1.0)
 
 
@@ -126,8 +130,10 @@ def _render_template_spans(inner: str, base: WikiStyle) -> list[TextSpan]:
         return [TextSpan(parts[1].strip(), base)]
 
     if len(parts) >= 2:
+        logger.debug("_render_template_spans: 未知模板 key=%r，按去掉首段的内联展示兜底", key)
         return _parse_inline_spans("|".join(parts[1:]), base)
 
+    logger.debug("_render_template_spans: 未知模板 key=%r 且无参数，原样展示模板体", key)
     return [TextSpan(inner_u, base)]
 
 
