@@ -37,7 +37,7 @@ def draw_rating_cards(
         card_rect = skia.Rect(x, y, x + card_width, y + card_height)
         gradient_colors = [
             skia.Color4f(*color, 0.85),
-            skia.Color4f(color[0] * 0.8, color[1] * 0.8, color[2] * 0.8, 0.85),
+            skia.Color4f(*layout.darken(color, 0.8), 0.85),
         ]
         gradient = skia.GradientShader.MakeLinear(
             points=[(x, y), (x, y + card_height)],
@@ -84,12 +84,7 @@ def draw_grade_section(gen: "EnemyCardGenerator", enemy: EnemyData, skills_botto
 
     gradient_colors = [
         skia.Color4f(*grade_color),
-        skia.Color4f(
-            grade_color[0] * 0.7,
-            grade_color[1] * 0.7,
-            grade_color[2] * 0.7,
-            grade_color[3],
-        ),
+        skia.Color4f(*layout.darken(grade_color[:3], 0.7), grade_color[3]),
     ]
     gradient = skia.GradientShader.MakeLinear(
         points=[(60, grade_start_y), (420, grade_bottom)],
@@ -109,7 +104,7 @@ def draw_grade_section(gen: "EnemyCardGenerator", enemy: EnemyData, skills_botto
 
     shadow_paint = skia.Paint(Color=skia.Color4f(0, 0, 0, 0.3), AntiAlias=True)
     grade_width = grade_font.measureText(enemy.grade)
-    grade_x = 240 - grade_width / 2
+    grade_x = layout.center_text_x(grade_rect.left(), grade_rect.width(), grade_width)
     grade_baseline = grade_start_y + block_h / 2 + 30
     gen.canvas.drawString(enemy.grade, grade_x + 6, grade_baseline + 6, grade_font, shadow_paint)
     gen.canvas.drawString(enemy.grade, grade_x, grade_baseline, grade_font, text_paint)
@@ -124,11 +119,11 @@ def draw_grade_section(gen: "EnemyCardGenerator", enemy: EnemyData, skills_botto
     comment_border.setStrokeWidth(3)
     gen.canvas.drawRoundRect(comment_rect, 18, 18, comment_border)
 
-    comment_font = gen.font_manager.get_font(33)
+    comment_font = gen.font_manager.get_font(layout.GRADE_COMMENT_FONT_SIZE)
     comment_text_paint = skia.Paint(Color=skia.Color4f(0.4, 0.4, 0.4, 1), AntiAlias=True)
 
     raw = (enemy.brief_comment or "").strip()
-    lines = gen._wrap_text(raw, layout.COMMENT_WRAP_WIDTH, 33) if raw else [""]
+    lines = gen._wrap_text(raw, layout.COMMENT_WRAP_WIDTH, layout.GRADE_COMMENT_FONT_SIZE) if raw else [""]
     for i, line in enumerate(lines):
         y_pos = grade_start_y + layout.COMMENT_FIRST_BASELINE + i * layout.COMMENT_LINE_STEP
         if i == 0:

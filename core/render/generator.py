@@ -8,7 +8,7 @@ import skia
 
 from models import EnemyData
 
-from core.fonts import FontManager
+from core.fonts import FontManager, get_font_manager
 from core.optimization import (
     ImageProcessor,
     PerformanceTimer,
@@ -24,7 +24,11 @@ from .sections import avatar, info, rating_grade, skills_talents
 class EnemyCardGenerator:
     """高性能敌人评价卡片生成器（Canvas 池、渐变背景、分区模块化绘制）。"""
 
-    def __init__(self, resource_manager: Optional[RenderResourceManager] = None):
+    def __init__(
+        self,
+        resource_manager: Optional[RenderResourceManager] = None,
+        font_manager: Optional[FontManager] = None,
+    ):
         self.config = RenderConfig()
         self.width = self.config.width
         self.height = self.config.height
@@ -35,7 +39,7 @@ class EnemyCardGenerator:
         self.surface: Optional[skia.Surface] = None
         self.canvas: Optional[skia.Canvas] = None
 
-        self.font_manager = FontManager()
+        self.font_manager = font_manager or get_font_manager()
 
         self.grade_colors = {
             "S": (0.85, 0.2, 0.5, 1.0),

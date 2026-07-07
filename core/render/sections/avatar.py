@@ -8,6 +8,8 @@ import skia
 
 from models import EnemyData
 
+from core.render.layout import center_text_x
+
 if TYPE_CHECKING:
     from core.render.generator import EnemyCardGenerator
 
@@ -46,5 +48,5 @@ def draw_avatar_section(gen: "EnemyCardGenerator", enemy: EnemyData) -> None:
     paint = skia.Paint(Color=skia.Color4f(0.1, 0.1, 0.1, 1), AntiAlias=True)
 
     text_width = font.measureText(enemy.name)
-    text_x = 225 - text_width / 2
+    text_x = center_text_x(avatar_rect.left(), avatar_rect.width(), text_width)
     canvas.drawString(enemy.name, text_x, 465, font, paint)

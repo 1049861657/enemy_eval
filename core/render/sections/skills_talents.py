@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING
 import skia
 
 from models import EnemyData
-from utils.wiki_skia import WikiStyle
+from utils.wiki_span_parser import WikiStyle
 
 from core.render import layout
-from core.render.wiki_text import draw_wiki_paragraph
+from core.render.wiki_paragraph_renderer import draw_wiki_paragraph
 
 if TYPE_CHECKING:
     from core.render.generator import EnemyCardGenerator
@@ -46,8 +46,8 @@ def _draw_skills_talents_table(
         lines_needed = layout.wiki_line_count(
             gen.font_manager,
             enemy.talents_abilities,
-            width - 40,
-            24,
+            layout.TALENTS_TEXT_WRAP_WIDTH,
+            layout.TALENTS_TEXT_FONT_SIZE,
             skill_gray,
         )
         talents_content_height = 50 + lines_needed * 28
@@ -82,8 +82,8 @@ def _draw_skills_talents_table(
             lines_needed = layout.wiki_line_count(
                 gen.font_manager,
                 eff,
-                width - 850 - 30,
-                21,
+                layout.SKILL_EFFECT_WRAP_WIDTH,
+                layout.SKILL_EFFECT_FONT_SIZE,
                 skill_gray,
             )
             dynamic_height = 54 + max(0, (lines_needed - 2) * 25)
@@ -135,7 +135,7 @@ def _draw_skills_title_header(
     header_paint = skia.Paint(Color=skia.Color4f(0.2, 0.2, 0.2, 1), AntiAlias=True)
     skill_title_text = "技能"
     skill_title_width = font_header.measureText(skill_title_text)
-    skill_title_x = start_x + (width - skill_title_width) / 2
+    skill_title_x = layout.center_text_x(start_x, width, skill_title_width)
     gen.canvas.drawString(
         skill_title_text, skill_title_x, start_y + 30, font_header, header_paint
     )
@@ -161,8 +161,8 @@ def _draw_skills_section(
             lines_needed = layout.wiki_line_count(
                 gen.font_manager,
                 eff,
-                col_widths[3] - 30,
-                21,
+                layout.SKILL_EFFECT_WRAP_WIDTH,
+                layout.SKILL_EFFECT_FONT_SIZE,
                 skill_gray,
             )
             dynamic_height = base_row_height + max(0, (lines_needed - 2) * 25)
@@ -209,7 +209,7 @@ def _draw_skills_section(
         headers = ["名称", "冷却时间", "技力消耗", "效果"]
         current_x = start_x
         for i, header in enumerate(headers):
-            text_x = current_x + col_widths[i] / 2 - font_header.measureText(header) / 2
+            text_x = layout.center_text_x(current_x, col_widths[i], font_header.measureText(header))
             gen.canvas.drawString(header, text_x, start_y + 30, font_header, header_paint)
 
             if i < len(headers) - 1:
@@ -250,8 +250,8 @@ def _draw_skills_section(
             current_x += col_widths[0]
 
             cooldown = skill.冷却时间 or "无"
-            cooldown_x = (
-                current_x + col_widths[1] / 2 - font_content.measureText(cooldown) / 2
+            cooldown_x = layout.center_text_x(
+                current_x, col_widths[1], font_content.measureText(cooldown)
             )
             cooldown_y = row_y + row_height / 2 + 5
             gen.canvas.drawString(cooldown, cooldown_x, cooldown_y, font_content, content_paint)
@@ -280,8 +280,8 @@ def _draw_skills_section(
                 gen.font_manager,
                 skill.效果 or "无效果",
                 current_x + 15,
-                col_widths[3] - 30,
-                21,
+                layout.SKILL_EFFECT_WRAP_WIDTH,
+                layout.SKILL_EFFECT_FONT_SIZE,
                 (0.3, 0.3, 0.3, 1.0),
                 25,
                 True,
@@ -299,7 +299,7 @@ def _draw_skills_section(
 
         no_skill_text = "无特殊技能"
         no_skill_width = font_content.measureText(no_skill_text)
-        no_skill_x = start_x + (width - no_skill_width) / 2
+        no_skill_x = layout.center_text_x(start_x, width, no_skill_width)
         gen.canvas.drawString(no_skill_text, no_skill_x, start_y + 38, font_content, content_paint)
 
 
@@ -338,7 +338,7 @@ def _draw_talents_section(
     talents_title_paint = skia.Paint(Color=skia.Color4f(0.2, 0.2, 0.2, 1), AntiAlias=True)
     talent_title_text = "天赋&能力"
     talent_title_width = talents_font.measureText(talent_title_text)
-    talent_title_x = start_x + (width - talent_title_width) / 2
+    talent_title_x = layout.center_text_x(start_x, width, talent_title_width)
     gen.canvas.drawString(
         talent_title_text, talent_title_x, start_y + 30, talents_font, talents_title_paint
     )
@@ -350,8 +350,8 @@ def _draw_talents_section(
             gen.font_manager,
             enemy.talents_abilities,
             start_x + 20,
-            width - 40,
-            24,
+            layout.TALENTS_TEXT_WRAP_WIDTH,
+            layout.TALENTS_TEXT_FONT_SIZE,
             (0.3, 0.3, 0.3, 1.0),
             28,
             True,
@@ -363,7 +363,7 @@ def _draw_talents_section(
         no_talent_paint = skia.Paint(Color=skia.Color4f(0.5, 0.5, 0.5, 1), AntiAlias=True)
         no_talent_text = "无特殊天赋能力"
         no_talent_width = no_talent_font.measureText(no_talent_text)
-        no_talent_x = start_x + (width - no_talent_width) / 2
+        no_talent_x = layout.center_text_x(start_x, width, no_talent_width)
         gen.canvas.drawString(
             no_talent_text, no_talent_x, content_start_y + 50, no_talent_font, no_talent_paint
         )

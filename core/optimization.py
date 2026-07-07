@@ -113,13 +113,20 @@ class RenderResourceManager:
                 break
     
     def get_font(self, size: int, typeface: Optional[skia.Typeface] = None) -> skia.Font:
-        """获取缓存的字体"""
+        """获取指定 (size, typeface) 的字体。
+
+        返回值经 `makeWithSize()` 克隆而非直接复用缓存对象：调用方（如
+        `avatar.py::draw_avatar_section` 经 `_get_optimized_font`）会对返回值
+        原地 `setEmbolden(True)`，若直接返回缓存实例会污染同 key 的后续取用者
+        （与 `core/fonts.py::FontManager.get_font` 的同类问题一致）。
+        """
         cache_key = hash((size, id(typeface) if typeface else None))
-        
-        if cache_key not in self._font_cache:
-            self._font_cache[cache_key] = skia.Font(typeface, size)
-        
-        return self._font_cache[cache_key]
+
+        template = self._font_cache.get(cache_key)
+        if template is None:
+            template = skia.Font(typeface, size)
+            self._font_cache[cache_key] = template
+        return template.makeWithSize(size)
     
     def get_text_layout(self, text: str, max_width: int, font_size: int, 
                        typeface: Optional[skia.Typeface] = None) -> TextLayoutResult:

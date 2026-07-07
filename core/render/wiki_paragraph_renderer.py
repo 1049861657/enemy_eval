@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import skia
 
-from utils.wiki_skia import WikiStyle, parse_wikitext_to_spans, wrap_spans_to_lines
+from utils.wiki_span_parser import WikiStyle, parse_wikitext_to_spans, wrap_spans_to_lines
 
 from core.fonts import FontManager
 
-from .layout import measure_wiki_char
+from .layout import build_wiki_measurer
 
 
 def draw_wiki_paragraph(
@@ -26,10 +26,7 @@ def draw_wiki_paragraph(
     y_first_baseline: float | None = None,
     cell_vertical: tuple[float, float] | None = None,
 ) -> float:
-    fn = font_manager.get_font(font_size)
-    fb = font_manager.get_font(font_size)
-    fb.setEmbolden(True)
-    meas = measure_wiki_char(fn, fb)
+    fn, fb, meas = build_wiki_measurer(font_manager, font_size)
     lines = wrap_spans_to_lines(parse_wikitext_to_spans(text or "", base), max_width, meas)
     if cell_vertical is not None:
         cy, ch = cell_vertical

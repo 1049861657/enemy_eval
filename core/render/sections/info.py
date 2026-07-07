@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING
 import skia
 
 from models import EnemyData
-from utils.wiki_skia import WikiStyle
+from utils.wiki_span_parser import WikiStyle
 
 from core.render import layout
-from core.render.wiki_text import draw_wiki_paragraph
+from core.render.wiki_paragraph_renderer import draw_wiki_paragraph
 
 if TYPE_CHECKING:
     from core.render.generator import EnemyCardGenerator
@@ -46,8 +46,8 @@ def draw_info_section(gen: "EnemyCardGenerator", enemy: EnemyData) -> float:
         gen.font_manager,
         enemy.brief_description or "",
         495,
-        1350,
-        33,
+        layout.INFO_DESC_WRAP_WIDTH,
+        layout.INFO_DESC_FONT_SIZE,
         (1.0, 1.0, 1.0, 1.0),
         48,
         False,
@@ -125,7 +125,7 @@ def _draw_stats_table(gen: "EnemyCardGenerator", enemy: EnemyData, start_y: int)
             gen.canvas.drawRect(cell_rect, grid_paint)
 
             name_width = font_name.measureText(name)
-            name_x = x + (cell_width - name_width) / 2
+            name_x = layout.center_text_x(x, cell_width, name_width)
             gen.canvas.drawString(name, name_x, y + 30, font_name, name_paint)
 
             value_str = str(value)
@@ -143,7 +143,7 @@ def _draw_stats_table(gen: "EnemyCardGenerator", enemy: EnemyData, start_y: int)
                 gen.canvas.drawPath(line1, line_paint)
             else:
                 value_width = font_value.measureText(value_str)
-                value_x = x + (cell_width - value_width) / 2
+                value_x = layout.center_text_x(x, cell_width, value_width)
                 gen.canvas.drawString(value_str, value_x, y + 69, font_value, value_paint)
 
             current_x += cell_width
