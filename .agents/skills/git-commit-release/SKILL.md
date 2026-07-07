@@ -93,9 +93,37 @@ version = "X.Y.Z"
 
 ### 4. 提交与打 tag
 
+**commit message 正文必须包含本版本 `CHANGELOG.md` 小节的实际内容**——标题行单独一句 `chore: release X.Y.Z` 信息量太低，看 `git log` 看不出这一版做了什么；正文直接复用第 2 步写入 `## [X.Y.Z]` 下的分类条目（`### 新增`/`### 变更`/`### 修复`…），不要重新概括或精简。
+
+推荐用临时文件 + `git commit -F` 避免多行内容的 shell 转义问题：
+
 ```
 git add pyproject.toml CHANGELOG.md
-git commit -m "chore: release X.Y.Z"
+```
+
+commit message 文件内容（写入临时文件，如 `.git/COMMIT_EDITMSG_DRAFT`）：
+
+```
+chore: release X.Y.Z
+
+### 新增
+
+- <照抄 CHANGELOG.md 本版本「新增」下的条目>
+
+### 变更
+
+- <照抄 CHANGELOG.md 本版本「变更」下的条目>
+
+### 修复
+
+- <照抄 CHANGELOG.md 本版本「修复」下的条目>
+```
+
+（只保留 CHANGELOG 里本版本实际存在的分类小标题，没有条目的分类不要留空标题）
+
+```
+git commit -F .git/COMMIT_EDITMSG_DRAFT
+rm -f .git/COMMIT_EDITMSG_DRAFT
 git tag -a vX.Y.Z -m "release X.Y.Z"
 ```
 
@@ -105,7 +133,7 @@ git tag -a vX.Y.Z -m "release X.Y.Z"
 
 - [ ] `pyproject.toml` 版本号与 `CHANGELOG.md` 新增小节版本号一致
 - [ ] `CHANGELOG.md` 的 `[未发布]` 小节已清空并保留占位
-- [ ] commit message 遵循 `chore: release X.Y.Z` 格式
+- [ ] commit message 标题行为 `chore: release X.Y.Z`，正文照抄本版本 `CHANGELOG.md` 小节内容（而非只有孤零零一行标题）
 - [ ] tag 名称为 `vX.Y.Z`（注意前缀 `v`，与仓库已有 tag `v0.1.0` 一致）
 - [ ] 未执行任何 `push`，除非用户明确要求
 
