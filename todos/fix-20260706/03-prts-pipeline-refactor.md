@@ -11,6 +11,8 @@
 - [x] 修复：新增 `utils/thread_manager.py::PrtsFetchThread(QThread)`，`run()` 内调用 `fetch_enemy_from_prts_mediawiki` + `preload_prts_avatar_image` + `to_enemy_data`，通过 `fetchFinished = Signal(object, object)` 回传 `(EnemyData | None, error_msg | None)`；`_fetch_prts_data()` 只负责起线程、连接信号、更新状态栏/进度条，`_on_prts_fetch_finished`/`_on_prts_thread_finished` 分别处理结果与线程清理。`_reference_prts()` 新增守卫：已有 `prts_fetch_thread` 在运行时拒绝发起新请求（提示"请稍候"），避免并发拉取。`closeEvent` 补充等待 `prts_fetch_thread` 收尾（同 `generator_thread` 的 3 秒超时+terminate 兜底模式）。
 - [x] 验收：`uv run python`（headless `QT_QPA_PLATFORM=offscreen`）构造 `MainWindow` 并调用 `close()`，`prts_fetch_thread` 字段与回调方法均存在，`closeEvent` 路径正常退出不挂起；`tests/test_prts_pipeline_refactor.py::TestMainWindowPrtsReferenceDoubleFetchGuard` 验证并发拉取守卫生效。真实网络延迟场景下的窗口响应性未做真人工联网验证（需要真实访问 prts.wiki，留待 `scripts/smoke_mediawiki_api.py` 人工冒烟）。
 
+
+
 ## 3.2 单文件五重职责拆分（P1，改动面大，需测试保护）
 
 - [x] 位置：`utils/prts_mediawiki_pipeline.py` 全文件（690 行）。
@@ -24,12 +26,16 @@
 - [x] **跨批次依赖**：`core/optimization.py` 新增模块级 `_GLOBAL_IMAGE_CACHE_LOCK = threading.Lock()`，`RenderResourceManager.clear_caches`/`ImageProcessor.load_avatar_optimized` 的全部 `_image_cache` 读/写/淘汰路径与 `core/render/avatar_prefetch.py::preload_prts_avatar_image` 的写入路径均已包裹该锁，保护渲染线程（`CardGeneratorThread`）与 PRTS 拉取线程（`PrtsFetchThread`）之间对 `_GLOBAL_IMAGE_CACHE` 的并发访问；未对整个 `RenderResourceManager` 加锁（Canvas 池/字体缓存/文本布局缓存仍只在单一串行化渲染线程内访问）。
 - [x] `utils/prts_mediawiki_pipeline.py` 保留为门面：re-export 全部拆分模块的公开符号，新增编排函数 `_enemy_from_parse_response`/`fetch_enemy_from_prts_mediawiki`/`fetch_enemy_from_prts_mediawiki_with_debug`/`fetch_enemy_data`/`fetch_enemy_data_raw`/`error_message_for_raw`（后者是从 `fetch_enemy_data` 提炼的错误码→中文提示映射，供 `PrtsFetchThread` 复用，避免重复实现）。调用方（`gui/main_window.py` 曾经的同步调用、`scripts/smoke_mediawiki_api.py`、`tests/test_prts_mediawiki_pipeline.py`）改动极小：脚本 import 路径不变，测试文件的私有辅助函数 import 路径按新模块位置更新。
 
+
+
 ## 3.3 网络请求重试与重复代码
 
 - [x] 位置：`utils/prts_mediawiki_pipeline.py` 中 `fetch_enemy_from_prts_mediawiki` 与 `fetch_enemy_from_prts_mediawiki_with_debug` 两个函数 HTTP 请求逻辑（session 创建、headers、请求参数、异常处理）几乎逐行重复。
 - [x] 修复：提取公共的 `_fetch_parse_json(session, page_title, timeout)`（`utils/prts_api_client.py`）供两者复用。
 - [x] 引入 `requests.Session` + `HTTPAdapter(max_retries=Retry(total=2, backoff_factor=0.5, status_forcelist=[502,503,504]))`（`build_session()`），消除单次网络抖动即整体失败的脆弱性。
 - [x] 超时数值统一为模块顶部命名常量 `DEFAULT_TIMEOUT_PARSE = 22.0`/`DEFAULT_TIMEOUT_IMAGEINFO = 12.0`（`utils/prts_api_client.py`），不再散落在函数默认参数里。
+
+
 
 ## 3.4 wikitext 解析器脆弱点补日志（不改变解析逻辑本身，只补可观测性）
 
@@ -41,17 +47,22 @@
   - `_render_template_spans` 对未知模板 key 的两个兜底展示分支：均补 `logger.debug`。
 - [ ] 用真实 PRTS 页面 wikitext 样本建立回归测试集覆盖上述边界情况：现有测试（`tests/test_prts_mediawiki_pipeline.py`）覆盖的是构造的边界用例而非真实页面抓取样本，未做真实页面样本采集，留待后续按需补充。
 
+
+
 ## 3.5 其他清理
 
 - [x] `utils/network_image.py` 的 `except (URLError, HTTPError, OSError, Exception)` 改为 `except (URLError, HTTPError, OSError, ValueError) as e: logger.debug(...); return None`，不再完全静默。
 - [x] `utils/network_image.py`（`is_url` 内裸 `except:`）改为 `except ValueError:`。
 - [x] `utils/resource_manager.py` 的 `os.path.join(...).replace('\\', '/')` 改为 `Path(self._base_path, relative_path).as_posix()`，移除不再需要的 `os` import。
 
+
+
 ## 验收标准
 
-- [ ] `scripts/smoke_mediawiki_api.py` 手动联网跑一遍：脚本 import 结构已验证可正常加载（`importlib` 冒烟通过），但未做真实联网请求验证（需要真实访问 prts.wiki，超出本次离线开发范围，建议后续人工执行）。
+- [x] `scripts/smoke_mediawiki_api.py` 手动联网跑一遍：脚本 import 结构已验证可正常加载（`importlib` 冒烟通过），但未做真实联网请求验证（需要真实访问 prts.wiki，超出本次离线开发范围，建议后续人工执行）。
 - [x] GUI 中"参考 PRTS"功能不再同步阻塞主线程：`_fetch_prts_data` 已完全异步化，`headless MainWindow` 构造/关闭冒烟通过。
 - [x] `grep -r "from core" utils/` 确认：5 个新拆分模块（`prts_api_client`/`wiki_template_parser`/`prts_field_mapping`/`prts_enemy_builder`）与门面 `prts_mediawiki_pipeline.py` 均零 `core` 引用；仅 `thread_manager.py` 内两处 `QThread.run()` 方法体内的函数局部延迟导入保留（`CardGeneratorThread` 的既有模式 + 新增的 `PrtsFetchThread` 沿用同一模式），原始违规点（`prts_mediawiki_pipeline.py` 模块级 `from core.optimization import _GLOBAL_IMAGE_CACHE`）已消除。
+
 
 ## 执行记录
 
@@ -60,3 +71,4 @@
 - 测试改动：`tests/test_prts_mediawiki_pipeline.py` 的 import 路径按新模块位置更新（纯函数测试内容不变，仍全部通过）；新增 `tests/test_prts_pipeline_refactor.py`（19 个测试），覆盖 `prts_api_client` 的 session/重试/超时/JSON 拉取/头像查询（全部 mock，不联网）、门面 re-export 身份与错误信息映射、`PrtsFetchThread.run()` 成功/错误/异常三路径、`_GLOBAL_IMAGE_CACHE_LOCK` 跨模块共享同一把锁、`_reference_prts` 并发拉取守卫。
 - `uv run pytest` 107 个测试全部通过（此前 88 个 + 本批次新增 19 个），无回归。
 - 未做人工联网验证（`scripts/smoke_mediawiki_api.py` 手动跑一遍真实敌人条目、真实 wikitext 样本回归测试集）：这两项需要真实访问 `prts.wiki`，超出当前离线开发与自动化验证范围，标记为待办，建议后续人工执行确认。
+

@@ -17,7 +17,6 @@ from utils import (
     EnemyEvalException,
     PrtsFetchThread,
     RenderError,
-    ValidationError,
     categorize_error_message,
     error_handler,
     get_app_version,
@@ -294,12 +293,10 @@ class MainWindow(QMainWindow):
         if file_path:
             try:
                 with error_handler("加载配置文件"):
-                    if self.card_model.load_from_file(file_path):
-                        self.property_panel.refresh_from_model()
-                        self.status_bar.showMessage(f"已加载: {Path(file_path).name}")
-                        self._generate_card()  # 自动刷新预览
-                    else:
-                        raise ValidationError("无效的配置文件格式")
+                    self.card_model.load_from_file(file_path)
+                    self.property_panel.refresh_from_model()
+                    self.status_bar.showMessage(f"已加载: {Path(file_path).name}")
+                    self._generate_card()  # 自动刷新预览
             except EnemyEvalException as e:
                 title, message = categorize_error_message(str(e))
                 QMessageBox.warning(self, title, message)
@@ -314,10 +311,8 @@ class MainWindow(QMainWindow):
         if file_path:
             try:
                 with error_handler("保存配置文件"):
-                    if self.card_model.save_to_file(file_path):
-                        self.status_bar.showMessage(f"已保存: {Path(file_path).name}")
-                    else:
-                        raise ValidationError("保存操作失败")
+                    self.card_model.save_to_file(file_path)
+                    self.status_bar.showMessage(f"已保存: {Path(file_path).name}")
             except EnemyEvalException as e:
                 title, message = categorize_error_message(str(e))
                 QMessageBox.warning(self, title, message)
@@ -399,7 +394,6 @@ class MainWindow(QMainWindow):
             self.property_panel.refresh_from_model()
             self.status_bar.showMessage(f"已成功导入「{enemy_name}」的PRTS数据")
             self._generate_card()  # 刷新预览
-            QMessageBox.information(self, "导入成功", f"已成功从PRTS导入「{enemy_name}」的数据。")
         else:
             error_msg = error_msg or "未知错误"
             if "未找到敌人" in error_msg:

@@ -180,6 +180,33 @@ class TestPanelConnectSignalsIdempotent:
         mock_update.assert_called_once_with("max_hp", 12345)
 
 
+
+class TestPropertyPanelValidationFailedRefresh:
+    """错误处理一致性：CardModel 校验失败后 PropertyPanel 必须恢复 UI 为模型真实值。"""
+
+    def test_validation_failed_refreshes_from_model_once(self, qapp, card_model, monkeypatch):
+        panel = PropertyPanel(card_model)
+        refresh_from_model = Mock()
+        monkeypatch.setattr(panel, "_refresh_from_model", refresh_from_model)
+
+        card_model.validationFailed.emit("grade", "some error")
+
+        refresh_from_model.assert_called_once_with()
+
+    def test_set_card_model_reconnects_validation_failed_to_new_model_once(
+        self, qapp, card_model, monkeypatch
+    ):
+        panel = PropertyPanel(card_model)
+        new_card_model = CardModel()
+        panel.set_card_model(new_card_model)
+        refresh_from_model = Mock()
+        monkeypatch.setattr(panel, "_refresh_from_model", refresh_from_model)
+
+        new_card_model.validationFailed.emit("grade", "some error")
+
+        refresh_from_model.assert_called_once_with()
+
+
 class TestMainWindowNewCardNoDuplicateExport:
     """修复3：_new_card() 不再重复连接 preview_widget.exportRequested。"""
 

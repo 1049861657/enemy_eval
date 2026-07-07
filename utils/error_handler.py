@@ -65,8 +65,8 @@ def categorize_error_message(error_message: str) -> tuple[str, str]:
     elif "无法读取" in error_message:
         return "文件读取错误", "无法读取必要的文件，请检查文件路径和权限。"
     elif "保存" in error_message and "失败" in error_message:
-        return "保存失败", "文件保存失败，请检查文件路径和磁盘空间。"
+        return "保存失败", f"文件保存失败：\n\n{error_message}\n\n请检查文件路径和磁盘空间。"
     elif "加载" in error_message and "失败" in error_message:
-        return "加载失败", "配置文件加载失败，请检查文件格式和内容。"
+        return "加载失败", f"配置文件加载失败：\n\n{error_message}\n\n请检查文件格式和内容。"
     else:
         return "操作错误", f"操作失败：\n\n{error_message}\n\n请检查设置和资源文件。"

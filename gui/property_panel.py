@@ -57,6 +57,7 @@ class PropertyPanel(QWidget):
     
     def _connect_signals(self):
         """连接子面板信号与槽"""
+        self._connect_model_signals()
         if getattr(self, '_signals_connected', False):
             return
         # 基础信息面板
@@ -81,6 +82,15 @@ class PropertyPanel(QWidget):
         # 处理攻击方式变化的特殊逻辑
         self.basic_panel.propertyChanged.connect(self._handle_attack_type_change)
         self._signals_connected = True
+
+    def _connect_model_signals(self):
+        """连接 card_model 自身的信号；随 set_card_model 每次换绑新模型实例，不受 _signals_connected 幂等守卫影响。"""
+        self.card_model.validationFailed.connect(self._on_validation_failed)
+
+    def _on_validation_failed(self, property_name: str, error_message: str):
+        """属性校验失败：模型已拒绝该次更新，UI 仍显示用户刚输入的新值——刷新为模型当前真实值以消除不一致。"""
+        self._refresh_from_model()
+
     def _update_property(self, property_name: str, value):
         """更新属性"""
         self.card_model.update_property(property_name, value)

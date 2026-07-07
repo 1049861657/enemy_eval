@@ -369,21 +369,6 @@ class ImageProcessor:
             print(f"优化图像加载失败: {e}")
             return None
     
-    @staticmethod
-    def create_rounded_image(image: skia.Image, radius: float) -> skia.Image:
-        """创建圆角图像"""
-        surface = skia.Surface(image.width(), image.height())
-        canvas = surface.getCanvas()
-        
-        # 创建圆角裁剪路径
-        path = skia.Path()
-        rect = skia.Rect(0, 0, image.width(), image.height())
-        path.addRoundRect(rect, radius, radius)
-        
-        canvas.clipPath(path, skia.ClipOp.kIntersect, True)
-        canvas.drawImage(image, 0, 0)
-        
-        return surface.makeImageSnapshot()
 
 
 class PerformanceTimer:

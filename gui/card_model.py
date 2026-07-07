@@ -3,19 +3,24 @@
 """
 
 import json
+import logging
 from typing import Dict, Any
 
 from PySide6.QtCore import QObject, Signal
 
 from models import EnemyData, SkillEntry
+from utils.error_handler import FileOperationError
+
+logger = logging.getLogger(__name__)
 
 
 class CardModel(QObject):
     """支持信号机制的卡片数据模型"""
-    
+
     # 信号定义
     dataChanged = Signal()  # 当任何数据发生变化时发出
     cardGenerated = Signal(str)  # 当卡片生成完成时发出，传递图片路径
+    validationFailed = Signal(str, str)  # (property_name, error_message)：属性校验失败时发出，供 UI 恢复为模型当前真实值
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -72,7 +77,8 @@ class CardModel(QObject):
                 self._enemy_data = EnemyData(**current_dict)
                 self.dataChanged.emit()
             except Exception as e:
-                print(f"数据验证失败: {e}")
+                logger.error("属性 %s 校验失败: %s", property_name, e, exc_info=True)
+                self.validationFailed.emit(property_name, str(e))
     
     def update_skill(self, index: int, skill_data: Dict[str, str] | SkillEntry):
         """更新技能数据"""
@@ -94,28 +100,25 @@ class CardModel(QObject):
         resistances[resistance_name] = value
         self.update_property('abnormal_resistances', resistances)
     
-    def load_from_file(self, file_path: str) -> bool:
-        """从文件加载数据"""
+    def load_from_file(self, file_path: str) -> None:
+        """从文件加载数据；失败时抛出 FileOperationError，不吞异常。"""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            
             self._enemy_data = EnemyData(**data)
-            self.dataChanged.emit()
-            return True
         except Exception as e:
-            print(f"加载文件失败: {e}")
-            return False
+            logger.error("加载文件失败: %s", e, exc_info=True)
+            raise FileOperationError(f"加载文件失败: {e}") from e
+        self.dataChanged.emit()
     
-    def save_to_file(self, file_path: str) -> bool:
-        """保存数据到文件"""
+    def save_to_file(self, file_path: str) -> None:
+        """保存数据到文件；失败时抛出 FileOperationError，不吞异常。"""
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(self._enemy_data.model_dump(), f, ensure_ascii=False, indent=2)
-            return True
         except Exception as e:
-            print(f"保存文件失败: {e}")
-            return False
+            logger.error("保存文件失败: %s", e, exc_info=True)
+            raise FileOperationError(f"保存文件失败: {e}") from e
     
     def set_enemy_data(self, enemy_data: EnemyData):
         """设置完整的敌人数据"""
