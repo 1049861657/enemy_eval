@@ -18,6 +18,24 @@
 
 ---
 
+## [0.2.0] - 2026-07-07
+
+### 新增
+
+- **异步 PRTS 拉取**：新增 `utils/thread_manager.py::PrtsFetchThread`，`gui/main_window.py::_fetch_prts_data` 由同步阻塞改为后台线程执行，消除最长 34 秒的主线程冻结；`_reference_prts` 新增并发拉取守卫，`closeEvent` 补充线程等待/终止逻辑。
+- **测试**：新增 `tests/test_prts_pipeline_refactor.py`（19 个）、`tests/test_gui_signals.py`（13 个）+ `tests/conftest.py`（headless QApplication fixture），`uv run pytest` 累计 107 个测试通过。
+
+### 变更
+
+- **PRTS 数据管线拆分**：690 行的 `utils/prts_mediawiki_pipeline.py` 按职责拆分为 `prts_api_client.py`（HTTP Session/超时/重试）、`wiki_template_parser.py`（纯 wikitext 解析）、`prts_field_mapping.py`（字段映射与合并规则）、`prts_enemy_builder.py`（EnemyData 组装）5 个模块；原文件瘦身为编排门面。Skia 头像缓存逻辑移至新增的 `core/render/avatar_prefetch.py`，消除 `utils` 反向依赖 `core` 的方向性违规。
+- `core/optimization.py` 新增 `_GLOBAL_IMAGE_CACHE_LOCK`，保护渲染线程与 PRTS 拉取线程对全局图片缓存的并发读写。
+
+### 修复
+
+- **敌我同名单位查询报错**：弑君者、W 等敌人查询报错"未找到敌人 wikitext 模板（common2 / levelcontent）"——裸名命中的是同名干员页而非敌人页。新增 `utils/prts_api_client.py::resolve_enemy_page_title`，用 Semantic MediaWiki 的 `action=ask`（`[[分类:敌人]][[名称::<name>]]`）精确解析敌人页面标题，替代此前"猜测 `(敌方)` 后缀重试"的方案（PRTS 消歧义后缀并不统一，还有 `变格博士(敌人)` 等猜测式重试无法覆盖的情况）。
+- **PRTS 查询延迟**：`resolve_enemy_page_title` 改用独立零重试、4 秒短超时的 Session，避免遇上 PRTS 源站瞬时抖动（Varnish 502/503）时，因默认 Session 的指数退避重试把单次查询拖到 10+ 秒，拖累整条 `ask → parse → imageinfo` 串行链路耗时；超时或未命中时退回按裸名 `parse`。
+- **面板信号连接**：`combat_stats_panel._refresh_from_model` 补上 `blockSignals` 守卫，消除刷新赋值期间的信号风暴；6 处面板 `_connect_signals()` 统一加幂等保护，杜绝重复 `connect` 导致同一控件信号被多次触发；修复新建卡片 3 次后导出按钮触发 3 次 `_export_image` 确认弹窗的 bug。
+
 ## [0.1.1] - 2026-07-06
 
 ### 新增
