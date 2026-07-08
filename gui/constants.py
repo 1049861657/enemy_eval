@@ -1,8 +1,4 @@
-"""GUI 布局尺寸常量。
-
-集中定义窗口/面板尺寸字面量，消除散落各文件的魔法数字与隐含关联
-（如 PROPERTY_PANEL_WIDTH 必须与 SPLITTER_LEFT_WIDTH 一致）。
-"""
+"""GUI 布局尺寸常量：集中定义窗口/面板尺寸，消除魔法数字散落各文件。"""
 
 # 主窗口
 WINDOW_DEFAULT_X = 100
@@ -13,14 +9,12 @@ WINDOW_MIN_WIDTH = 1200
 WINDOW_MIN_HEIGHT = 800
 
 # 属性面板（左侧分割器）
-PROPERTY_PANEL_WIDTH = 400          # setFixedWidth；与 SPLITTER_LEFT_WIDTH 保持一致
+PROPERTY_PANEL_WIDTH = 400
 PROPERTY_PANEL_MIN_HEIGHT = 600
 
-# 分割器初始尺寸；SPLITTER_LEFT_WIDTH 必须与 PROPERTY_PANEL_WIDTH 一致
-SPLITTER_LEFT_WIDTH = PROPERTY_PANEL_WIDTH   # 400
+SPLITTER_LEFT_WIDTH = PROPERTY_PANEL_WIDTH  # 恒等：分割器左侧必须等于面板固定宽度，否则布局撕裂
 SPLITTER_RIGHT_WIDTH = 900
 
-# 预览组件卡片适配视口（用于计算 base_scale_factor，让卡片初始以合适比例显示）
-# 这是设计假设值，不等于 WINDOW_MIN_WIDTH - PROPERTY_PANEL_WIDTH
+# 预览适配视口：独立设计值，非窗口尺寸推导（不等于 WINDOW_MIN_WIDTH - PROPERTY_PANEL_WIDTH）
 PREVIEW_CARD_FIT_WIDTH = 1200
 PREVIEW_CARD_FIT_HEIGHT = 800

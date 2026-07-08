@@ -88,5 +88,5 @@ class FixedDebouncer:
             self._timer.stop()
 
     def cleanup(self) -> None:
-        """释放资源（可选；QTimer 随 parent 销毁时自动清理）。"""
+        """显式停止；QTimer 有 parent 时随其销毁自动清理，此方法非必需。"""
         self.stop()

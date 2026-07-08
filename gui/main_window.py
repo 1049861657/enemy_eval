@@ -278,12 +278,13 @@ class MainWindow(QMainWindow):
             "PNG图片 (*.png);;JPG图片 (*.jpg);;所有文件 (*)",
         )
         if file_path:
-            ok = self._render.save_current(file_path)
-            if ok:
+            error = self._render.save_current(file_path)
+            if error is None:
                 self.status_bar.showMessage(f"已导出: {Path(file_path).name}")
                 QMessageBox.information(self, "导出成功", f"图片已保存到:\n{file_path}")
             else:
-                QMessageBox.critical(self, "导出失败", "图片保存失败，请检查路径和权限。")
+                title, message = categorize_error_message(error)
+                QMessageBox.critical(self, title, message)
     
     def _reset_data(self):
         """重置数据"""

@@ -1,11 +1,11 @@
-"""渲染协调器 - 管理卡片生成线程的生命周期与结果分发。
+"""渲染协调器：接管 CardGeneratorThread 生命周期与结果分发，MainWindow 只做 UI 编排。
 
-职责：
-  - 持有 generator_thread、_pending_render、_preview_revision、last_generated_pixmap
-  - 对外暴露 request()（触发渲染）和 save_current()（导出图片）
-  - 通过信号回传结果；调用方（MainWindow）只做 UI 编排
-
-MainWindow 不再直接接触 CardGeneratorThread。
+架构约定：
+  - busyChanged 只由线程生命周期驱动（_start 置 True / _on_thread_finished 置 False），
+    不与 errorOccurred 等业务结果信号耦合。CardGeneratorThread.run() 有成功/异常/
+    静默中断（isInterruptionRequested 为真时连 errorOccurred 都不发）三条终止路径，
+    唯有 finished 保证在全部路径下触发，故 busy 收敛只能挂在它上面。
+  - save_current() 不抛异常，失败原因归一化为返回值，调用方无需感知内部异常类型。
 """
 
 from __future__ import annotations
@@ -16,30 +16,31 @@ from typing import Optional
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPixmap
 
-from utils import CardGeneratorThread, RenderError, categorize_error_message, error_handler
+from utils import CardGeneratorThread
 from models import EnemyData
 
 logger = logging.getLogger(__name__)
 
 
 class RenderCoordinator(QObject):
-    """卡片渲染线程编排与结果分发。"""
+    """见模块文档。"""
 
     # 渲染完成：(result, revision)；result 为 QPixmap（预览）或文件路径字符串（导出）
     cardReady = Signal(object, int)
     # 渲染失败：(error_message,)
     renderFailed = Signal(str)
-    # 忙碌状态变化：True = 开始渲染，False = 渲染结束（成功或失败）
+    # 忙碌状态变化：True = 开始渲染，False = 渲染结束；只由线程生命周期驱动，见模块文档
     busyChanged = Signal(bool)
 
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
         self._generator_thread: Optional[CardGeneratorThread] = None
         self._pending_render: bool = False
+        self._pending_data: Optional[EnemyData] = None
         self._revision: int = 0
+        self._busy: bool = False
         self.last_generated_pixmap: Optional[QPixmap] = None
         self.last_generated_path: str = ""
-        self._pending_data: Optional[EnemyData] = None
 
     # ──────────────────────────────────────────────────────────────────────────
     # Public API
@@ -58,15 +59,22 @@ class RenderCoordinator(QObject):
             return
         self._start(enemy_data)
 
-    def save_current(self, file_path: str) -> bool:
-        """把最近一次渲染结果保存到 file_path。返回是否成功。"""
+    def save_current(self, file_path: str) -> Optional[str]:
+        """把最近一次渲染结果保存到 file_path。
+
+        返回 None 表示成功；否则返回可直接展示给用户的错误描述。
+        不会抛出异常——调用方无需 try/except。
+        """
         if self.last_generated_pixmap is None:
-            return False
-        with error_handler("导出图片"):
+            return "尚无可导出的卡片，请先生成预览。"
+        try:
             ok = self.last_generated_pixmap.save(file_path)
-            if not ok:
-                raise RenderError("图片保存失败")
-        return True
+        except Exception as e:
+            logger.error(f"图片保存异常: {e}", exc_info=True)
+            return f"图片保存异常：{e}"
+        if not ok:
+            return "图片保存失败，请检查路径和磁盘权限。"
+        return None
 
     def cleanup(self) -> None:
         """窗口关闭前等待线程结束（最多 3 秒）。"""
@@ -83,6 +91,13 @@ class RenderCoordinator(QObject):
     # Internal
     # ──────────────────────────────────────────────────────────────────────────
 
+    def _set_busy(self, busy: bool) -> None:
+        """带去重的忙碌状态设置；避免同一状态重复触发下游 UI 更新。"""
+        if self._busy == busy:
+            return
+        self._busy = busy
+        self.busyChanged.emit(busy)
+
     def _start(self, enemy_data: EnemyData) -> None:
         self._revision += 1
         rev = self._revision
@@ -94,10 +109,11 @@ class RenderCoordinator(QObject):
         thread.finished.connect(lambda thr=thread: self._on_thread_finished(thr))
 
         self._generator_thread = thread
-        self.busyChanged.emit(True)
+        self._set_busy(True)
         thread.start()
 
     def _on_thread_finished(self, thread: CardGeneratorThread) -> None:
+        """线程终结的唯一收口：无论成功/失败/静默中断，都会走到这里。"""
         thread.deleteLater()
         if self._generator_thread is thread:
             self._generator_thread = None
@@ -107,9 +123,8 @@ class RenderCoordinator(QObject):
             self._pending_data = None
             if pending is not None:
                 self._start(pending)
-            # busyChanged(False) 将在下一次 _on_thread_finished 发出
-        else:
-            self.busyChanged.emit(False)
+                return
+        self._set_busy(False)
 
     def _on_card_generated(self, result: object, revision: int) -> None:
         if revision != self._revision:
