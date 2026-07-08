@@ -9,6 +9,7 @@ from .card_model import CardModel
 from .panels import (BasicInfoPanel, CombatStatsPanel, ResistancePanel, 
                      SkillEditorPanel, RatingPanel)
 from .styles import TAB_WIDGET_STYLE
+from .constants import PROPERTY_PANEL_WIDTH, PROPERTY_PANEL_MIN_HEIGHT
 
 
 
@@ -20,8 +21,8 @@ class PropertyPanel(QWidget):
         super().__init__(parent)
         self.card_model = card_model
         
-        self.setFixedWidth(400)
-        self.setMinimumHeight(600)
+        self.setFixedWidth(PROPERTY_PANEL_WIDTH)
+        self.setMinimumHeight(PROPERTY_PANEL_MIN_HEIGHT)
         
         self._create_ui()
         self._connect_signals()

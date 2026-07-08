@@ -9,19 +9,23 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QSplitter, QStatusBar, QFileDialog,
-                               QMessageBox, QProgressBar, QInputDialog)
+                               QMessageBox, QProgressBar)
 
 from utils import (
     AdaptiveDebouncer,
-    CardGeneratorThread,
     EnemyEvalException,
     PrtsFetchThread,
-    RenderError,
     categorize_error_message,
     error_handler,
     get_app_version,
 )
+from .render_coordinator import RenderCoordinator
 from .card_model import CardModel
+from .constants import (
+    WINDOW_DEFAULT_X, WINDOW_DEFAULT_Y, WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT,
+    WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT,
+    SPLITTER_LEFT_WIDTH, SPLITTER_RIGHT_WIDTH,
+)
 from .preview_widget import PreviewWidget
 from .property_panel import PropertyPanel
 from .prts_reference_dialog import PrtsReferenceDialog
@@ -36,18 +40,13 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.card_model = CardModel(self)
-        self.generator_thread = None
         self.prts_fetch_thread = None
-        self._pending_render = False
-        self.last_generated_path = ""
-        self.last_generated_pixmap = None
-        self._preview_revision = 0
+        self._render = RenderCoordinator(self)
         self._debouncer = AdaptiveDebouncer(min_delay=200, max_delay=520)
-
         self._app_version = get_app_version()
         self.setWindowTitle(f"敌人评价卡片实时编辑器 v{self._app_version}")
-        self.setGeometry(100, 100, 1400, 900)
-        self.setMinimumSize(1200, 800)
+        self.setGeometry(WINDOW_DEFAULT_X, WINDOW_DEFAULT_Y, WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
+        self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
         
         # 设置样式
         self._load_styles()
@@ -168,7 +167,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.preview_widget)
         
         # 设置分割器比例 (30% : 70%)
-        splitter.setSizes([400, 900])
+        splitter.setSizes([SPLITTER_LEFT_WIDTH, SPLITTER_RIGHT_WIDTH])
         splitter.setStretchFactor(0, 0)  # 左侧不拉伸
         splitter.setStretchFactor(1, 1)  # 右侧可拉伸
         
@@ -187,93 +186,43 @@ class MainWindow(QMainWindow):
     def _connect_signals(self):
         """连接信号与槽（一次性，仅在 __init__ 中调用）"""
         self._connect_model_signals()
-
-        # 预览组件的导出信号（preview_widget 生命周期内只需连接一次）
         self.preview_widget.exportRequested.connect(self._export_image)
+        self._render.cardReady.connect(self._on_card_ready)
+        self._render.renderFailed.connect(self._on_render_failed)
+        self._render.busyChanged.connect(self._on_render_busy)
 
     def _connect_model_signals(self):
         """连接当前 card_model 的信号，可在 card_model 被替换后重复调用"""
-        # 数据模型变化时重新生成卡片
         self.card_model.dataChanged.connect(self._on_data_changed)
-    
+
     def _on_data_changed(self):
-        """数据变化时的处理 - 使用自适应防抖"""
         self._debouncer.debounce(self._generate_card)
-    
-    def _on_render_thread_finished(self, thread: CardGeneratorThread) -> None:
-        """渲染线程结束后的统一收尾：释放引用，若有排队请求则用最新数据立即发起。"""
-        thread.deleteLater()
-        if self.generator_thread is thread:
-            self.generator_thread = None
-        if self._pending_render:
-            self._pending_render = False
-            self._start_render_thread()
 
     def _generate_card(self):
-        """请求生成卡片：任意时刻只允许一个渲染线程运行，不在主线程等待线程结束。
+        self._render.request(self.card_model.enemy_data)
 
-        若已有线程在跑，只请求中断并标记排队，真正的新线程延迟到旧线程的
-        `finished` 信号触发时才创建——用那时最新的 `card_model.enemy_data`
-        快照渲染，从而在不阻塞 UI 的前提下保证渲染线程始终串行，杜绝并发
-        访问 core.optimization 全局单例（Canvas 池/字体缓存/图像缓存）。
-        """
-        if self.generator_thread is not None and self.generator_thread.isRunning():
-            self.generator_thread.requestInterruption()
-            self._pending_render = True
-            return
-        self._start_render_thread()
-
-    def _start_render_thread(self) -> None:
-        self._preview_revision += 1
-        rev = self._preview_revision
-
-        self.generator_thread = CardGeneratorThread(
-            self.card_model.enemy_data, revision=rev, save_to_file=False
-        )
-        self.generator_thread.cardGenerated.connect(self._on_card_generated)
-        self.generator_thread.errorOccurred.connect(self._on_generation_error)
-        self.generator_thread.finished.connect(
-            lambda thr=self.generator_thread: self._on_render_thread_finished(thr)
-        )
-
-        self.status_bar.showMessage("正在生成卡片...")
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0)
-
-        self.generator_thread.start()
-    
-    def _on_card_generated(self, result, revision: int):
-        """卡片生成完成 - 忽略过期的后台结果"""
-        if revision != self._preview_revision:
-            return
-        if hasattr(self, "last_generated_pixmap") and self.last_generated_pixmap:
-            self.last_generated_pixmap = None
-
+    def _on_card_ready(self, result: object, _revision: int) -> None:
+        """RenderCoordinator.cardReady → 更新预览和状态栏。"""
         if isinstance(result, str):
-            # 文件路径模式（导出时）
-            self.last_generated_path = result
             self.preview_widget.load_image(result)
             self.status_bar.showMessage(f"卡片已生成: {Path(result).name}")
         else:
-            # QPixmap模式（预览时）
             self.preview_widget.load_pixmap(result)
-            self.last_generated_pixmap = result
             self.status_bar.showMessage("卡片预览已更新")
-        
-        self.progress_bar.setVisible(False)
-    
-    def _on_generation_error(self, error_message: str, revision: int):
-        """生成错误处理 - 忽略已过期任务的错误提示"""
-        if revision != self._preview_revision:
-            return
-        self.progress_bar.setVisible(False)
+
+    def _on_render_failed(self, error_message: str) -> None:
+        """RenderCoordinator.renderFailed → 显示错误提示。"""
         self.status_bar.showMessage("生成失败")
-        
-        # 使用工具函数分类错误消息
         title, message = categorize_error_message(error_message)
-        
-        logger.error(f"卡片生成失败: {error_message}")
         QMessageBox.critical(self, title, message)
+
+    def _on_render_busy(self, busy: bool) -> None:
+        """RenderCoordinator.busyChanged → 进度条开关。"""
+        self.progress_bar.setVisible(busy)
+        if busy:
+            self.status_bar.showMessage("正在生成卡片...")
+            self.progress_bar.setRange(0, 0)
+
     
     def _new_card(self):
         """新建卡片"""
@@ -319,28 +268,22 @@ class MainWindow(QMainWindow):
     
     def _export_image(self):
         """导出图片 - 增强错误处理"""
-        if not hasattr(self, 'last_generated_pixmap') or self.last_generated_pixmap is None:
+        if self._render.last_generated_pixmap is None:
             QMessageBox.information(self, "提示", "请先生成卡片。")
             return
-        
+
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "导出图片", f"{self.card_model.enemy_data.name}_{self.card_model.enemy_data.grade}.png",
-            "PNG图片 (*.png);;JPG图片 (*.jpg);;所有文件 (*)"
+            self, "导出图片",
+            f"{self.card_model.enemy_data.name}_{self.card_model.enemy_data.grade}.png",
+            "PNG图片 (*.png);;JPG图片 (*.jpg);;所有文件 (*)",
         )
-        
         if file_path:
-            try:
-                with error_handler("导出图片"):
-                    # 直接从内存中的QPixmap保存
-                    success = self.last_generated_pixmap.save(file_path)
-                    if not success:
-                        raise RenderError("图片保存失败")
-                    
-                    self.status_bar.showMessage(f"已导出: {Path(file_path).name}")
-                    QMessageBox.information(self, "导出成功", f"图片已保存到:\n{file_path}")
-            except EnemyEvalException as e:
-                title, message = categorize_error_message(str(e))
-                QMessageBox.critical(self, title, message)
+            ok = self._render.save_current(file_path)
+            if ok:
+                self.status_bar.showMessage(f"已导出: {Path(file_path).name}")
+                QMessageBox.information(self, "导出成功", f"图片已保存到:\n{file_path}")
+            else:
+                QMessageBox.critical(self, "导出失败", "图片保存失败，请检查路径和权限。")
     
     def _reset_data(self):
         """重置数据"""
@@ -413,13 +356,7 @@ class MainWindow(QMainWindow):
         """窗口关闭事件 - 优雅清理资源"""
         try:
             with error_handler("清理资源", silent=True):
-                t = self.generator_thread
-                if t is not None and t.isRunning():
-                    t.requestInterruption()
-                    if not t.wait(3000):
-                        logger.warning("渲染线程未能在预期时间内停止")
-                        t.terminate()
-                        t.wait(1000)
+                self._render.cleanup()
 
                 pt = self.prts_fetch_thread
                 if pt is not None and pt.isRunning():
@@ -429,14 +366,10 @@ class MainWindow(QMainWindow):
                         pt.terminate()
                         pt.wait(1000)
 
-                if hasattr(self, "last_generated_pixmap") and self.last_generated_pixmap:
-                    self.last_generated_pixmap = None
-
                 if hasattr(self, "_debouncer"):
                     self._debouncer.cleanup()
 
                 from core.optimization import get_resource_manager
-
                 get_resource_manager().clear_caches()
         except Exception:
             pass

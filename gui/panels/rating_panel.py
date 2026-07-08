@@ -6,7 +6,7 @@ import math
 from typing import Optional
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                                QTextEdit, QFrame, QScrollArea, QMenu)
-from PySide6.QtCore import Signal, Qt, QPoint, QEvent, QTimer
+from PySide6.QtCore import Signal, Qt, QPoint, QEvent
 from PySide6.QtGui import QPainter, QColor, QPen, QPolygon
 
 from ..card_model import CardModel
@@ -15,6 +15,7 @@ from ..styles import (STAR_RATING_STYLE, RATING_GROUP_STYLE, DESCRIPTION_GROUP_S
                      COMMENT_GROUP_STYLE, RATING_TITLE_STYLE, DESCRIPTION_TITLE_STYLE,
                      COMMENT_TITLE_STYLE, CONTENT_AREA_STYLE, RATING_LABEL_STYLE,
                      DETAILED_TEXT_EDIT_STYLE)
+from utils import FixedDebouncer
 
 
 class StarRatingWidget(QWidget):
@@ -279,13 +280,8 @@ class RatingPanel(QWidget):
         scroll_area.setWidgetResizable(True)
 
         self._syncing_ui = False
-        self._text_debounce_ms = 280
-        self._desc_timer = QTimer(self)
-        self._desc_timer.setSingleShot(True)
-        self._desc_timer.timeout.connect(self._flush_description_changed)
-        self._comment_timer = QTimer(self)
-        self._comment_timer.setSingleShot(True)
-        self._comment_timer.timeout.connect(self._flush_comment_changed)
+        self._desc_debouncer = FixedDebouncer(self, self._flush_description_changed, 280)
+        self._comment_debouncer = FixedDebouncer(self, self._flush_comment_changed, 280)
         
         # 主布局
         main_layout = QVBoxLayout(self)
@@ -315,12 +311,12 @@ class RatingPanel(QWidget):
     def _schedule_description_changed(self):
         if self._syncing_ui:
             return
-        self._desc_timer.start(self._text_debounce_ms)
+        self._desc_debouncer.schedule()
 
     def _schedule_comment_changed(self):
         if self._syncing_ui:
             return
-        self._comment_timer.start(self._text_debounce_ms)
+        self._comment_debouncer.schedule()
 
     def _flush_description_changed(self):
         self.descriptionChanged.emit(self.brief_description_edit.toPlainText())
@@ -356,8 +352,8 @@ class RatingPanel(QWidget):
         if not self.card_model:
             return
 
-        self._desc_timer.stop()
-        self._comment_timer.stop()
+        self._desc_debouncer.stop()
+        self._comment_debouncer.stop()
         self._syncing_ui = True
         try:
             data = self.card_model.enemy_data

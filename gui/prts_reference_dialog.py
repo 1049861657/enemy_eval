@@ -6,6 +6,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton)
 
 from utils import resource_manager
+from .styles import PRTS_DIALOG_STYLE
 
 
 class PrtsReferenceDialog(QDialog):
@@ -82,98 +83,7 @@ class PrtsReferenceDialog(QDialog):
     
     def _apply_styles(self):
         """应用样式表"""
-        self.setStyleSheet("""
-            /* 对话框主体样式 */
-            QDialog {
-                background-color: #ffffff;
-                border: 1px solid #dcdfe6;
-                border-radius: 6px;
-            }
-            
-            /* 输入框 */
-            #name_input {
-                background-color: white;
-                border: 1px solid #dcdfe6;
-                border-radius: 4px;
-                padding: 12px 16px;
-                font-size: 14px;
-                color: #303133;
-            }
-            
-            #name_input:focus {
-                border-color: #409eff;
-                outline: none;
-            }
-            
-            #name_input:hover {
-                border-color: #c0c4cc;
-            }
-            
-            /* 提示按钮 */
-            #help_button {
-                background: transparent;
-                border: none;
-                padding: 4px;
-                border-radius: 16px;
-                outline: none;
-            }
-            
-            #help_button:hover {
-                background-color: #f0f9ff;
-                transform: scale(1.05);
-            }
-            
-            #help_button:pressed {
-                background-color: #e0f3ff;
-                transform: scale(0.98);
-            }
-            
-            /* 取消按钮 */
-            #cancel_button {
-                background-color: #f5f5f5;
-                color: #606266;
-                border: 1px solid #dcdfe6;
-                border-radius: 4px;
-                font-size: 14px;
-                font-weight: 500;
-            }
-            
-            #cancel_button:hover {
-                background-color: #ecf5ff;
-                border-color: #409eff;
-                color: #409eff;
-            }
-            
-            #cancel_button:pressed {
-                background-color: #d9ecff;
-            }
-            
-            /* 确定按钮 */
-            #ok_button {
-                background-color: #409eff;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: 600;
-            }
-            
-            #ok_button:hover {
-                background-color: #66b1ff;
-                transform: translateY(-1px);
-            }
-            
-            #ok_button:pressed {
-                background-color: #3a8ee6;
-                transform: translateY(0px);
-            }
-            
-            #ok_button:disabled {
-                background-color: #c0c4cc;
-                color: #ffffff;
-                transform: none;
-            }
-        """)
+        self.setStyleSheet(PRTS_DIALOG_STYLE)
     
     def _connect_signals(self):
         """连接信号槽"""

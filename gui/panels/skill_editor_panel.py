@@ -4,7 +4,7 @@
 
 from typing import Optional, List, Dict, Union
 
-from PySide6.QtCore import Signal, Qt, QTimer
+from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                QPushButton, QTextEdit, QScrollArea)
@@ -14,6 +14,7 @@ from models import SkillEntry
 from ..card_model import CardModel
 from ..detailed_editor_dialog import DetailedEditorDialog
 from ..styles import ADD_BUTTON_STYLE, TEXT_EDIT_STYLE, SKILL_EDIT_STYLE, REMOVE_BUTTON_STYLE
+from utils import FixedDebouncer
 
 
 class DetailedTextEdit(QTextEdit):
@@ -69,10 +70,7 @@ class SkillEditWidget(QWidget):
         self.skill_index = skill_index
         self.setStyleSheet(SKILL_EDIT_STYLE)
         self._suppress_skill_emit = False
-        self._skill_timer = QTimer(self)
-        self._skill_timer.setSingleShot(True)
-        self._skill_timer.timeout.connect(self._emit_skill_payload)
-        self._skill_debounce_ms = 240
+        self._skill_debouncer = FixedDebouncer(self, self._emit_skill_payload, 240)
         self._create_ui()
         
         # 如果有初始数据，填入
@@ -155,7 +153,7 @@ class SkillEditWidget(QWidget):
     def _schedule_skill_changed(self):
         if self._suppress_skill_emit:
             return
-        self._skill_timer.start(self._skill_debounce_ms)
+        self._skill_debouncer.schedule()
 
     def _emit_skill_payload(self):
         skill_data = {
@@ -196,10 +194,7 @@ class SkillEditorPanel(QWidget):
         self.card_model = card_model
         self.skill_widgets: List[SkillEditWidget] = []
         self._syncing_talents = False
-        self._talents_timer = QTimer(self)
-        self._talents_timer.setSingleShot(True)
-        self._talents_timer.timeout.connect(self._flush_talents_changed)
-        self._talents_debounce_ms = 280
+        self._talents_debouncer = FixedDebouncer(self, self._flush_talents_changed, 280)
         self._create_ui()
         if card_model:
             self._connect_signals()
@@ -258,7 +253,7 @@ class SkillEditorPanel(QWidget):
     def _schedule_talents_changed(self):
         if self._syncing_talents:
             return
-        self._talents_timer.start(self._talents_debounce_ms)
+        self._talents_debouncer.schedule()
 
     def _flush_talents_changed(self):
         self.talentsChanged.emit(self.talents_edit.toPlainText())
@@ -344,7 +339,7 @@ class SkillEditorPanel(QWidget):
             self.skill_widgets.append(skill_widget)
             self.skills_layout.addWidget(skill_widget)
         
-        self._talents_timer.stop()
+        self._talents_debouncer.stop()
         self._syncing_talents = True
         try:
             self.talents_edit.setPlainText(data.talents_abilities)

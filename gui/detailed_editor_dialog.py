@@ -6,6 +6,11 @@ from PySide6.QtCore import Signal
 from PySide6.QtGui import QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTextEdit,
                                QPushButton, QLabel, QWidget)
+from .styles import (
+    DETAILED_EDITOR_DIALOG_STYLE, DETAILED_EDITOR_TITLE_STYLE, DETAILED_EDITOR_HINT_STYLE,
+    DETAILED_EDITOR_CONTAINER_STYLE, DETAILED_EDITOR_TEXT_STYLE,
+    DETAILED_EDITOR_CHAR_COUNT_STYLE, DETAILED_EDITOR_CANCEL_STYLE, DETAILED_EDITOR_SAVE_STYLE,
+)
 
 
 class DetailedEditorDialog(QDialog):
@@ -33,12 +38,7 @@ class DetailedEditorDialog(QDialog):
     def _create_ui(self, placeholder: str):
         """创建用户界面"""
         # 设置窗口样式
-        self.setStyleSheet("""
-            QDialog {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #f8fafc, stop:1 #e2e8f0);
-            }
-        """)
+        self.setStyleSheet(DETAILED_EDITOR_DIALOG_STYLE)
         
         layout = QVBoxLayout(self)
         layout.setSpacing(20)
@@ -49,19 +49,10 @@ class DetailedEditorDialog(QDialog):
         title_layout.setContentsMargins(0, 0, 0, 0)
         
         title_label = QLabel("✨ 详细编辑模式")
-        title_label.setStyleSheet("""
-            color: #475569;
-            font-weight: 600;
-            font-size: 16px;
-            font-family: 'Microsoft YaHei UI', sans-serif;
-        """)
+        title_label.setStyleSheet(DETAILED_EDITOR_TITLE_STYLE)
         
         hint_label = QLabel("Ctrl+Enter保存 • Esc取消")
-        hint_label.setStyleSheet("""
-            color: #94a3b8;
-            font-size: 12px;
-            font-weight: 400;
-        """)
+        hint_label.setStyleSheet(DETAILED_EDITOR_HINT_STYLE)
         
         title_layout.addWidget(title_label)
         title_layout.addStretch()
@@ -70,13 +61,7 @@ class DetailedEditorDialog(QDialog):
         
         # 文本编辑区域 - 现代化设计
         editor_container = QWidget()
-        editor_container.setStyleSheet("""
-            QWidget {
-                background-color: white;
-                border-radius: 12px;
-                border: 1px solid #e2e8f0;
-            }
-        """)
+        editor_container.setStyleSheet(DETAILED_EDITOR_CONTAINER_STYLE)
         
         editor_layout = QVBoxLayout(editor_container)
         editor_layout.setContentsMargins(16, 16, 16, 16)
@@ -89,32 +74,7 @@ class DetailedEditorDialog(QDialog):
         font.setWeight(QFont.Weight.Normal)
         self.text_edit.setFont(font)
         
-        self.text_edit.setStyleSheet("""
-            QTextEdit {
-                border: none;
-                background-color: transparent;
-                selection-background-color: #3b82f6;
-                selection-color: white;
-                line-height: 1.6;
-                color: #1e293b;
-            }
-            QTextEdit:focus {
-                outline: none;
-            }
-            QScrollBar:vertical {
-                background: #f1f5f9;
-                width: 8px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:vertical {
-                background: #cbd5e1;
-                border-radius: 4px;
-                min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: #94a3b8;
-            }
-        """)
+        self.text_edit.setStyleSheet(DETAILED_EDITOR_TEXT_STYLE)
         
         # 连接文本变化信号
         self.text_edit.textChanged.connect(self._on_text_changed)
@@ -129,11 +89,7 @@ class DetailedEditorDialog(QDialog):
         
         # 字数统计标签
         self.char_count_label = QLabel("字数: 0")
-        self.char_count_label.setStyleSheet("""
-            color: #64748b; 
-            font-size: 12px;
-            font-weight: 400;
-        """)
+        self.char_count_label.setStyleSheet(DETAILED_EDITOR_CHAR_COUNT_STYLE)
         
         button_layout.addWidget(self.char_count_label)
         button_layout.addStretch()
@@ -141,47 +97,13 @@ class DetailedEditorDialog(QDialog):
         # 取消按钮 - 现代化设计
         cancel_btn = QPushButton("取消")
         cancel_btn.setFixedSize(80, 36)
-        cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f1f5f9;
-                color: #64748b;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                font-weight: 500;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #e2e8f0;
-                border-color: #cbd5e1;
-            }
-            QPushButton:pressed {
-                background-color: #cbd5e1;
-            }
-        """)
+        cancel_btn.setStyleSheet(DETAILED_EDITOR_CANCEL_STYLE)
         cancel_btn.clicked.connect(self.reject)
         
         # 保存按钮 - 现代化设计
         save_btn = QPushButton("保存")
         save_btn.setFixedSize(80, 36)
-        save_btn.setStyleSheet("""
-            QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #3b82f6, stop:1 #1d4ed8);
-                color: white;
-                border: none;
-                border-radius: 8px;
-                font-weight: 600;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #2563eb, stop:1 #1e40af);
-            }
-            QPushButton:pressed {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #1d4ed8, stop:1 #1e3a8a);
-            }
-        """)
+        save_btn.setStyleSheet(DETAILED_EDITOR_SAVE_STYLE)
         save_btn.clicked.connect(self.accept)
         save_btn.setDefault(True)
         

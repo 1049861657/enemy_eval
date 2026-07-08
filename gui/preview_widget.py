@@ -10,6 +10,9 @@ from PySide6.QtGui import QPixmap, QFont, QWheelEvent
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                QPushButton, QScrollArea, QSlider, QSizePolicy, QFrame)
 
+from .constants import PREVIEW_CARD_FIT_WIDTH, PREVIEW_CARD_FIT_HEIGHT
+from .styles import PREVIEW_EXPORT_BTN_STYLE, PREVIEW_ERROR_LABEL_STYLE, PREVIEW_INFO_LABEL_STYLE
+
 
 class ImageLabel(QLabel):
     """支持缩放的图片标签"""
@@ -156,22 +159,7 @@ class PreviewWidget(QWidget):
         # 导出按钮
         self.export_btn = QPushButton("导出图片")
         self.export_btn.setEnabled(False)
-        self.export_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #409eff;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #66b1ff;
-            }
-            QPushButton:disabled {
-                background-color: #c0c4cc;
-            }
-        """)
+        self.export_btn.setStyleSheet(PREVIEW_EXPORT_BTN_STYLE)
         toolbar_layout.addWidget(self.export_btn)
         
         parent_layout.addWidget(toolbar_frame)
@@ -212,13 +200,13 @@ class PreviewWidget(QWidget):
         # 信息显示
         info_layout = QHBoxLayout()
         self.info_label = QLabel("就绪")
-        self.info_label.setStyleSheet("color: #666; font-size: 12px;")
+        self.info_label.setStyleSheet(PREVIEW_INFO_LABEL_STYLE)
         info_layout.addWidget(self.info_label)
         info_layout.addStretch()
         
         # 图片尺寸信息
         self.size_label = QLabel("")
-        self.size_label.setStyleSheet("color: #666; font-size: 12px;")
+        self.size_label.setStyleSheet(PREVIEW_INFO_LABEL_STYLE)
         info_layout.addWidget(self.size_label)
         
         controls_layout.addLayout(info_layout)
@@ -288,11 +276,11 @@ class PreviewWidget(QWidget):
     def _show_error_message(self, message: str):
         """显示错误消息"""
         self.info_label.setText(f"错误: {message}")
-        self.info_label.setStyleSheet("color: #f56c6c; font-size: 12px;")
+        self.info_label.setStyleSheet(PREVIEW_ERROR_LABEL_STYLE)
         
         # 5秒后恢复正常样式
         from PySide6.QtCore import QTimer
-        QTimer.singleShot(5000, lambda: self.info_label.setStyleSheet("color: #666; font-size: 12px;"))
+        QTimer.singleShot(5000, lambda: self.info_label.setStyleSheet(PREVIEW_INFO_LABEL_STYLE))
     
     def clear_preview(self):
         """清空预览"""
@@ -314,8 +302,8 @@ class PreviewWidget(QWidget):
             self._show_error_message("无法加载图片数据")
             return
         
-        available_width = 1200
-        available_height = 800
+        available_width = PREVIEW_CARD_FIT_WIDTH
+        available_height = PREVIEW_CARD_FIT_HEIGHT
 
         scale_x = available_width / pixmap.width()
         scale_y = available_height / pixmap.height()

@@ -5,9 +5,10 @@
 from typing import Optional
 from PySide6.QtWidgets import (QWidget, QFormLayout, QLineEdit, QComboBox, 
                                QHBoxLayout, QPushButton, QFileDialog, QScrollArea)
-from PySide6.QtCore import Signal, QTimer
+from PySide6.QtCore import Signal
 
 from ..card_model import CardModel
+from utils import FixedDebouncer
 
 
 class BasicInfoPanel(QWidget):
@@ -19,13 +20,8 @@ class BasicInfoPanel(QWidget):
         super().__init__(parent)
         self.card_model = card_model
         self._syncing_ui = False
-        self._text_debounce_ms = 220
-        self._name_timer = QTimer(self)
-        self._name_timer.setSingleShot(True)
-        self._name_timer.timeout.connect(self._emit_name_changed)
-        self._avatar_timer = QTimer(self)
-        self._avatar_timer.setSingleShot(True)
-        self._avatar_timer.timeout.connect(self._emit_avatar_changed)
+        self._name_debouncer = FixedDebouncer(self, self._emit_name_changed, 220)
+        self._avatar_debouncer = FixedDebouncer(self, self._emit_avatar_changed, 220)
         self._create_ui()
         if card_model:
             self._connect_signals()
@@ -94,7 +90,7 @@ class BasicInfoPanel(QWidget):
     def _schedule_name_changed(self):
         if self._syncing_ui:
             return
-        self._name_timer.start(self._text_debounce_ms)
+        self._name_debouncer.schedule()
 
     def _emit_name_changed(self):
         self.propertyChanged.emit("name", self.name_edit.text())
@@ -102,7 +98,7 @@ class BasicInfoPanel(QWidget):
     def _schedule_avatar_changed(self):
         if self._syncing_ui:
             return
-        self._avatar_timer.start(self._text_debounce_ms)
+        self._avatar_debouncer.schedule()
 
     def _emit_avatar_changed(self):
         self.propertyChanged.emit("avatar_path", self.avatar_edit.text())
@@ -147,8 +143,8 @@ class BasicInfoPanel(QWidget):
         if not self.card_model:
             return
 
-        self._name_timer.stop()
-        self._avatar_timer.stop()
+        self._name_debouncer.stop()
+        self._avatar_debouncer.stop()
         self._syncing_ui = True
         try:
             data = self.card_model.enemy_data
