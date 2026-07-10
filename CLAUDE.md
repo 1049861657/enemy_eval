@@ -58,5 +58,5 @@ enemy_eval/
 ## 打包（Windows 参考）
 
 ```bash
-pyinstaller --clean --windowed --add-data "resource;resource" --add-data "gui;gui" --name enemyEval gui_main.py
+pyinstaller --noconfirm --clean enemyEval.spec
 ```

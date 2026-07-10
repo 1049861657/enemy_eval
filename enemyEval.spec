@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""Windows 文件夹版构建：显式携带本项目的 QML 文件。"""
+"""Windows 文件夹版构建：显式携带资源、QML 与 Qt Quick 模块。"""
+
 project_data = [
     ("resource", "resource"),
     ("gui/qml", "gui/qml"),
@@ -22,24 +23,33 @@ analysis = Analysis(
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
+    optimize=0,
 )
 pyz = PYZ(analysis.pure)
+
 exe = EXE(
     pyz,
     analysis.scripts,
     [],
+    exclude_binaries=True,
     name="enemyEval",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     console=False,
-    exclude_binaries=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
 )
-COLLECT(
+collect = COLLECT(
     exe,
     analysis.binaries,
-    analysis.zipfiles,
     analysis.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
     name="enemyEval",
 )
