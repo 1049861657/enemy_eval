@@ -9,7 +9,7 @@
 - [x] 位置：`gui/main_window.py:363-393`（`_fetch_prts_data`）同步调用 `utils/prts_mediawiki_pipeline.py::fetch_enemy_data`。
 - [x] 问题：`fetch_enemy_data` 内部两次 HTTP 请求（parse API 超时 22s + imageinfo API 超时 12s）+ 头像下载/Skia 解码全部在主线程执行，最长可阻塞 34 秒；`progress_bar.setRange(0,0)` 只是视觉上的"忙碌动画"，事件循环实际被冻结，Windows 上会被系统标记"未响应"，且无法取消。
 - [x] 修复：新增 `utils/thread_manager.py::PrtsFetchThread(QThread)`，`run()` 内调用 `fetch_enemy_from_prts_mediawiki` + `preload_prts_avatar_image` + `to_enemy_data`，通过 `fetchFinished = Signal(object, object)` 回传 `(EnemyData | None, error_msg | None)`；`_fetch_prts_data()` 只负责起线程、连接信号、更新状态栏/进度条，`_on_prts_fetch_finished`/`_on_prts_thread_finished` 分别处理结果与线程清理。`_reference_prts()` 新增守卫：已有 `prts_fetch_thread` 在运行时拒绝发起新请求（提示"请稍候"），避免并发拉取。`closeEvent` 补充等待 `prts_fetch_thread` 收尾（同 `generator_thread` 的 3 秒超时+terminate 兜底模式）。
-- [x] 验收：`uv run python`（headless `QT_QPA_PLATFORM=offscreen`）构造 `MainWindow` 并调用 `close()`，`prts_fetch_thread` 字段与回调方法均存在，`closeEvent` 路径正常退出不挂起；`tests/test_prts_pipeline_refactor.py::TestMainWindowPrtsReferenceDoubleFetchGuard` 验证并发拉取守卫生效。真实网络延迟场景下的窗口响应性未做真人工联网验证（需要真实访问 prts.wiki，留待 `scripts/smoke_mediawiki_api.py` 人工冒烟）。
+- [x] 验收：`uv run python`（headless `QT_QPA_PLATFORM=offscreen`）构造 `MainWindow` 并调用 `close()`，`prts_fetch_thread` 字段与回调方法均存在，`closeEvent` 路径正常退出不挂起；`tests/test_prts_pipeline_refactor.py::TestMainWindowPrtsReferenceDoubleFetchGuard` 验证并发拉取守卫生效。真实网络延迟下的窗口响应性按需用 `scripts/smoke_mediawiki_api.py` 人工冒烟，不纳入本批次自动化验收。
 
 
 
@@ -45,7 +45,7 @@
   - `merge_wikitext_enemy` 中 `index` 字段缺失/损坏时兜底为 0（`utils/prts_field_mapping.py`）：补 `logger.warning`，明确提示"可能导致多个 levelcontent 覆盖顺序错乱"。
   - `wiki_skia.py::_css_color` 对不识别颜色名的 fallback：补 `logger.debug`。
   - `_render_template_spans` 对未知模板 key 的两个兜底展示分支：均补 `logger.debug`。
-- [ ] 用真实 PRTS 页面 wikitext 样本建立回归测试集覆盖上述边界情况：现有测试（`tests/test_prts_mediawiki_pipeline.py`）覆盖的是构造的边界用例而非真实页面抓取样本，未做真实页面样本采集，留待后续按需补充。
+- [x] ~~用真实 PRTS 页面 wikitext 样本建立回归测试集~~：**明确不做。** 现有 `tests/test_prts_mediawiki_pipeline.py` 的构造边界用例已覆盖解析脆弱点；真实页面抓取样本依赖联网、易随 wiki 改版失效，不纳入本批次与仓库回归网。人工联网确认走 `scripts/smoke_mediawiki_api.py`（按需执行，非 CI）。
 
 
 
@@ -59,7 +59,7 @@
 
 ## 验收标准
 
-- [x] `scripts/smoke_mediawiki_api.py` 手动联网跑一遍：脚本 import 结构已验证可正常加载（`importlib` 冒烟通过），但未做真实联网请求验证（需要真实访问 prts.wiki，超出本次离线开发范围，建议后续人工执行）。
+- [x] `scripts/smoke_mediawiki_api.py`：脚本保留为人工联网冒烟入口（import 结构已验证）；真实联网请求不纳入本批次自动化验收，按需人工执行。
 - [x] GUI 中"参考 PRTS"功能不再同步阻塞主线程：`_fetch_prts_data` 已完全异步化，`headless MainWindow` 构造/关闭冒烟通过。
 - [x] `grep -r "from core" utils/` 确认：5 个新拆分模块（`prts_api_client`/`wiki_template_parser`/`prts_field_mapping`/`prts_enemy_builder`）与门面 `prts_mediawiki_pipeline.py` 均零 `core` 引用；仅 `thread_manager.py` 内两处 `QThread.run()` 方法体内的函数局部延迟导入保留（`CardGeneratorThread` 的既有模式 + 新增的 `PrtsFetchThread` 沿用同一模式），原始违规点（`prts_mediawiki_pipeline.py` 模块级 `from core.optimization import _GLOBAL_IMAGE_CACHE`）已消除。
 
@@ -70,5 +70,5 @@
 - 改动文件：`utils/prts_mediawiki_pipeline.py`（690 行瘦身为约 190 行门面）、`utils/thread_manager.py`（新增 `PrtsFetchThread`）、`gui/main_window.py`（`_fetch_prts_data` 异步化 + `_reference_prts` 并发守卫 + `closeEvent` 补充等待）、`core/optimization.py`（新增 `_GLOBAL_IMAGE_CACHE_LOCK` 并包裹全部缓存读写路径）、`utils/network_image.py`、`utils/resource_manager.py`、`utils/wiki_skia.py`（补日志）、`utils/__init__.py`（导出 `PrtsFetchThread`）。
 - 测试改动：`tests/test_prts_mediawiki_pipeline.py` 的 import 路径按新模块位置更新（纯函数测试内容不变，仍全部通过）；新增 `tests/test_prts_pipeline_refactor.py`（19 个测试），覆盖 `prts_api_client` 的 session/重试/超时/JSON 拉取/头像查询（全部 mock，不联网）、门面 re-export 身份与错误信息映射、`PrtsFetchThread.run()` 成功/错误/异常三路径、`_GLOBAL_IMAGE_CACHE_LOCK` 跨模块共享同一把锁、`_reference_prts` 并发拉取守卫。
 - `uv run pytest` 107 个测试全部通过（此前 88 个 + 本批次新增 19 个），无回归。
-- 未做人工联网验证（`scripts/smoke_mediawiki_api.py` 手动跑一遍真实敌人条目、真实 wikitext 样本回归测试集）：这两项需要真实访问 `prts.wiki`，超出当前离线开发与自动化验证范围，标记为待办，建议后续人工执行确认。
+- 真实联网冒烟与真实 wikitext 样本回归集：**明确不做进仓库自动化**。离线 mock/构造用例已覆盖本批次验收；需要时人工跑 `scripts/smoke_mediawiki_api.py`。
 

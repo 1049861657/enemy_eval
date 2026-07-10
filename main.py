@@ -53,9 +53,7 @@ def main():
             "麻痹": 0,
             "诱导": 1
         },  
-        hostility_rating=1,  # 1-5星
-        innovation_rating=2,  # 1-5星
-        threat_rating=1,     # 1-5星
+        rating_scores=[1, 2, 1],
         grade="D",
         avatar_path="example/下载.jpg",
         skills=[

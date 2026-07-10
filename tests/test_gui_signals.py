@@ -146,10 +146,10 @@ class TestPanelConnectSignalsIdempotent:
         panel._connect_signals()
 
         mock_slot = Mock()
-        panel.ratingChanged.connect(mock_slot)
-        panel.hostility_rating.setValue(
-            panel.hostility_rating.getValue() % panel.hostility_rating.max_stars + 1
-        )
+        panel.ratingScoreChanged.connect(mock_slot)
+        assert panel._row_widgets, "评价面板应至少有一个维度行"
+        star = panel._row_widgets[0]["star"]
+        star.setValue(star.getValue() % star.max_stars + 1)
 
         assert mock_slot.call_count == 1
 

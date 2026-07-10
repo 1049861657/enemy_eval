@@ -36,9 +36,7 @@ def _valid_enemy_kwargs(**overrides) -> dict:
         target_value=1,
         brief_description="简要描述",
         brief_comment="简评内容",
-        hostility_rating=3,
-        innovation_rating=3,
-        threat_rating=3,
+        rating_scores=[3, 3, 3],
     )
     base.update(overrides)
     return base
@@ -70,16 +68,24 @@ class TestEnemyDataNumericRangeValidation:
 
     def test_rejects_rating_below_one(self):
         with pytest.raises(ValidationError):
-            EnemyData(**_valid_enemy_kwargs(hostility_rating=0))
+            EnemyData(**_valid_enemy_kwargs(rating_scores=[0, 3, 3]))
 
     def test_rejects_rating_above_five(self):
         with pytest.raises(ValidationError):
-            EnemyData(**_valid_enemy_kwargs(threat_rating=6))
+            EnemyData(**_valid_enemy_kwargs(rating_scores=[3, 3, 6]))
 
     @pytest.mark.parametrize("rating", [1, 3, 5])
     def test_accepts_rating_within_one_to_five(self, rating):
-        enemy = EnemyData(**_valid_enemy_kwargs(innovation_rating=rating))
-        assert enemy.innovation_rating == rating
+        enemy = EnemyData(**_valid_enemy_kwargs(rating_scores=[rating, rating, rating]))
+        assert enemy.rating_scores == [rating, rating, rating]
+
+    def test_accepts_empty_rating_scores(self):
+        enemy = EnemyData(**_valid_enemy_kwargs(rating_scores=[]))
+        assert enemy.rating_scores == []
+
+    def test_rejects_more_than_five_rating_scores(self):
+        with pytest.raises(ValidationError):
+            EnemyData(**_valid_enemy_kwargs(rating_scores=[3, 3, 3, 3, 3, 3]))
 
 
 class TestEnemyDataAvatarPathValidation:

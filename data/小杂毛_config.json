@@ -22,9 +22,11 @@
   "brief_description": "失衡后晕眩一段时间",
   "brief_comment": "杂毛略过",
   "abnormal_resistances": {},
-  "hostility_rating": 1,
-  "innovation_rating": 1,
-  "threat_rating": 1,
+  "rating_scores": [
+    1,
+    1,
+    1
+  ],
   "avatar_path": "E:/pythonProject/enemy_eval/enemy/墟/头像_敌人_资深的小弟.png",
   "skills": [],
   "talents_abilities": "停止失衡移动后晕眩3s"

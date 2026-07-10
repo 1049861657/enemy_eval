@@ -76,7 +76,8 @@ class PropertyPanel(QWidget):
         self.skills_panel.talentsChanged.connect(lambda text: self._update_property('talents_abilities', text))
         
         # 评价面板
-        self.rating_panel.ratingChanged.connect(self._update_property)
+        self.rating_panel.ratingScoreChanged.connect(self._on_rating_score_changed)
+        self.rating_panel.ratingSchemaEdited.connect(self._on_rating_schema_edited)
         self.rating_panel.descriptionChanged.connect(lambda text: self._update_property('brief_description', text))
         self.rating_panel.commentChanged.connect(lambda text: self._update_property('brief_comment', text))
         
@@ -95,6 +96,12 @@ class PropertyPanel(QWidget):
     def _update_property(self, property_name: str, value):
         """更新属性"""
         self.card_model.update_property(property_name, value)
+
+    def _on_rating_score_changed(self, index: int, score: int):
+        self.card_model.update_rating_score(index, score)
+
+    def _on_rating_schema_edited(self):
+        self.card_model.realign_rating_scores_to_schema()
     
     def _update_resistance(self, resistance_name: str, value: float):
         """更新异常抗性"""

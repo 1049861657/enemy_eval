@@ -274,6 +274,79 @@ QLabel {
 }
 """
 
+RATING_SETTINGS_BTN_STYLE = """
+QPushButton {
+    background: rgba(255, 255, 255, 0.18);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 16px;
+    font-size: 16px;
+    font-weight: bold;
+}
+QPushButton:hover {
+    background: rgba(255, 255, 255, 0.32);
+}
+"""
+
+RATING_DONE_BTN_STYLE = """
+QPushButton {
+    background: #ffffff;
+    color: #357ABD;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-weight: bold;
+    font-size: 13px;
+}
+QPushButton:hover {
+    background: #e8f1fb;
+}
+"""
+
+RATING_ADD_BTN_STYLE = """
+QPushButton {
+    background-color: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-weight: bold;
+}
+QPushButton:hover {
+    background-color: #2ecc71;
+}
+QPushButton:disabled {
+    background-color: #95a5a6;
+}
+"""
+
+RATING_REMOVE_BTN_STYLE = """
+QPushButton {
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: bold;
+}
+QPushButton:hover {
+    background-color: #c0392b;
+}
+"""
+
+RATING_NAME_EDIT_STYLE = """
+QLineEdit {
+    font-weight: bold;
+    color: #2c3e50;
+    font-size: 14px;
+    border: 1px solid #4A90E2;
+    border-radius: 4px;
+    padding: 2px 6px;
+    background: #f8fbff;
+}
+"""
+
+
 # 详细文本编辑框样式
 DETAILED_TEXT_EDIT_STYLE = """
 QTextEdit { 

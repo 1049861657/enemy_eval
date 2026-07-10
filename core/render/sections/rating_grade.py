@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING
 
 import skia
 
-from models import EnemyData
+from models import EnemyData, align_rating_scores
+from utils.rating_schema_store import get_rating_names
 
 from core.render import layout
 from core.render.stars import draw_empty_star, draw_premium_star
@@ -18,19 +19,19 @@ if TYPE_CHECKING:
 def draw_rating_cards(
     gen: "EnemyCardGenerator", enemy: EnemyData, _skills_bottom_y: int
 ) -> None:
-    ratings = [
-        ("对策度", enemy.hostility_rating, (0.85, 0.2, 0.3)),
-        ("创新度", enemy.innovation_rating, (0.2, 0.6, 0.9)),
-        ("威胁度", enemy.threat_rating, (0.9, 0.5, 0.1)),
-    ]
+    names = get_rating_names()
+    if not names:
+        return
+    scores = align_rating_scores(list(enemy.rating_scores), len(names))
 
-    start_x = 60
-    start_y = 560
-    card_width = 360
-    card_height = 105
-    spacing = 126
+    start_x = layout.RATING_CARD_START_X
+    start_y = layout.RATING_CARD_START_Y
+    card_width = layout.RATING_CARD_WIDTH
+    card_height = layout.RATING_CARD_HEIGHT
+    spacing = layout.RATING_CARD_SPACING
 
-    for i, (name, rating, color) in enumerate(ratings):
+    for i, (name, rating) in enumerate(zip(names, scores)):
+        color = layout.rating_color_at(i)
         x = start_x
         y = start_y + i * spacing
 
@@ -73,8 +74,13 @@ def draw_grade_section(gen: "EnemyCardGenerator", enemy: EnemyData, skills_botto
     block_h = layout.measure_grade_block_height(enemy, gen._wrap_text)
     spacing = 28
     margin = 15
+    names = get_rating_names()
+    left_floor = float(skills_bottom_y)
+    if names:
+        left_floor = max(left_floor, layout.measure_rating_section_bottom(len(names)))
+    content_floor = left_floor + spacing
     grade_start_y = max(
-        skills_bottom_y + spacing,
+        content_floor,
         float(gen.config.height) - block_h - margin,
     )
     grade_bottom = grade_start_y + block_h

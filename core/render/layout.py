@@ -71,6 +71,34 @@ COMMENT_FIRST_BASELINE = 75.0
 COMMENT_LAST_BASELINE_PAD = 48.0
 GRADE_BLOCK_MIN_H = 210.0
 
+# 左侧评价卡布局（与 rating_grade.draw_rating_cards 共用）
+RATING_CARD_START_X = 60
+RATING_CARD_START_Y = 560
+RATING_CARD_WIDTH = 360
+RATING_CARD_HEIGHT = 105
+RATING_CARD_SPACING = 126
+RATING_PALETTE: tuple[tuple[float, float, float], ...] = (
+    (0.85, 0.2, 0.3),   # 红
+    (0.2, 0.6, 0.9),    # 蓝
+    (0.9, 0.5, 0.1),    # 橙
+    (0.35, 0.7, 0.35),  # 绿
+    (0.55, 0.35, 0.75), # 紫
+)
+
+
+def rating_color_at(index: int) -> tuple[float, float, float]:
+    return RATING_PALETTE[index % len(RATING_PALETTE)]
+
+
+def measure_rating_section_bottom(dimension_count: int) -> float:
+    """左侧评价卡区域底边 y；0 条时返回起点（不占位）。"""
+    n = max(0, dimension_count)
+    if n <= 0:
+        return float(RATING_CARD_START_Y)
+    return float(
+        RATING_CARD_START_Y + (n - 1) * RATING_CARD_SPACING + RATING_CARD_HEIGHT
+    )
+
 
 def measure_info_section(
     enemy: EnemyData, font_manager: FontManager
@@ -151,14 +179,21 @@ def measure_render_height(
     config_height: int,
     font_manager: FontManager,
     wrap_text: Callable[[str, int, int], list[str]],
+    rating_dimension_count: int = 0,
 ) -> int:
     _, info_bottom = measure_info_section(enemy, font_manager)
     skills_bottom = measure_skills_talents_bottom(enemy, info_bottom, font_manager)
+    rating_bottom = measure_rating_section_bottom(rating_dimension_count)
     block_h = measure_grade_block_height(enemy, wrap_text)
     spacing = 28
     margin = 15
+    # 等级块不得压住左侧评价卡 / 技能区
+    left_floor = skills_bottom
+    if rating_dimension_count > 0:
+        left_floor = max(left_floor, rating_bottom)
+    content_floor = left_floor + spacing
     grade_start = max(
-        skills_bottom + spacing,
+        content_floor,
         float(config_height) - block_h - margin,
     )
     need = int(math.ceil(grade_start + block_h + margin))

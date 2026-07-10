@@ -5,6 +5,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from .rating_schema import MAX_RATING_DIMENSIONS
 from .skill_entry import SkillEntry
 
 
@@ -40,9 +41,11 @@ class EnemyData(BaseModel):
         default_factory=dict, description="异常抗性映射"
     )
 
-    hostility_rating: int = Field(..., ge=1, le=5, description="对策度")
-    innovation_rating: int = Field(..., ge=1, le=5, description="创新度")
-    threat_rating: int = Field(..., ge=1, le=5, description="威胁度")
+    rating_scores: list[int] = Field(
+        default_factory=list,
+        max_length=MAX_RATING_DIMENSIONS,
+        description="各评价维度分数(1-5)，与全局评价标准顺序对应；名称不在此持久化",
+    )
 
     avatar_path: Optional[str] = Field(None, description="头像图片路径")
 
@@ -54,6 +57,18 @@ class EnemyData(BaseModel):
     def validate_grade(cls, v):
         if v not in ["S", "A", "B", "C", "D"]:
             raise ValueError("等级必须是 S/A/B/C/D 中的一个")
+        return v
+
+    @field_validator("rating_scores")
+    @classmethod
+    def validate_rating_scores(cls, v: list[int]) -> list[int]:
+        if len(v) > MAX_RATING_DIMENSIONS:
+            raise ValueError(f"评分项最多 {MAX_RATING_DIMENSIONS} 个")
+        for score in v:
+            if not isinstance(score, int) or isinstance(score, bool):
+                raise ValueError("评分必须是整数")
+            if score < 1 or score > 5:
+                raise ValueError("评分必须在 1-5 之间")
         return v
 
     @field_validator("avatar_path")

@@ -205,9 +205,7 @@ class TestPrtsFetchThread:
             target_value=1,
             brief_description="来自PRTS的测试敌人数据",
             brief_comment="待评价",
-            hostility_rating=3,
-            innovation_rating=3,
-            threat_rating=3,
+            rating_scores=[3, 3, 3],
         )
 
     def test_signal_exists(self, qapp):

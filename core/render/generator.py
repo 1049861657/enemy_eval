@@ -7,6 +7,7 @@ from typing import Optional
 import skia
 
 from models import EnemyData
+from utils.rating_schema_store import get_rating_names
 
 from core.fonts import FontManager, get_font_manager
 from core.optimization import (
@@ -96,6 +97,7 @@ class EnemyCardGenerator:
             self.config.height,
             self.font_manager,
             self._wrap_text,
+            rating_dimension_count=len(get_rating_names()),
         )
 
     def _wrap_text(self, text: str, max_width: int, font_size: int) -> list[str]:

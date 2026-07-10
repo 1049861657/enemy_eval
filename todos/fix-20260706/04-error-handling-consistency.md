@@ -30,7 +30,7 @@
 
 ## 验收标准
 
-- `grep -rn "print(f\"" gui/card_model.py` 无匹配（全部替换为 logger 或异常抛出）。
-- `utils/__init__.py::__all__` 包含 `FileOperationError`（若选方案 a）或 `utils/error_handler.py` 不再定义该类（若选方案 b）。
-- `grep -rn "CardStyle" .` 除 CHANGELOG/本 todo 文档外零匹配。
-- 手动测试：故意提供一个字段类型错误的 JSON 配置文件用"打开配置文件"加载，弹出的错误提示应能反映具体是哪个字段/哪种校验失败，而非笼统的"无效的配置文件格式"。
+- [x] `grep -rn "print(f\"" gui/card_model.py` 无匹配（全部替换为 logger 或异常抛出）。
+- [x] `utils/__init__.py::__all__` 包含 `FileOperationError`（方案 a）。
+- [x] `grep -rn "CardStyle" .` 除 CHANGELOG/本 todo 文档外零匹配。
+- [x] 错误提示可反映具体字段/校验失败：由 `tests/test_card_model_error_handling.py` + `tests/test_error_handler.py` 覆盖（`FileOperationError` 文案内嵌详情、`categorize_error_message` 保留原文）；GUI 弹窗路径与 `main_window` 既有 `EnemyEvalException` 展示一致。

@@ -5,9 +5,23 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from models import EnemyData, SkillEntry
+from models import EnemyData, SkillEntry, align_rating_scores, default_rating_scores
+from utils.rating_schema_store import get_rating_names
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_rating_scores(raw: dict[str, Any]) -> list[int]:
+    names = get_rating_names()
+    if isinstance(raw.get("rating_scores"), list):
+        scores: list[int] = []
+        for item in raw["rating_scores"]:
+            try:
+                scores.append(int(item))
+            except (TypeError, ValueError):
+                scores.append(3)
+        return align_rating_scores(scores, len(names))
+    return default_rating_scores(len(names))
 
 
 def to_enemy_data(raw: dict[str, Any], fallback_name: str) -> Optional[EnemyData]:
@@ -44,9 +58,7 @@ def to_enemy_data(raw: dict[str, Any], fallback_name: str) -> Optional[EnemyData
             ),
             brief_comment=str(raw.get("brief_comment") or "待评价"),
             abnormal_resistances={k: float(v) for k, v in ab.items()},
-            hostility_rating=int(raw.get("hostility_rating") or 3),
-            innovation_rating=int(raw.get("innovation_rating") or 3),
-            threat_rating=int(raw.get("threat_rating") or 3),
+            rating_scores=_resolve_rating_scores(raw),
             avatar_path=raw.get("avatar_path"),
             skills=_normalize_skills_payload(raw.get("skills")),
             talents_abilities=str(raw.get("talents_abilities") or ""),
