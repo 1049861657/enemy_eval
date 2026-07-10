@@ -9,6 +9,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
+from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
 
 # 添加项目根目录到Python路径
@@ -102,15 +103,15 @@ def main():
     if missing_deps:
         return show_dependency_error(missing_deps)
     
+    # 必须在创建 QApplication 前选择 Qt Quick Controls 风格。
+    QQuickStyle.setStyle("FluentWinUI3")
+
     # 创建应用程序
     app = QApplication(sys.argv)
     app.setApplicationName("敌人评价卡片编辑器")
     app.setApplicationVersion(get_app_version())
     app.setApplicationDisplayName("敌人评价卡片实时编辑器")
     app.setOrganizationName("Enemy Eval Team")
-    
-    # 设置应用程序样式
-    app.setStyle('Fusion')  # 使用现代化样式
     
     # 显示启动画面
     splash = create_splash_screen()

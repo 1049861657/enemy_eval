@@ -5,7 +5,7 @@ Covers:
 2. utils/prts_mediawiki_pipeline.py — facade re-exports and error message mapping.
 3. utils/thread_manager.py::PrtsFetchThread — run() success/error/exception paths.
 4. core/optimization.py / core.render.avatar_prefetch — shared global image cache lock.
-5. gui/main_window.py — _reference_prts double-fetch guard.
+5. gui/main_window.py — QML 发起的 PRTS 请求并发保护。
 
 No real network calls, no real Skia network-image decodes, no hangs.
 """
@@ -299,62 +299,29 @@ class TestGlobalImageCacheLock:
         assert prefetch._GLOBAL_IMAGE_CACHE_LOCK is opt._GLOBAL_IMAGE_CACHE_LOCK
 
 
-class TestMainWindowPrtsReferenceDoubleFetchGuard:
-    """gui/main_window.py — _reference_prts must guard against concurrent fetches."""
+class TestMainWindowPrtsFetchGuard:
+    """gui/main_window.py — QML 发起的 PRTS 请求必须防止并发拉取。"""
 
     @pytest.fixture
     def main_window(self, qapp, monkeypatch):
-        from PySide6.QtWidgets import QMessageBox
-
         from gui.main_window import MainWindow
 
-        # Avoid real rendering, file dialogs, and message boxes
+        # Avoid real rendering
         monkeypatch.setattr(MainWindow, "_generate_card", lambda self: None)
-        monkeypatch.setattr(QMessageBox, "information", Mock())
 
         window = MainWindow()
         yield window
         window.close()
 
-    def test_reference_prts_rejects_second_fetch(self, main_window, monkeypatch):
-        from PySide6.QtWidgets import QMessageBox
-
-        from gui.main_window import MainWindow, PrtsReferenceDialog
-
+    def test_fetch_prts_rejects_second_fetch(self, main_window):
         # Simulate a running fetch thread
         fake_thread = Mock()
         fake_thread.isRunning.return_value = True
         main_window.prts_fetch_thread = fake_thread
 
-        # Spy on the dialog input so we can assert it was NOT called
-        dialog_mock = Mock(return_value=("", False))
-        monkeypatch.setattr(PrtsReferenceDialog, "get_enemy_name_input", dialog_mock)
-        info_mock = Mock()
-        monkeypatch.setattr(QMessageBox, "information", info_mock)
+        messages = []
+        main_window._bridge.messageChanged.connect(messages.append)
 
-        main_window._reference_prts()
+        main_window._fetch_prts_data("新敌人")
 
-        dialog_mock.assert_not_called()
-        info_mock.assert_called_once()
-        args, _ = info_mock.call_args
-        assert "请稍候" in args[1]
-
-    def test_reference_prts_allows_first_fetch(self, main_window, monkeypatch):
-        from PySide6.QtWidgets import QMessageBox
-
-        from gui.main_window import MainWindow, PrtsReferenceDialog
-
-        fake_thread = Mock()
-        fake_thread.isRunning.return_value = False
-        main_window.prts_fetch_thread = fake_thread
-
-        dialog_mock = Mock(return_value=("新敌人", True))
-        monkeypatch.setattr(PrtsReferenceDialog, "get_enemy_name_input", dialog_mock)
-        # Stub out the actual fetch to keep this test focused on the guard
-        monkeypatch.setattr(MainWindow, "_fetch_prts_data", Mock())
-        info_mock = Mock()
-        monkeypatch.setattr(QMessageBox, "information", info_mock)
-
-        main_window._reference_prts()
-
-        dialog_mock.assert_called_once()
+        assert messages == ["正在获取 PRTS 数据，请稍候"]
