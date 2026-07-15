@@ -91,7 +91,6 @@ class CardModel(QObject):
         while len(skills) <= index:
             skills.append(SkillEntry())
         skills[index] = entry
-        skills = [s for s in skills if s.is_nonempty()]
         self.update_property("skills", skills)
     
     def update_abnormal_resistance(self, resistance_name: str, value: float):

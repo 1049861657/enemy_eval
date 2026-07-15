@@ -58,6 +58,8 @@ RowLayout {
         onStepRequested: root.adjustValue(direction)
     }
     ToolButton {
+        id: decrementButton
+
         text: "−"
         Layout.alignment: Qt.AlignTop
         implicitWidth: Design.Theme.controlHeight
@@ -67,21 +69,26 @@ RowLayout {
         autoRepeatInterval: 70
         ToolTip.visible: hovered
         ToolTip.text: "减少 " + root.stepSize
-        Accessible.name: ToolTip.text
         enabled: root.enabled && root.value > root.minimum
         onClicked: root.adjustValue(-1)
 
         background: Rectangle {
-            radius: 6
-            color: parent.down ? Design.Theme.controlPressed
-                  : parent.hovered ? Design.Theme.controlHover
+            radius: Design.Theme.radiusMedium
+            color: decrementButton.down ? Design.Theme.controlPressed
+                  : decrementButton.hovered ? Design.Theme.controlHover
                   : Design.Theme.fieldSurface
             border.width: 1
-            border.color: parent.hovered
+            border.color: decrementButton.hovered
                           ? Design.Theme.borderHover : Design.Theme.border
+
+            Design.AppFocusFrame {
+                active: decrementButton.visualFocus
+            }
         }
     }
     ToolButton {
+        id: incrementButton
+
         text: "+"
         Layout.alignment: Qt.AlignTop
         implicitWidth: Design.Theme.controlHeight
@@ -91,18 +98,21 @@ RowLayout {
         autoRepeatInterval: 70
         ToolTip.visible: hovered
         ToolTip.text: "增加 " + root.stepSize
-        Accessible.name: ToolTip.text
         enabled: root.enabled && root.value < root.maximum
         onClicked: root.adjustValue(1)
 
         background: Rectangle {
-            radius: 6
-            color: parent.down ? Design.Theme.controlPressed
-                  : parent.hovered ? Design.Theme.controlHover
+            radius: Design.Theme.radiusMedium
+            color: incrementButton.down ? Design.Theme.controlPressed
+                  : incrementButton.hovered ? Design.Theme.controlHover
                   : Design.Theme.fieldSurface
             border.width: 1
-            border.color: parent.hovered
+            border.color: incrementButton.hovered
                           ? Design.Theme.borderHover : Design.Theme.border
+
+            Design.AppFocusFrame {
+                active: incrementButton.visualFocus
+            }
         }
     }
 }

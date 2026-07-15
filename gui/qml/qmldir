@@ -1,2 +1,4 @@
 module EnemyEval
 singleton Theme 1.0 Theme.qml
+AppFocusFrame 1.0 AppFocusFrame.qml
+AppTabButton 1.0 AppTabButton.qml

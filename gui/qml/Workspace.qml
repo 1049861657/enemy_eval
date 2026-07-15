@@ -101,6 +101,11 @@ Item {
     Shortcut { sequence: "Ctrl+E"; onActivated: controller.requestExport() }
     Shortcut { sequence: "F5"; onActivated: controller.requestRefresh() }
     Shortcut { sequence: "Ctrl+Q"; onActivated: controller.requestQuit() }
+    Shortcut { sequence: "Ctrl+1"; onActivated: editorTabs.currentIndex = 0 }
+    Shortcut { sequence: "Ctrl+2"; onActivated: editorTabs.currentIndex = 1 }
+    Shortcut { sequence: "Ctrl+3"; onActivated: editorTabs.currentIndex = 2 }
+    Shortcut { sequence: "Ctrl+4"; onActivated: editorTabs.currentIndex = 3 }
+    Shortcut { sequence: "Ctrl+5"; onActivated: editorTabs.currentIndex = 4 }
 
     ColumnLayout {
         anchors.fill: parent
@@ -165,11 +170,37 @@ Item {
                         objectName: "editorTabs"
                         Layout.fillWidth: true
                         currentIndex: 0
-                        TabButton { text: "基础" }
-                        TabButton { text: "战斗" }
-                        TabButton { text: "抗性" }
-                        TabButton { text: "技能" }
-                        TabButton { text: "评价" }
+                        implicitHeight: 48
+                        padding: Design.Theme.space1
+                        spacing: Design.Theme.space1
+
+                        background: Rectangle {
+                            radius: Design.Theme.radiusMedium
+                            color: Design.Theme.tabTrack
+                            border.width: 1
+                            border.color: Design.Theme.border
+                        }
+
+                        AppTabButton {
+                            width: (editorTabs.availableWidth - editorTabs.spacing * 4) / 5
+                            text: "基础"
+                        }
+                        AppTabButton {
+                            width: (editorTabs.availableWidth - editorTabs.spacing * 4) / 5
+                            text: "战斗"
+                        }
+                        AppTabButton {
+                            width: (editorTabs.availableWidth - editorTabs.spacing * 4) / 5
+                            text: "抗性"
+                        }
+                        AppTabButton {
+                            width: (editorTabs.availableWidth - editorTabs.spacing * 4) / 5
+                            text: "技能"
+                        }
+                        AppTabButton {
+                            width: (editorTabs.availableWidth - editorTabs.spacing * 4) / 5
+                            text: "评价"
+                        }
                     }
 
                     StackLayout {
@@ -205,7 +236,13 @@ Item {
                                         Label { text: "等级" }
                                         AppComboBox {
                                             Layout.fillWidth: true
-                                            options: ["S", "A", "B", "C", "D"]
+                                            options: [
+                                                { value: "S", label: "S" },
+                                                { value: "A", label: "A" },
+                                                { value: "B", label: "B" },
+                                                { value: "C", label: "C" },
+                                                { value: "D", label: "D" }
+                                            ]
                                             value: root.enemyData.grade || ""
                                             hasError: root.fieldErrors.grade !== undefined
                                             errorText: root.fieldErrors.grade || ""
@@ -214,37 +251,65 @@ Item {
                                         Label { text: "攻击方式" }
                                         AppComboBox {
                                             Layout.fillWidth: true
-                                            options: ["近战", "远程", "近战/远程", "不攻击"]
+                                            options: [
+                                                { value: "近战", label: "近战" },
+                                                { value: "远程", label: "远程" },
+                                                { value: "近战/远程", label: "近战/远程" },
+                                                { value: "不攻击", label: "不攻击" }
+                                            ]
                                             value: root.enemyData.attack_type || ""
                                             onValueCommitted: root.commitAttackType(value)
                                         }
                                         Label { text: "伤害类型" }
                                         AppComboBox {
                                             Layout.fillWidth: true
-                                            options: ["物理", "法术", "治疗", "无"]
+                                            options: [
+                                                { value: "物理", label: "物理" },
+                                                { value: "法术", label: "法术" },
+                                                { value: "治疗", label: "治疗" },
+                                                { value: "无", label: "无" }
+                                            ]
                                             value: root.enemyData.damage_type || ""
                                             onValueCommitted: root.commit("damage_type", value)
                                         }
                                         Label { text: "行动方式" }
                                         AppComboBox {
                                             Layout.fillWidth: true
-                                            options: ["地面", "飞行"]
+                                            options: [
+                                                { value: "地面", label: "地面" },
+                                                { value: "飞行", label: "飞行" }
+                                            ]
                                             value: root.enemyData.action_type || ""
                                             onValueCommitted: root.commit("action_type", value)
                                         }
                                         Label { text: "地位" }
                                         AppComboBox {
                                             Layout.fillWidth: true
-                                            options: ["普通", "精英", "领袖"]
+                                            options: [
+                                                { value: "普通", label: "普通" },
+                                                { value: "精英", label: "精英" },
+                                                { value: "领袖", label: "领袖" }
+                                            ]
                                             value: root.enemyData.position || ""
                                             onValueCommitted: root.commit("position", value)
                                         }
                                         Label { text: "种类" }
                                         AppComboBox {
                                             Layout.fillWidth: true
-                                            options: ["感染生物", "无人机", "萨卡兹", "宿主", "海怪",
-                                                      "法术造物", "源石造物", "化物", "机械", "野生动物",
-                                                      "坍缩体", "其他"]
+                                            options: [
+                                                { value: "感染生物", label: "感染生物" },
+                                                { value: "无人机", label: "无人机" },
+                                                { value: "萨卡兹", label: "萨卡兹" },
+                                                { value: "宿主", label: "宿主" },
+                                                { value: "海怪", label: "海怪" },
+                                                { value: "法术造物", label: "法术造物" },
+                                                { value: "源石造物", label: "源石造物" },
+                                                { value: "化物", label: "化物" },
+                                                { value: "机械", label: "机械" },
+                                                { value: "野生动物", label: "野生动物" },
+                                                { value: "坍缩体", label: "坍缩体" },
+                                                { value: "其他", label: "其他" }
+                                            ]
                                             value: root.enemyData.category || "其他"
                                             onValueCommitted: root.commit("category", value)
                                         }
@@ -258,7 +323,11 @@ Item {
                                                 errorText: root.fieldErrors.avatar_path || ""
                                                 onValueCommitted: root.commit("avatar_path", value)
                                             }
-                                            Button { text: "选择"; onClicked: controller.chooseAvatar() }
+                                            AppButton {
+                                                text: "选择"
+                                                appearance: "secondary"
+                                                onClicked: controller.chooseAvatar()
+                                            }
                                         }
                                     }
                                 }
@@ -339,11 +408,6 @@ Item {
                                 AppSection {
                                     title: "异常抗性"
                                     Layout.fillWidth: true
-                                    Label {
-                                        text: "启用表示该敌人对对应异常状态有抗性。"
-                                        color: Design.Theme.textSecondary
-                                        font.pixelSize: Design.Theme.captionFontSize
-                                    }
                                     GridLayout {
                                         columns: 3
                                         width: parent.width
@@ -372,10 +436,33 @@ Item {
                                 AppSection {
                                     title: "技能设定"
                                     Layout.fillWidth: true
-                                    RowLayout {
+                                    headerActions: [
+                                        AppIconButton {
+                                            width: 40
+                                            height: 40
+                                            icon.source: "icons/add.svg"
+                                            icon.width: 24
+                                            icon.height: 24
+                                            display: AbstractButton.IconOnly
+                                            toolTipText: "添加技能"
+                                            onClicked: controller.addSkill()
+                                        }
+                                    ]
+                                    Rectangle {
+                                        visible: (root.enemyData.skills || []).length === 0
                                         width: parent.width
-                                        Label { text: "可动态添加或删除技能"; color: Design.Theme.textSecondary; Layout.fillWidth: true }
-                                        AppButton { text: "添加技能"; onClicked: controller.addSkill() }
+                                        implicitHeight: 84
+                                        radius: Design.Theme.radiusMedium
+                                        color: Design.Theme.surfaceSubtle
+                                        border.width: 1
+                                        border.color: Design.Theme.border
+
+                                        Label {
+                                            anchors.centerIn: parent
+                                            text: "暂无技能"
+                                            color: Design.Theme.textSecondary
+                                            font.family: Design.Theme.fontFamily
+                                        }
                                     }
                                     Repeater {
                                         model: root.enemyData.skills || []
@@ -384,11 +471,18 @@ Item {
                                             required property var modelData
                                             width: parent.width
                                             title: "技能 " + (index + 1)
-                                            RowLayout {
-                                                width: parent.width
-                                                Item { Layout.fillWidth: true }
-                                                Button { text: "删除"; onClicked: controller.removeSkill(index) }
-                                            }
+                                            headerActions: [
+                                                AppIconButton {
+                                                    width: 40
+                                                    height: 40
+                                                    icon.source: "icons/delete.svg"
+                                                    icon.width: 24
+                                                    icon.height: 24
+                                                    display: AbstractButton.IconOnly
+                                                    toolTipText: "删除技能 " + (index + 1)
+                                                    onClicked: controller.removeSkill(index)
+                                                }
+                                            ]
                                             GridLayout {
                                                 columns: 2
                                                 width: parent.width
@@ -451,34 +545,44 @@ Item {
                                 AppSection {
                                     title: "评价维度"
                                     Layout.fillWidth: true
-                                    RowLayout {
-                                        width: parent.width
-                                        Label {
-                                            text: root.schemaEditMode ? "编辑名称和数量后保存" : "点击星标调整当前敌人评分"
-                                            color: Design.Theme.textSecondary
-                                            Layout.fillWidth: true
-                                        }
-                                        AppButton {
-                                            text: root.schemaEditMode ? "保存标准" : "编辑标准"
+                                    headerActions: [
+                                        AppIconButton {
+                                            visible: !root.schemaEditMode
+                                            width: 40
+                                            height: 40
+                                            icon.source: "icons/sliders.svg"
+                                            icon.width: 24
+                                            icon.height: 24
+                                            display: AbstractButton.IconOnly
+                                            toolTipText: "编辑标准"
                                             onClicked: {
-                                                if (root.schemaEditMode) {
-                                                    controller.updateRatingSchema(JSON.stringify(root.schemaDraft))
-                                                    root.schemaEditMode = false
-                                                } else {
-                                                    root.schemaDraft = root.ratingNames.slice()
-                                                    root.schemaEditMode = true
-                                                }
+                                                root.schemaDraft = root.ratingNames.slice()
+                                                root.schemaEditMode = true
                                             }
-                                        }
-                                        Button {
+                                        },
+                                        AppButton {
+                                            visible: root.schemaEditMode
+                                            width: 40
+                                            height: 40
+                                            text: ""
+                                            iconSource: "icons/save.svg"
+                                            ToolTip.visible: hovered
+                                            ToolTip.text: "保存标准"
+                                            onClicked: {
+                                                controller.updateRatingSchema(JSON.stringify(root.schemaDraft))
+                                                root.schemaEditMode = false
+                                            }
+                                        },
+                                        AppButton {
                                             visible: root.schemaEditMode
                                             text: "取消"
+                                            appearance: "subtle"
                                             onClicked: {
                                                 root.schemaDraft = root.ratingNames.slice()
                                                 root.schemaEditMode = false
                                             }
                                         }
-                                    }
+                                    ]
                                     Repeater {
                                         model: root.schemaEditMode ? root.schemaDraft : root.ratingNames
                                         delegate: RowLayout {
@@ -508,9 +612,15 @@ Item {
                                                 score: (root.enemyData.rating_scores || [])[index] || 1
                                                 onScoreSelected: controller.updateRatingScore(index, score)
                                             }
-                                            Button {
+                                            AppIconButton {
                                                 visible: root.schemaEditMode
-                                                text: "移除"
+                                                Layout.preferredWidth: 40
+                                                Layout.preferredHeight: 40
+                                                icon.source: "icons/delete.svg"
+                                                icon.width: 24
+                                                icon.height: 24
+                                                display: AbstractButton.IconOnly
+                                                toolTipText: "删除评价维度"
                                                 enabled: root.schemaDraft.length > 0
                                                 onClicked: {
                                                     var values = root.schemaDraft.slice()
@@ -522,14 +632,16 @@ Item {
                                     }
                                     AppButton {
                                         visible: root.schemaEditMode
-                                        text: "添加维度"
+                                        width: parent.width
+                                        text: "+ 添加维度"
+                                        appearance: "subtle"
                                         enabled: root.schemaDraft.length < 5
                                         onClicked: root.schemaDraft = root.schemaDraft.concat(["新维度"])
                                     }
                                     Label {
                                         visible: !root.schemaEditMode && root.ratingNames.length === 0
                                         width: parent.width
-                                        text: "暂无评价维度。点击“编辑标准”添加。"
+                                        text: "暂无评价维度"
                                         horizontalAlignment: Text.AlignHCenter
                                         color: Design.Theme.textSecondary
                                     }
@@ -699,15 +811,17 @@ Item {
 
             Label {
                 Layout.fillWidth: true
-                text: "输入敌人名称，获取主要属性与头像。技能、抗性和天赋仍需自行补充。"
+                text: "输入敌人名称，自动填入相关字段。"
                 color: Design.Theme.textSecondary
-                wrapMode: Text.Wrap
+                font.family: Design.Theme.fontFamily
+                font.pixelSize: Design.Theme.bodyFontSize
             }
 
             AppTextField {
                 id: prtsName
                 Layout.fillWidth: true
                 placeholderText: "敌人名称"
+                showFocusFrame: false
                 onAccepted: {
                     if (fetchPrtsButton.enabled)
                         prtsDialog.accept()

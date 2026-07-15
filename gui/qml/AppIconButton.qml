@@ -6,15 +6,14 @@ import "." as Design
 ToolButton {
     id: root
 
-    property string accessibleName: text
+    property string toolTipText: text
 
     implicitWidth: 32
     implicitHeight: 32
     padding: Design.Theme.space1
     scale: down ? 0.94 : 1
     ToolTip.visible: hovered && ToolTip.text.length > 0
-    ToolTip.text: root.accessibleName
-    Accessible.name: root.accessibleName
+    ToolTip.text: root.toolTipText
 
     Behavior on scale {
         NumberAnimation {
@@ -27,5 +26,9 @@ ToolButton {
         radius: Design.Theme.radiusSmall
         color: root.down ? Design.Theme.controlPressed
               : (root.hovered ? Design.Theme.controlHover : "transparent")
+
+        Design.AppFocusFrame {
+            active: root.visualFocus
+        }
     }
 }

@@ -10,6 +10,7 @@ TextArea {
     property int debounceInterval: 280
     property bool hasError: false
     property string errorText: ""
+    property bool showFocusFrame: false
     property string lastCommittedValue: ""
     signal valueCommitted(string value)
 
@@ -49,26 +50,19 @@ TextArea {
     }
 
     background: Rectangle {
-        radius: Design.Theme.radiusSmall
+        radius: Design.Theme.radiusMedium
         color: !root.enabled ? Design.Theme.disabledSurface
                : root.hovered || root.activeFocus
                  ? Design.Theme.surface : Design.Theme.fieldSurface
         border.width: 1
         border.color: root.hasError ? Design.Theme.danger
-                      : root.activeFocus ? Design.Theme.focusBorder : Design.Theme.border
+                      : root.activeFocus ? Design.Theme.borderStrong
+                      : root.hovered ? Design.Theme.borderHover
+                      : Design.Theme.border
 
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: 2
-            radius: 1
-            color: root.hasError ? Design.Theme.danger : Design.Theme.accent
-            opacity: root.activeFocus || root.hasError ? 1 : 0
-
-            Behavior on opacity {
-                NumberAnimation { duration: 120 }
-            }
+        Design.AppFocusFrame {
+            active: root.showFocusFrame && root.activeFocus
+            hasError: root.hasError
         }
     }
 

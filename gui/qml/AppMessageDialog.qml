@@ -115,9 +115,6 @@ Dialog {
             confirmButton.forceActiveFocus()
     }
 
-    Accessible.name: dialogTitle
-    Accessible.description: message
-
     contentItem: ColumnLayout {
         spacing: Design.Theme.space5
 

@@ -55,19 +55,18 @@ ColumnLayout {
         }
         AppIconButton {
             text: "−"
-            accessibleName: "缩小预览"
+            toolTipText: "缩小预览"
             onClicked: root.adjustZoom(-0.1)
         }
         Label { text: Math.round(root.zoom * 100) + "%" }
         AppIconButton {
             text: "+"
-            accessibleName: "放大预览"
+            toolTipText: "放大预览"
             onClicked: root.adjustZoom(0.1)
         }
         AppButton {
             text: "适配窗口"
             appearance: "secondary"
-            Accessible.name: "适配预览区域"
             onClicked: root.fitToView()
         }
     }

@@ -36,12 +36,21 @@ QtObject {
     readonly property color border: "#D1D1D1"
     readonly property color borderHover: "#A8A8A8"
     readonly property color borderStrong: "#8A8A8A"
-    readonly property color focusBorder: "#0078D4"
     readonly property color disabledSurface: "#EDEDED"
     readonly property color disabledText: "#5F6368"
     readonly property color overlay: "#52000000"
     readonly property color controlHover: "#E9E9E9"
     readonly property color controlPressed: "#DDEEFF"
+    readonly property color popupSurface: "#FFFFFF"
+    readonly property color optionHover: "#F3F3F3"
+    readonly property color optionSelected: "#EAF3FB"
+    readonly property color optionSelectedHover: "#DCECF8"
+    readonly property color tabTrack: "#EDEDED"
+    readonly property color tabHover: "#E2E2E2"
+    readonly property color tabPressed: "#D8D8D8"
+    readonly property color tabSelected: "#FFFFFF"
+    readonly property int comboOptionHeight: 40
+    readonly property int comboPopupMaxHeight: 300
     readonly property int titleFontSize: 20
     readonly property int bodyFontSize: 14
     readonly property int captionFontSize: 12

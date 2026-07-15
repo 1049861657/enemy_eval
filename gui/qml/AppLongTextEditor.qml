@@ -14,6 +14,7 @@ Pane {
     property bool framed: true
     property bool hasError: false
     property string errorText: ""
+    property bool showFocusFrame: false
     property int editorHeight: 116
     property int debounceInterval: 320
     property string lastCommittedValue: ""
@@ -37,36 +38,68 @@ Pane {
 
     background: Rectangle {
         color: root.framed ? Design.Theme.surface : "transparent"
-        radius: Design.Theme.radiusLarge
-        border.width: root.framed ? 1 : 0
-        border.color: Design.Theme.border
+        radius: Design.Theme.radiusMedium
+        border.width: 0
     }
 
     contentItem: ColumnLayout {
-        spacing: Design.Theme.space2
+        spacing: root.framed ? Design.Theme.space3 : Design.Theme.space2
 
-        RowLayout {
+        Item {
             Layout.fillWidth: true
-            spacing: Design.Theme.space2
+            Layout.preferredHeight: Math.max(titleLabel.implicitHeight, 40)
+                                    + (root.framed ? Design.Theme.space2 : 0)
 
-            Label {
-                text: root.title
-                color: Design.Theme.textPrimary
-                font.family: Design.Theme.fontFamily
-                font.pixelSize: Design.Theme.bodyFontSize
-                font.weight: Font.DemiBold
-                Layout.fillWidth: true
+            RowLayout {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                height: parent.height - (root.framed ? Design.Theme.space2 : 0)
+                spacing: Design.Theme.space2
+
+                Rectangle {
+                    visible: root.framed
+                    Layout.preferredWidth: visible ? 3 : 0
+                    Layout.preferredHeight: 16
+                    radius: 2
+                    color: Design.Theme.accent
+                }
+
+                Label {
+                    id: titleLabel
+
+                    text: root.title
+                    color: Design.Theme.textPrimary
+                    font.family: Design.Theme.fontFamily
+                    font.pixelSize: Design.Theme.bodyFontSize + (root.framed ? 1 : 0)
+                    font.weight: Font.DemiBold
+                    font.letterSpacing: root.framed ? 0.3 : 0
+                    Layout.fillWidth: true
+                }
+
+                AppIconButton {
+                    id: editButton
+
+                    Layout.preferredWidth: 40
+                    Layout.preferredHeight: 40
+                    icon.source: "icons/edit.svg"
+                    icon.width: 24
+                    icon.height: 24
+                    display: AbstractButton.IconOnly
+                    ToolTip.visible: hovered
+                    ToolTip.text: "编辑"
+                    onClicked: root.expandRequested()
+                }
             }
 
-            AppIconButton {
-                icon.source: "icons/edit.svg"
-                icon.width: Design.Theme.iconSize
-                icon.height: Design.Theme.iconSize
-                display: AbstractButton.IconOnly
-                Accessible.name: "编辑" + root.title
-                ToolTip.visible: hovered
-                ToolTip.text: "编辑"
-                onClicked: root.expandRequested()
+            Rectangle {
+                visible: root.framed
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: 1
+                color: Design.Theme.border
+                opacity: 0.55
             }
         }
 
@@ -78,12 +111,9 @@ Pane {
                    ? Design.Theme.surface : Design.Theme.fieldSurface
             border.width: 1
             border.color: root.hasError ? Design.Theme.danger
-                          : editor.activeFocus ? Design.Theme.focusBorder
+                          : editor.activeFocus ? Design.Theme.borderStrong
+                          : editor.hovered ? Design.Theme.borderHover
                           : Design.Theme.border
-
-            Behavior on color {
-                ColorAnimation { duration: 90 }
-            }
 
             ScrollView {
                 id: editorScroll
@@ -126,8 +156,6 @@ Pane {
                         root.commitCurrent()
                     }
 
-                    Accessible.name: root.title
-                    Accessible.description: root.helperText
                 }
             }
 
@@ -141,18 +169,9 @@ Pane {
                 font.pixelSize: Design.Theme.captionFontSize
             }
 
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: 2
-                radius: 1
-                color: root.hasError ? Design.Theme.danger : Design.Theme.accent
-                opacity: editor.activeFocus || root.hasError ? 1 : 0
-
-                Behavior on opacity {
-                    NumberAnimation { duration: 120 }
-                }
+            Design.AppFocusFrame {
+                active: root.showFocusFrame && editor.activeFocus
+                hasError: root.hasError
             }
         }
 

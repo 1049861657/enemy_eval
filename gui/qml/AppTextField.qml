@@ -12,6 +12,7 @@ ColumnLayout {
     property bool hasError: false
     property string errorText: ""
     property bool showClearButton: true
+    property bool showFocusFrame: true
     property bool stepKeysEnabled: false
     property string lastCommittedValue: ""
     property alias text: editor.text
@@ -40,10 +41,22 @@ ColumnLayout {
             editor.selectAll()
     }
 
+    function clearCurrent() {
+        commitTimer.stop()
+        editor.text = ""
+        lastCommittedValue = ""
+        valueCommitted("")
+        editor.forceActiveFocus()
+    }
+
     onValueChanged: {
         lastCommittedValue = value
         if (!editor.activeFocus && editor.text !== value)
             editor.text = value
+    }
+    Component.onCompleted: {
+        lastCommittedValue = value
+        editor.text = value
     }
 
     TextField {
@@ -58,7 +71,6 @@ ColumnLayout {
         placeholderTextColor: Design.Theme.textSecondary
         leftPadding: Design.Theme.space3
         rightPadding: clearButton.visible ? Design.Theme.controlHeight : Design.Theme.space3
-        text: root.value
 
         onTextEdited: {
             if (root.debounceInterval > 0)
@@ -99,7 +111,7 @@ ColumnLayout {
         }
 
         background: Rectangle {
-            radius: 6
+            radius: Design.Theme.radiusMedium
             color: !root.enabled ? Design.Theme.disabledSurface
                    : editor.hovered || editor.activeFocus
                      ? Design.Theme.surface : Design.Theme.fieldSurface
@@ -109,43 +121,49 @@ ColumnLayout {
                           : editor.hovered ? Design.Theme.borderHover
                           : Design.Theme.border
 
-            Behavior on color {
-                ColorAnimation { duration: 90 }
-            }
-
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: 2
-                radius: 1
-                color: root.hasError ? Design.Theme.danger : Design.Theme.accent
-                opacity: editor.activeFocus || root.hasError ? 1 : 0
-
-                Behavior on opacity {
-                    NumberAnimation { duration: 120 }
-                }
+            Design.AppFocusFrame {
+                active: root.showFocusFrame && editor.activeFocus
+                hasError: root.hasError
             }
         }
 
-        AppIconButton {
+        Item {
             id: clearButton
 
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             width: 32
             height: 32
+            z: 2
             visible: root.showClearButton && editor.activeFocus
                      && editor.text.length > 0 && root.enabled
-            icon.source: "icons/close.svg"
-            icon.width: 16
-            icon.height: 16
-            display: AbstractButton.IconOnly
-            accessibleName: "清空输入"
-            onClicked: {
-                editor.clear()
-                root.commitCurrent()
-                editor.forceActiveFocus()
+            ToolTip.visible: clearHover.hovered
+            ToolTip.text: "清空输入"
+
+            Rectangle {
+                anchors.fill: parent
+                radius: Design.Theme.radiusSmall
+                color: clearTap.pressed ? Design.Theme.controlPressed
+                       : clearHover.hovered ? Design.Theme.controlHover
+                                            : "transparent"
+            }
+
+            Label {
+                anchors.centerIn: parent
+                text: "×"
+                color: Design.Theme.textSecondary
+                font.family: Design.Theme.fontFamily
+                font.pixelSize: 16
+            }
+
+            HoverHandler {
+                id: clearHover
+                cursorShape: Qt.PointingHandCursor
+            }
+
+            TapHandler {
+                id: clearTap
+                onTapped: root.clearCurrent()
             }
         }
     }
@@ -188,7 +206,6 @@ ColumnLayout {
             font.family: Design.Theme.fontFamily
             font.pixelSize: Design.Theme.captionFontSize
             wrapMode: Text.Wrap
-            Accessible.role: Accessible.StaticText
         }
     }
 }
