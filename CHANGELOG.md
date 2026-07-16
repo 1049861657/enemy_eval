@@ -14,7 +14,15 @@
 
 ## [未发布]
 
-<!-- 下一版本发布前，把此处条目移到新版本下 -->
+### 变更
+
+- QML 按 Qt 6.11 规范收敛：`controller` 改为根组件 required 属性注入；启用 `ComponentBehavior: Bound`；delegate 使用限定访问；Layout 子项改用 preferred 尺寸
+- 评价维度达上限时，「添加维度」改为禁止符号提示
+- 关于对话框显示构建阶段写入制品的 UTC 构建日期
+
+### 移除
+
+- 取消编辑器标签页 Ctrl+1 至 Ctrl+5 快捷键切换
 
 ---
 

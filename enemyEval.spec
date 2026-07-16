@@ -1,9 +1,42 @@
 # -*- mode: python ; coding: utf-8 -*-
 """Windows 文件夹版构建：显式携带资源、QML 与 Qt Quick 模块。"""
 
+import json
+import os
+import tomllib
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+project_root = Path(SPECPATH)
+with (project_root / "pyproject.toml").open("rb") as pyproject_file:
+    project_version = str(tomllib.load(pyproject_file)["project"]["version"])
+
+source_date_epoch = os.environ.get("SOURCE_DATE_EPOCH")
+if source_date_epoch is None:
+    build_time = datetime.now(timezone.utc)
+else:
+    build_time = datetime.fromtimestamp(int(source_date_epoch), timezone.utc)
+
+build_info_path = project_root / "build" / "build_info.json"
+build_info_path.parent.mkdir(parents=True, exist_ok=True)
+build_info_path.write_text(
+    json.dumps(
+        {
+            "version": project_version,
+            "built_at": build_time.isoformat(timespec="seconds").replace("+00:00", "Z"),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+
 project_data = [
     ("resource", "resource"),
     ("gui/qml", "gui/qml"),
+    (str(build_info_path), "."),
 ]
 qt_quick_modules = [
     "PySide6.QtQml",

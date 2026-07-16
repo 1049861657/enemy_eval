@@ -16,6 +16,7 @@ from utils import (
     PrtsFetchThread,
     categorize_error_message,
     error_handler,
+    get_app_build_time,
     get_app_version,
 )
 
@@ -44,6 +45,7 @@ class MainWindow(QMainWindow):
         self._render = RenderCoordinator(self)
         self._debouncer = AdaptiveDebouncer(min_delay=200, max_delay=520)
         self._app_version = get_app_version()
+        self._app_build_time = get_app_build_time()
         self.setWindowTitle(f"敌人评价卡片实时编辑器 v{self._app_version}")
         self.setGeometry(
             WINDOW_DEFAULT_X,
@@ -68,8 +70,10 @@ class MainWindow(QMainWindow):
             QQuickWidget.ResizeMode.SizeRootObjectToView
         )
         self.workspace.engine().addImageProvider("enemy-card", self._image_provider)
-        self.workspace.rootContext().setContextProperty("controller", self._bridge)
-        self.workspace.setSource(QUrl.fromLocalFile(str(Path(__file__).with_name("qml") / "Workspace.qml")))
+        self.workspace.setInitialProperties({"controller": self._bridge})
+        self.workspace.setSource(
+            QUrl.fromLocalFile(str(Path(__file__).with_name("qml") / "Workspace.qml"))
+        )
         self.setCentralWidget(self.workspace)
 
     def _create_status_bar(self) -> None:
@@ -177,9 +181,14 @@ class MainWindow(QMainWindow):
             self._bridge.show_dialog(title, message, "error")
 
     def _show_about(self) -> None:
+        build_time = (
+            f"\n构建日期：{self._app_build_time}" if self._app_build_time else ""
+        )
         self._bridge.show_dialog(
             "关于",
-            f"敌人评价卡片实时编辑器 v{self._app_version}\n\n"
+            "敌人评价卡片实时编辑器\n\n"
+            f"版本：{self._app_version}"
+            f"{build_time}\n\n"
             "一个现代化的敌人评价卡片生成工具\n"
             "支持实时预览和属性编辑\n\n"
             "技术栈：Python 3.12 + PySide6 + Qt Quick + Skia-Python",

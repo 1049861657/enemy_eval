@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -225,33 +227,33 @@ ColumnLayout {
                     width: optionList.width
                     height: Design.Theme.comboOptionHeight
                     hoverEnabled: true
-                    highlighted: optionList.currentIndex === index
+                    highlighted: optionList.currentIndex === optionDelegate.index
                     onHoveredChanged: {
                         if (hovered)
-                            optionList.currentIndex = index
+                            optionList.currentIndex = optionDelegate.index
                     }
-                    onClicked: root.selectOption(modelData)
+                    onClicked: root.selectOption(optionDelegate.modelData)
 
                     contentItem: RowLayout {
                         spacing: Design.Theme.space2
 
                         Rectangle {
-                            width: 3
-                            height: 18
+                            Layout.preferredWidth: 3
+                            Layout.preferredHeight: 18
                             radius: 2
-                            color: modelData.legacy ? Design.Theme.warning
-                                                    : Design.Theme.accent
-                            opacity: modelData.value === root.value ? 1 : 0
+                            color: optionDelegate.modelData.legacy ? Design.Theme.warning
+                                                                   : Design.Theme.accent
+                            opacity: optionDelegate.modelData.value === root.value ? 1 : 0
                         }
 
                         Label {
                             Layout.fillWidth: true
-                            text: modelData.label
-                            color: modelData.legacy ? Design.Theme.warning
-                                                    : Design.Theme.textPrimary
+                            text: optionDelegate.modelData.label
+                            color: optionDelegate.modelData.legacy ? Design.Theme.warning
+                                                                   : Design.Theme.textPrimary
                             font.family: Design.Theme.fontFamily
                             font.pixelSize: Design.Theme.bodyFontSize
-                            font.weight: modelData.value === root.value
+                            font.weight: optionDelegate.modelData.value === root.value
                                          ? Font.DemiBold : Font.Normal
                             elide: Text.ElideRight
                         }
@@ -259,9 +261,9 @@ ColumnLayout {
                         Label {
                             Layout.preferredWidth: 16
                             text: "✓"
-                            opacity: modelData.value === root.value ? 1 : 0
-                            color: modelData.legacy ? Design.Theme.warning
-                                                    : Design.Theme.accent
+                            opacity: optionDelegate.modelData.value === root.value ? 1 : 0
+                            color: optionDelegate.modelData.legacy ? Design.Theme.warning
+                                                                   : Design.Theme.accent
                             font.family: Design.Theme.fontFamily
                             font.pixelSize: Design.Theme.bodyFontSize
                             font.weight: Font.DemiBold
@@ -320,8 +322,8 @@ ColumnLayout {
         Rectangle {
             Layout.alignment: Qt.AlignTop
             Layout.topMargin: 3
-            width: 14
-            height: 14
+            Layout.preferredWidth: 14
+            Layout.preferredHeight: 14
             radius: 7
             color: Design.Theme.danger
 

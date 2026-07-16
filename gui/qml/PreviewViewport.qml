@@ -8,6 +8,7 @@ ColumnLayout {
     id: root
 
     property url source: ""
+    property bool busy: false
     property real zoom: 1.0
     property real baseScale: 1.0
     property int imageWidth: cardImage.implicitWidth
@@ -112,12 +113,12 @@ ColumnLayout {
 
         BusyIndicator {
             anchors.centerIn: parent
-            running: controller.busy
+            running: root.busy
             visible: running
         }
         Label {
             anchors.centerIn: parent
-            visible: cardImage.status !== Image.Ready && !controller.busy
+            visible: cardImage.status !== Image.Ready && !root.busy
             text: "等待预览"
             color: Design.Theme.textSecondary
         }

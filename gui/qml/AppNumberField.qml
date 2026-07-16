@@ -55,7 +55,7 @@ RowLayout {
                    ? "请输入 " + root.format(root.minimum) + "–" + root.format(root.maximum)
                    : root.errorText
         onValueCommitted: root.commitText()
-        onStepRequested: root.adjustValue(direction)
+        onStepRequested: (direction) => root.adjustValue(direction)
     }
     ToolButton {
         id: decrementButton

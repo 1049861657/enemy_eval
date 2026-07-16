@@ -185,8 +185,8 @@ ColumnLayout {
         Rectangle {
             Layout.alignment: Qt.AlignTop
             Layout.topMargin: 3
-            width: 14
-            height: 14
+            Layout.preferredWidth: 14
+            Layout.preferredHeight: 14
             radius: 7
             color: Design.Theme.danger
 

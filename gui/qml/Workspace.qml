@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -6,6 +8,8 @@ import "." as Design
 
 Item {
     id: root
+
+    required property var controller
 
     property var enemyData: ({})
     property var ratingNames: []
@@ -28,7 +32,7 @@ Item {
     }
 
     function commit(field, value) {
-        controller.updateProperty(field, JSON.stringify(value))
+        root.controller.updateProperty(field, JSON.stringify(value))
     }
 
     function commitAttackType(value) {
@@ -40,7 +44,7 @@ Item {
     function commitSkill(skillIndex, field, value) {
         var skill = JSON.parse(JSON.stringify(enemyData.skills[skillIndex]))
         skill[field] = value
-        controller.updateSkill(skillIndex, JSON.stringify(skill))
+        root.controller.updateSkill(skillIndex, JSON.stringify(skill))
     }
 
     function showToast(message, isError) {
@@ -74,12 +78,12 @@ Item {
     }
 
     Component.onCompleted: {
-        refreshData(controller.enemyDataJson, true)
-        refreshRatingNames(controller.ratingNamesJson)
+        refreshData(root.controller.enemyDataJson, true)
+        refreshRatingNames(root.controller.ratingNamesJson)
     }
 
     Connections {
-        target: controller
+        target: root.controller
         function onEnemyDataChanged(serialized) { root.refreshData(serialized, true) }
         function onRatingNamesChanged(serialized) { root.refreshRatingNames(serialized) }
         function onMessageChanged(message) { root.showToast(message, false) }
@@ -88,7 +92,7 @@ Item {
             errors[field] = message
             root.fieldErrors = errors
             root.showToast(message, true)
-            root.refreshData(controller.enemyDataJson, false)
+            root.refreshData(root.controller.enemyDataJson, false)
         }
         function onDialogRequested(title, message, tone) {
             messageDialog.show(title, message, tone)
@@ -96,16 +100,11 @@ Item {
     }
 
     Shortcut { sequence: "Ctrl+N"; onActivated: root.confirmNewCard(false) }
-    Shortcut { sequence: "Ctrl+O"; onActivated: controller.requestOpen() }
-    Shortcut { sequence: "Ctrl+S"; onActivated: controller.requestSave() }
-    Shortcut { sequence: "Ctrl+E"; onActivated: controller.requestExport() }
-    Shortcut { sequence: "F5"; onActivated: controller.requestRefresh() }
-    Shortcut { sequence: "Ctrl+Q"; onActivated: controller.requestQuit() }
-    Shortcut { sequence: "Ctrl+1"; onActivated: editorTabs.currentIndex = 0 }
-    Shortcut { sequence: "Ctrl+2"; onActivated: editorTabs.currentIndex = 1 }
-    Shortcut { sequence: "Ctrl+3"; onActivated: editorTabs.currentIndex = 2 }
-    Shortcut { sequence: "Ctrl+4"; onActivated: editorTabs.currentIndex = 3 }
-    Shortcut { sequence: "Ctrl+5"; onActivated: editorTabs.currentIndex = 4 }
+    Shortcut { sequence: "Ctrl+O"; onActivated: root.controller.requestOpen() }
+    Shortcut { sequence: "Ctrl+S"; onActivated: root.controller.requestSave() }
+    Shortcut { sequence: "Ctrl+E"; onActivated: root.controller.requestExport() }
+    Shortcut { sequence: "F5"; onActivated: root.controller.requestRefresh() }
+    Shortcut { sequence: "Ctrl+Q"; onActivated: root.controller.requestQuit() }
 
     ColumnLayout {
         anchors.fill: parent
@@ -121,12 +120,12 @@ Item {
                 spacing: Design.Theme.space2
 
                 AppButton { text: "新建"; iconSource: "icons/new.svg"; onClicked: root.confirmNewCard(false) }
-                AppButton { text: "打开"; iconSource: "icons/open.svg"; onClicked: controller.requestOpen() }
-                AppButton { text: "保存"; iconSource: "icons/save.svg"; onClicked: controller.requestSave() }
+                AppButton { text: "打开"; iconSource: "icons/open.svg"; onClicked: root.controller.requestOpen() }
+                AppButton { text: "保存"; iconSource: "icons/save.svg"; onClicked: root.controller.requestSave() }
                 AppButton {
                     text: "参考 PRTS"
                     appearance: "secondary"
-                    enabled: !controller.prtsBusy
+                    enabled: !root.controller.prtsBusy
                     onClicked: prtsDialog.open()
                 }
                 AppButton {
@@ -138,11 +137,11 @@ Item {
                     Menu {
                         id: commandMenu
                         y: moreButton.height
-                        MenuItem { text: "刷新预览\tF5"; onTriggered: controller.requestRefresh() }
+                        MenuItem { text: "刷新预览\tF5"; onTriggered: root.controller.requestRefresh() }
                         MenuItem { text: "重置数据"; onTriggered: root.confirmNewCard(true) }
                         MenuSeparator {}
-                        MenuItem { text: "关于"; onTriggered: controller.requestAbout() }
-                        MenuItem { text: "退出\tCtrl+Q"; onTriggered: controller.requestQuit() }
+                        MenuItem { text: "关于"; onTriggered: root.controller.requestAbout() }
+                        MenuItem { text: "退出\tCtrl+Q"; onTriggered: root.controller.requestQuit() }
                     }
                 }
                 Item { Layout.fillWidth: true }
@@ -326,7 +325,7 @@ Item {
                                             AppButton {
                                                 text: "选择"
                                                 appearance: "secondary"
-                                                onClicked: controller.chooseAvatar()
+                                                onClicked: root.controller.chooseAvatar()
                                             }
                                         }
                                     }
@@ -368,6 +367,7 @@ Item {
                                                 ["目标价值", "target_value", 0, 50, 1, 0]
                                             ]
                                             delegate: Item {
+                                                id: combatStat
                                                 required property var modelData
                                                 Layout.fillWidth: true
                                                 Layout.columnSpan: 2
@@ -375,19 +375,24 @@ Item {
                                                 RowLayout {
                                                     id: combatRow
                                                     anchors.fill: parent
-                                                    Label { text: modelData[0]; Layout.preferredWidth: 130 }
+                                                    Label {
+                                                        text: combatStat.modelData[0]
+                                                        Layout.preferredWidth: 130
+                                                    }
                                                     AppNumberField {
                                                         Layout.fillWidth: true
-                                                        enabled: modelData[1] !== "attack_range_radius"
-                                                                 || (root.enemyData.attack_type !== "近战" && root.enemyData.attack_type !== "不攻击")
-                                                        value: Number(root.enemyData[modelData[1]] ?? 0)
-                                                        minimum: modelData[2]
-                                                        maximum: modelData[3]
-                                                        stepSize: modelData[4]
-                                                        decimals: modelData[5]
-                                                        hasError: root.fieldErrors[modelData[1]] !== undefined
-                                                        errorText: root.fieldErrors[modelData[1]] || ""
-                                                        onValueCommitted: root.commit(modelData[1], value)
+                                                        enabled: combatStat.modelData[1] !== "attack_range_radius"
+                                                                 || (root.enemyData.attack_type !== "近战"
+                                                                     && root.enemyData.attack_type !== "不攻击")
+                                                        value: Number(root.enemyData[combatStat.modelData[1]] ?? 0)
+                                                        minimum: combatStat.modelData[2]
+                                                        maximum: combatStat.modelData[3]
+                                                        stepSize: combatStat.modelData[4]
+                                                        decimals: combatStat.modelData[5]
+                                                        hasError: root.fieldErrors[combatStat.modelData[1]] !== undefined
+                                                        errorText: root.fieldErrors[combatStat.modelData[1]] || ""
+                                                        onValueCommitted: (value) => root.commit(
+                                                            combatStat.modelData[1], value)
                                                     }
                                                 }
                                             }
@@ -414,10 +419,12 @@ Item {
                                         Repeater {
                                             model: ["冻结", "沉默", "晕眩", "沉睡", "浮空", "战栗", "恐惧", "麻痹", "诱导"]
                                             delegate: CheckBox {
+                                                id: resistanceBox
                                                 required property string modelData
-                                                text: modelData
-                                                checked: (root.enemyData.abnormal_resistances || {})[modelData] > 0
-                                                onToggled: controller.updateResistance(modelData, checked ? 1.0 : 0.0)
+                                                text: resistanceBox.modelData
+                                                checked: (root.enemyData.abnormal_resistances || {})[resistanceBox.modelData] > 0
+                                                onToggled: root.controller.updateResistance(
+                                                    resistanceBox.modelData, checked ? 1.0 : 0.0)
                                             }
                                         }
                                     }
@@ -445,7 +452,7 @@ Item {
                                             icon.height: 24
                                             display: AbstractButton.IconOnly
                                             toolTipText: "添加技能"
-                                            onClicked: controller.addSkill()
+                                            onClicked: root.controller.addSkill()
                                         }
                                     ]
                                     Rectangle {
@@ -467,10 +474,11 @@ Item {
                                     Repeater {
                                         model: root.enemyData.skills || []
                                         delegate: AppSection {
+                                            id: skillSection
                                             required property int index
                                             required property var modelData
                                             width: parent.width
-                                            title: "技能 " + (index + 1)
+                                            title: "技能 " + (skillSection.index + 1)
                                             headerActions: [
                                                 AppIconButton {
                                                     width: 40
@@ -479,8 +487,8 @@ Item {
                                                     icon.width: 24
                                                     icon.height: 24
                                                     display: AbstractButton.IconOnly
-                                                    toolTipText: "删除技能 " + (index + 1)
-                                                    onClicked: controller.removeSkill(index)
+                                                    toolTipText: "删除技能 " + (skillSection.index + 1)
+                                                    onClicked: root.controller.removeSkill(skillSection.index)
                                                 }
                                             ]
                                             GridLayout {
@@ -489,20 +497,23 @@ Item {
                                                 Label { text: "名称" }
                                                 AppTextField {
                                                     Layout.fillWidth: true
-                                                    value: modelData["名称"] || ""
-                                                    onValueCommitted: root.commitSkill(index, "名称", value)
+                                                    value: skillSection.modelData["名称"] || ""
+                                                    onValueCommitted: (value) => root.commitSkill(
+                                                        skillSection.index, "名称", value)
                                                 }
                                                 Label { text: "冷却时间" }
                                                 AppTextField {
                                                     Layout.fillWidth: true
-                                                    value: modelData["冷却时间"] || ""
-                                                    onValueCommitted: root.commitSkill(index, "冷却时间", value)
+                                                    value: skillSection.modelData["冷却时间"] || ""
+                                                    onValueCommitted: (value) => root.commitSkill(
+                                                        skillSection.index, "冷却时间", value)
                                                 }
                                                 Label { text: "技力消耗" }
                                                 AppTextField {
                                                     Layout.fillWidth: true
-                                                    value: modelData["技力消耗"] || ""
-                                                    onValueCommitted: root.commitSkill(index, "技力消耗", value)
+                                                    value: skillSection.modelData["技力消耗"] || ""
+                                                    onValueCommitted: (value) => root.commitSkill(
+                                                        skillSection.index, "技力消耗", value)
                                                 }
                                             }
                                             AppLongTextEditor {
@@ -511,10 +522,14 @@ Item {
                                                 placeholderText: "描述技能机制、触发条件与效果"
                                                 framed: false
                                                 editorHeight: 104
-                                                value: modelData["效果"] || ""
-                                                onValueCommitted: root.commitSkill(index, "效果", value)
+                                                value: skillSection.modelData["效果"] || ""
+                                                onValueCommitted: (value) => root.commitSkill(
+                                                    skillSection.index, "效果", value)
                                                 onExpandRequested: root.openDetailed(
-                                                    "skillEffect", "技能效果", modelData["效果"] || "", index
+                                                    "skillEffect",
+                                                    "技能效果",
+                                                    skillSection.modelData["效果"] || "",
+                                                    skillSection.index
                                                 )
                                             }
                                         }
@@ -569,7 +584,8 @@ Item {
                                             ToolTip.visible: hovered
                                             ToolTip.text: "保存标准"
                                             onClicked: {
-                                                controller.updateRatingSchema(JSON.stringify(root.schemaDraft))
+                                                root.controller.updateRatingSchema(
+                                                    JSON.stringify(root.schemaDraft))
                                                 root.schemaEditMode = false
                                             }
                                         },
@@ -586,6 +602,7 @@ Item {
                                     Repeater {
                                         model: root.schemaEditMode ? root.schemaDraft : root.ratingNames
                                         delegate: RowLayout {
+                                            id: ratingRow
                                             required property int index
                                             required property string modelData
                                             width: parent.width
@@ -593,24 +610,25 @@ Item {
                                             AppTextField {
                                                 visible: root.schemaEditMode
                                                 Layout.fillWidth: root.schemaEditMode
-                                                value: modelData
+                                                value: ratingRow.modelData
                                                 maximumLength: 8
                                                 onEditingFinished: {
                                                     var values = root.schemaDraft.slice()
-                                                    values[index] = text.trim()
+                                                    values[ratingRow.index] = text.trim()
                                                     root.schemaDraft = values
                                                 }
                                             }
                                             Label {
                                                 visible: !root.schemaEditMode
-                                                text: modelData
+                                                text: ratingRow.modelData
                                                 Layout.preferredWidth: 100
                                             }
                                             RatingStars {
                                                 visible: !root.schemaEditMode
-                                                dimensionName: modelData
-                                                score: (root.enemyData.rating_scores || [])[index] || 1
-                                                onScoreSelected: controller.updateRatingScore(index, score)
+                                                dimensionName: ratingRow.modelData
+                                                score: (root.enemyData.rating_scores || [])[ratingRow.index] || 1
+                                                onScoreSelected: (score) => root.controller.updateRatingScore(
+                                                    ratingRow.index, score)
                                             }
                                             AppIconButton {
                                                 visible: root.schemaEditMode
@@ -624,18 +642,23 @@ Item {
                                                 enabled: root.schemaDraft.length > 0
                                                 onClicked: {
                                                     var values = root.schemaDraft.slice()
-                                                    values.splice(index, 1)
+                                                    values.splice(ratingRow.index, 1)
                                                     root.schemaDraft = values
                                                 }
                                             }
                                         }
                                     }
                                     AppButton {
+                                        readonly property bool atLimit: root.schemaDraft.length >= 5
+
                                         visible: root.schemaEditMode
                                         width: parent.width
-                                        text: "+ 添加维度"
+                                        text: atLimit ? "" : "+ 添加维度"
+                                        iconSource: atLimit ? "icons/ban.svg" : ""
                                         appearance: "subtle"
-                                        enabled: root.schemaDraft.length < 5
+                                        enabled: !atLimit
+                                        ToolTip.visible: atLimit && hovered
+                                        ToolTip.text: "已达上限（最多 5 项）"
                                         onClicked: root.schemaDraft = root.schemaDraft.concat(["新维度"])
                                     }
                                     Label {
@@ -681,8 +704,10 @@ Item {
 
                 PreviewViewport {
                     anchors.fill: parent
-                    source: "image://enemy-card/current?revision=" + controller.previewRevision
-                    onExportRequested: controller.requestExport()
+                    source: "image://enemy-card/current?revision="
+                            + root.controller.previewRevision
+                    busy: root.controller.busy
+                    onExportRequested: root.controller.requestExport()
                 }
             }
         }
@@ -758,7 +783,7 @@ Item {
 
     DetailedTextDialog {
         id: detailedDialog
-        onSaved: root.saveDetailed(value)
+        onSaved: (value) => root.saveDetailed(value)
     }
 
     AppMessageDialog {
@@ -770,7 +795,7 @@ Item {
         tone: "question"
         showCancel: true
         destructive: true
-        onConfirmed: controller.requestNew()
+        onConfirmed: root.controller.requestNew()
     }
 
     Dialog {
@@ -784,7 +809,7 @@ Item {
         standardButtons: Dialog.NoButton
         closePolicy: Popup.CloseOnEscape
         padding: Design.Theme.space5
-        onAccepted: controller.requestPrtsQuery(prtsName.text)
+        onAccepted: root.controller.requestPrtsQuery(prtsName.text)
         onOpened: prtsName.focusInput(true)
 
         Overlay.modal: Rectangle {
@@ -830,7 +855,7 @@ Item {
 
             BusyIndicator {
                 Layout.alignment: Qt.AlignHCenter
-                running: controller.prtsBusy
+                running: root.controller.prtsBusy
                 visible: running
             }
 
@@ -849,7 +874,7 @@ Item {
                 AppButton {
                     id: fetchPrtsButton
                     text: "获取数据"
-                    enabled: prtsName.text.trim().length > 0 && !controller.prtsBusy
+                    enabled: prtsName.text.trim().length > 0 && !root.controller.prtsBusy
                     onClicked: prtsDialog.accept()
                 }
             }

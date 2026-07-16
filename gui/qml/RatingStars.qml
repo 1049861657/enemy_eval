@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 
@@ -25,30 +27,30 @@ Row {
             implicitHeight: Design.Theme.controlHeight
             hoverEnabled: true
             ToolTip.visible: hovered
-            ToolTip.text: "设为 " + (index + 1) + " 星"
+            ToolTip.text: "设为 " + (starButton.index + 1) + " 星"
             onHoveredChanged: {
                 if (hovered)
-                    root.hoveredScore = index + 1
-                else if (root.hoveredScore === index + 1)
+                    root.hoveredScore = starButton.index + 1
+                else if (root.hoveredScore === starButton.index + 1)
                     root.hoveredScore = 0
             }
-            onClicked: root.scoreSelected(index + 1)
+            onClicked: root.scoreSelected(starButton.index + 1)
 
             Keys.onLeftPressed: {
-                if (index > 0)
-                    starRepeater.itemAt(index - 1).forceActiveFocus()
+                if (starButton.index > 0)
+                    starRepeater.itemAt(starButton.index - 1).forceActiveFocus()
             }
             Keys.onRightPressed: {
-                if (index + 1 < root.maximum)
-                    starRepeater.itemAt(index + 1).forceActiveFocus()
+                if (starButton.index + 1 < root.maximum)
+                    starRepeater.itemAt(starButton.index + 1).forceActiveFocus()
             }
 
             contentItem: Label {
                 readonly property int displayScore: root.hoveredScore > 0
                                                     ? root.hoveredScore
                                                     : root.score
-                text: index < displayScore ? "★" : "☆"
-                color: index < displayScore
+                text: starButton.index < displayScore ? "★" : "☆"
+                color: starButton.index < displayScore
                        ? Design.Theme.accent
                        : Design.Theme.textSecondary
                 font.family: Design.Theme.fontFamily
