@@ -8,7 +8,7 @@ description: 用户明确要求"生成 commit"/"提交"/"发版"/"release"/"bump
 本 skill 覆盖两个独立场景，触发条件见上方 description，不主动进入任何场景。
 
 - **场景 A：生成 commit message**
-- **场景 B：发版 / release**（另见 `CLAUDE.md`「发版（仅当用户明确要求发版 / release）」一节）
+- **场景 B：发版 / release**（另见 `AGENTS.md`「发版（仅当用户明确要求发版 / release）」一节）
 
 ---
 
@@ -69,7 +69,7 @@ git diff             # 未 add 的部分
 
 读取当前版本：`pyproject.toml` 的 `[project].version`（唯一权威来源，`utils/app_version.py` 从此读取）。
 
-**硬约束（来自 `CLAUDE.md`，不可违反）**：
+**硬约束（来自 `AGENTS.md`，不可违反）**：
 
 - AI **只能建议或修改 Y 或 Z**。
 - **禁止修改 X**（大版本号），除非用户在本次对话中手写明确指定新的 X 值。
@@ -151,4 +151,4 @@ rm -f .git/COMMIT_MSG_DRAFT
 
 ## 参考：本仓库既有约定原文
 
-详见 `CLAUDE.md`「发版（仅当用户明确要求发版 / release）」一节与 `CHANGELOG.md` 顶部"撰写约定"。本 skill 是对这两处规则的可执行展开，若两者冲突以 `CLAUDE.md` / `CHANGELOG.md` 原文为准（说明文档可能已被用户更新）。发现冲突时先向用户报告差异，不要擅自选边站或直接覆盖。
+详见 `AGENTS.md`「发版（仅当用户明确要求发版 / release）」一节与 `CHANGELOG.md` 顶部"撰写约定"。本 skill 是对这两处规则的可执行展开，若两者冲突以 `AGENTS.md` / `CHANGELOG.md` 原文为准（说明文档可能已被用户更新）。发现冲突时先向用户报告差异，不要擅自选边站或直接覆盖。

@@ -14,7 +14,7 @@
 3. **不要**在任务末尾擅自运行 Python 验证；由用户本地运行。
 4. 修改时**直接替换**，不保留兼容层、不提供迁移说明。
 5. **不要**做回退式凑合实现。
-6. GUI：Qt 职责分离；信号槽在 `__init__` 中连接；样式 `styles.qss` + `gui/styles/`。
+6. GUI：Qt 职责分离；Python 侧信号槽在 `__init__` 中连接；界面 `gui/qml/`，主题 `Theme.qml`。
 7. 配置一律 **JSON**，路径与形状符合 Pydantic；文件放 `data/`，命名 `{敌人名称}_config.json`。
 8. **禁止**在函数体中间插入 `import`，一律文件顶部。
 
@@ -22,7 +22,7 @@
 
 - **对外渲染**：`from core import EnemyCardGenerator`（实现于 `core/render/`）。
 - **utils**：通用工具；`thread_manager` 运行时再导入渲染相关，避免与 `core` 循环引用。
-- **gui**：Qt Model/View；组件 PascalCase；布局优先 `QVBoxLayout`/`QHBoxLayout`。
+- **gui**：QML 工作区 + Python 编排（`main_window` / `qml_bridge` / `card_model`）；组件 PascalCase。
 - **错误**：统一 `utils/error_handler.py`（如 `RenderError`、`EnemyEvalException`）；展示走 `categorize_error_message`。
 - **性能**：资源见 `core/optimization.py`；长任务 `thread_manager`；预览防抖 `debouncer`。
 - **代码风格**：私有 `_` 前缀；完整类型注解（GUI 尤甚）；导入顺序：标准库 → 第三方 → 本项目。
@@ -37,10 +37,11 @@ enemy_eval/
 │   ├── fonts.py / optimization.py
 │   └── render/                    # generator、layout、wiki_text、stars、sections/
 ├── utils/                         # debouncer、error_handler、thread_manager 等
-├── gui/                           # main_window、preview、property_panel、panels/、styles/
+├── gui/                           # main_window、qml/、card_model、qml_bridge、render_coordinator
 ├── data/                          # *_config.json
 ├── enemy/                         # 按敌人分的资源
 ├── resource/                      # ico 等
+├── AGENTS.md
 ├── CHANGELOG.md
 ├── pyproject.toml                 # [project].version 为唯一版本号来源
 └── uv.lock

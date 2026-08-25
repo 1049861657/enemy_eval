@@ -17,11 +17,14 @@ logger = logging.getLogger(__name__)
 
 PRTS_MEDIAWIKI_API = "https://prts.wiki/api.php"
 
+# PRTS 前置 Tengine 会拦截「Mozilla UA 但缺少 Accept-Language」的请求（403）。
+# 不携带项目名、版本或仓库地址。
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     ),
+    "Accept-Language": "zh-CN,zh;q=0.9",
 }
 
 # 统一超时常量：原实现里 12.0/22.0/10/30.0 四处不同数值散落在函数默认参数中。
