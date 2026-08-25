@@ -560,6 +560,13 @@ Item {
                                 AppSection {
                                     title: "评价维度"
                                     Layout.fillWidth: true
+                                    titleTrailing: [
+                                        RatingDisplaySwitch {
+                                            visible: !root.schemaEditMode
+                                            radarOn: root.controller.ratingRadar
+                                            onModePicked: (radar) => root.controller.setRatingRadar(radar)
+                                        }
+                                    ]
                                     headerActions: [
                                         AppIconButton {
                                             visible: !root.schemaEditMode

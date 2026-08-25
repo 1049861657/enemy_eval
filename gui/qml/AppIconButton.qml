@@ -7,10 +7,14 @@ ToolButton {
     id: root
 
     property string toolTipText: text
+    property int chromeRadius: Design.Theme.radiusSmall
 
     implicitWidth: 32
     implicitHeight: 32
     padding: Design.Theme.space1
+    icon.color: (root.checkable && root.checked)
+                ? Design.Theme.textOnAccent
+                : Design.Theme.textPrimary
     scale: down ? 0.94 : 1
     ToolTip.visible: hovered && ToolTip.text.length > 0
     ToolTip.text: root.toolTipText
@@ -23,9 +27,21 @@ ToolButton {
     }
 
     background: Rectangle {
-        radius: Design.Theme.radiusSmall
-        color: root.down ? Design.Theme.controlPressed
-              : (root.hovered ? Design.Theme.controlHover : "transparent")
+        radius: root.chromeRadius
+        color: {
+            if (root.checkable && root.checked) {
+                if (root.down)
+                    return Design.Theme.accentPressed
+                if (root.hovered)
+                    return Design.Theme.accentHover
+                return Design.Theme.accent
+            }
+            if (root.down)
+                return Design.Theme.controlPressed
+            if (root.hovered)
+                return Design.Theme.controlHover
+            return "transparent"
+        }
 
         Design.AppFocusFrame {
             active: root.visualFocus

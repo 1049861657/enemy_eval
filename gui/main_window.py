@@ -74,6 +74,9 @@ class MainWindow(QMainWindow):
         self.workspace.setSource(
             QUrl.fromLocalFile(str(Path(__file__).with_name("qml") / "Workspace.qml"))
         )
+        if self.workspace.status() == QQuickWidget.Status.Error:
+            for error in self.workspace.errors():
+                logger.error("QML 加载失败：%s", error.toString())
         self.setCentralWidget(self.workspace)
 
     def _create_status_bar(self) -> None:

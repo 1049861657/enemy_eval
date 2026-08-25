@@ -11,7 +11,12 @@ from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtWidgets import QFileDialog, QWidget
 
 from models import RatingSchema, SkillEntry
-from utils.rating_schema_store import get_rating_names, save_rating_schema
+from utils.rating_schema_store import (
+    get_rating_names,
+    is_rating_radar,
+    save_rating_schema,
+    set_rating_radar,
+)
 
 from .card_model import CardModel
 from .render_coordinator import RenderCoordinator
@@ -45,6 +50,7 @@ class QmlBridge(QObject):
 
     enemyDataChanged = Signal(str)
     ratingNamesChanged = Signal(str)
+    ratingRadarChanged = Signal(bool)
     previewChanged = Signal(int)
     busyChanged = Signal(bool)
     prtsBusyChanged = Signal(bool)
@@ -88,6 +94,10 @@ class QmlBridge(QObject):
     @Property(str, notify=ratingNamesChanged)
     def ratingNamesJson(self) -> str:  # noqa: N802
         return json.dumps(get_rating_names(), ensure_ascii=False)
+
+    @Property(bool, notify=ratingRadarChanged)
+    def ratingRadar(self) -> bool:  # noqa: N802
+        return is_rating_radar()
 
     @Property(bool, notify=busyChanged)
     def busy(self) -> bool:
@@ -175,6 +185,19 @@ class QmlBridge(QObject):
     @Slot(int, int)
     def updateRatingScore(self, index: int, score: int) -> None:  # noqa: N802
         self._card_model.update_rating_score(index, score)
+
+    @Slot(bool)
+    def setRatingRadar(self, enabled: bool) -> None:  # noqa: N802
+        if is_rating_radar() == bool(enabled):
+            return
+        try:
+            set_rating_radar(bool(enabled))
+        except RuntimeError as error:
+            self.fieldError.emit("rating_display", str(error))
+            self.ratingRadarChanged.emit(is_rating_radar())
+            return
+        self.ratingRadarChanged.emit(bool(enabled))
+        self._render.request(self._card_model.enemy_data)
 
     @Slot(str)
     def updateRatingSchema(self, names_json: str) -> None:  # noqa: N802

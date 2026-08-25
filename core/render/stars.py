@@ -1,4 +1,4 @@
-"""评级星级绘制。"""
+"""五角星图元：实心填充 + 可选柔光，供评价记分板使用。"""
 
 from __future__ import annotations
 
@@ -6,61 +6,37 @@ import math
 
 import skia
 
-from core.render.layout import darken
+_INNER_RATIO = 0.47
 
 
-def _build_star_path(cx: float, cy: float, radius: float) -> skia.Path:
-    """构造五角星路径（外半径 radius，内半径 radius*0.4 的交替顶点）。"""
+def build_star_path(cx: float, cy: float, radius: float) -> skia.Path:
+    """外半径 radius、内半径 radius*0.47 的正五角星路径。"""
     path = skia.Path()
-    outer_radius = radius
-    inner_radius = radius * 0.4
-
-    path.moveTo(cx, cy - outer_radius)
-
-    for i in range(1, 11):
+    inner = radius * _INNER_RATIO
+    path.moveTo(cx, cy - radius)
+    for i in range(1, 10):
         angle = i * math.pi / 5
-        r = inner_radius if i % 2 == 1 else outer_radius
-        x = cx + r * math.sin(angle)
-        y = cy - r * math.cos(angle)
-        path.lineTo(x, y)
-
+        r = inner if i % 2 else radius
+        path.lineTo(cx + r * math.sin(angle), cy - r * math.cos(angle))
     path.close()
     return path
 
 
-def draw_premium_star(
+def draw_star(
     canvas: skia.Canvas,
     cx: float,
     cy: float,
     radius: float,
     color: tuple[float, float, float],
+    *,
+    glow: float = 0.0,
 ) -> None:
-    path = _build_star_path(cx, cy, radius)
-
-    gradient_colors = [
-        skia.Color4f(*color, 1.0),
-        skia.Color4f(*darken(color, 0.8), 1.0),
-    ]
-    gradient = skia.GradientShader.MakeRadial(
-        center=(cx, cy),
-        radius=radius,
-        colors=gradient_colors,
-    )
-    paint = skia.Paint(Shader=gradient)
-    canvas.drawPath(path, paint)
-
-    border_paint = skia.Paint(
-        Color=skia.Color4f(*darken(color, 0.6), 0.8)
-    )
-    border_paint.setStyle(skia.Paint.kStroke_Style)
-    border_paint.setStrokeWidth(0.5)
-    canvas.drawPath(path, border_paint)
-
-
-def draw_empty_star(canvas: skia.Canvas, cx: float, cy: float, radius: float) -> None:
-    path = _build_star_path(cx, cy, radius)
-
-    paint = skia.Paint(Color=skia.Color4f(0.7, 0.7, 0.7, 1))
-    paint.setStyle(skia.Paint.kStroke_Style)
-    paint.setStrokeWidth(1)
-    canvas.drawPath(path, paint)
+    """绘制实心五角星；glow>0 时在星形外围叠一层同色高斯柔光。"""
+    path = build_star_path(cx, cy, radius)
+    if glow > 0.0:
+        halo = skia.Paint(Color=skia.Color4f(*color, 0.42 * glow), AntiAlias=True)
+        halo.setMaskFilter(
+            skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, radius * 0.42)
+        )
+        canvas.drawPath(path, halo)
+    canvas.drawPath(path, skia.Paint(Color=skia.Color4f(*color, 1.0), AntiAlias=True))

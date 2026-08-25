@@ -25,6 +25,7 @@ QtObject {
     readonly property color warning: "#9D5D00"
     readonly property color warningSubtle: "#FFF4CE"
     readonly property color accentSubtle: "#EAF3FB"
+    readonly property color textOnAccent: "#FFFFFF"
     readonly property color textPrimary: "#1B1B1F"
     readonly property color textSecondary: "#5F6368"
     readonly property color surface: "#FFFFFF"

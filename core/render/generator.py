@@ -7,7 +7,7 @@ from typing import Optional
 import skia
 
 from models import EnemyData
-from utils.rating_schema_store import get_rating_names
+from utils.rating_schema_store import get_rating_names, is_rating_radar
 
 from core.fonts import FontManager, get_font_manager
 from core.optimization import (
@@ -98,6 +98,7 @@ class EnemyCardGenerator:
             self.font_manager,
             self._wrap_text,
             rating_dimension_count=len(get_rating_names()),
+            rating_radar=is_rating_radar(),
         )
 
     def _wrap_text(self, text: str, max_width: int, font_size: int) -> list[str]:
@@ -127,8 +128,8 @@ class EnemyCardGenerator:
                         self, enemy, int(info_section_bottom)
                     )
 
-                with PerformanceTimer("评分卡渲染"):
-                    rating_grade.draw_rating_cards(self, enemy, int(skills_section_bottom))
+                with PerformanceTimer("评价区渲染"):
+                    rating_grade.draw_rating_section(self, enemy, int(skills_section_bottom))
 
                 with PerformanceTimer("等级区域渲染"):
                     rating_grade.draw_grade_section(self, enemy, skills_section_bottom)
@@ -158,7 +159,7 @@ class EnemyCardGenerator:
                 skills_section_bottom = skills_talents.draw_skills_talents_section(
                     self, enemy, int(info_section_bottom)
                 )
-                rating_grade.draw_rating_cards(self, enemy, int(skills_section_bottom))
+                rating_grade.draw_rating_section(self, enemy, int(skills_section_bottom))
                 rating_grade.draw_grade_section(self, enemy, skills_section_bottom)
 
                 assert self.surface is not None

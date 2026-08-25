@@ -78,18 +78,23 @@ COMMENT_FIRST_BASELINE = 75.0
 COMMENT_LAST_BASELINE_PAD = 48.0
 GRADE_BLOCK_MIN_H = 210.0
 
-# 左侧评价卡布局（与 rating_grade.draw_rating_cards 共用）
-RATING_CARD_START_X = 60
-RATING_CARD_START_Y = 560
-RATING_CARD_WIDTH = 360
-RATING_CARD_HEIGHT = 105
-RATING_CARD_SPACING = 126
+# 左侧评价区（星级记分板 / 雷达图；rating_grade、radar 共用）
+RATING_SECTION_TOP = 560
+RATING_PANEL_X = 60
+RATING_PANEL_WIDTH = 360
+RATING_PANEL_HEADER_H = 58
+RATING_PANEL_ROW_H = 64
+RATING_PANEL_PAD_Y = 12
+RATING_PANEL_NOTCH = 16
+# 雷达图占位（无底板；含轴外标签）；比记分板更靠左，右缘仍低于信息框 x=480
+RATING_RADAR_START_X = 32
+RATING_RADAR_BOX = 428
 RATING_PALETTE: tuple[tuple[float, float, float], ...] = (
-    (0.85, 0.2, 0.3),   # 红
-    (0.2, 0.6, 0.9),    # 蓝
-    (0.9, 0.5, 0.1),    # 橙
-    (0.35, 0.7, 0.35),  # 绿
-    (0.55, 0.35, 0.75), # 紫
+    (0.92, 0.22, 0.34),  # 洋红
+    (0.16, 0.56, 0.94),  # 亮蓝
+    (0.96, 0.52, 0.10),  # 橙
+    (0.22, 0.74, 0.38),  # 鲜绿
+    (0.62, 0.30, 0.88),  # 亮紫
 )
 
 
@@ -97,13 +102,20 @@ def rating_color_at(index: int) -> tuple[float, float, float]:
     return RATING_PALETTE[index % len(RATING_PALETTE)]
 
 
-def measure_rating_section_bottom(dimension_count: int) -> float:
-    """左侧评价卡区域底边 y；0 条时返回起点（不占位）。"""
+def measure_rating_section_bottom(
+    dimension_count: int, *, radar: bool = False
+) -> float:
+    """左侧评价区底边 y；0 条时返回起点（不占位）。"""
     n = max(0, dimension_count)
     if n <= 0:
-        return float(RATING_CARD_START_Y)
+        return float(RATING_SECTION_TOP)
+    if radar:
+        return float(RATING_SECTION_TOP + RATING_RADAR_BOX)
     return float(
-        RATING_CARD_START_Y + (n - 1) * RATING_CARD_SPACING + RATING_CARD_HEIGHT
+        RATING_SECTION_TOP
+        + RATING_PANEL_HEADER_H
+        + RATING_PANEL_PAD_Y * 2
+        + n * RATING_PANEL_ROW_H
     )
 
 
@@ -187,10 +199,13 @@ def measure_render_height(
     font_manager: FontManager,
     wrap_text: Callable[[str, int, int], list[str]],
     rating_dimension_count: int = 0,
+    rating_radar: bool = False,
 ) -> int:
     _, info_bottom = measure_info_section(enemy, font_manager)
     skills_bottom = measure_skills_talents_bottom(enemy, info_bottom, font_manager)
-    rating_bottom = measure_rating_section_bottom(rating_dimension_count)
+    rating_bottom = measure_rating_section_bottom(
+        rating_dimension_count, radar=rating_radar
+    )
     block_h = measure_grade_block_height(enemy, wrap_text)
     spacing = 28
     margin = 15

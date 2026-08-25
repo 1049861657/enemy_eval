@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 
 import "." as Design
 
@@ -9,6 +10,7 @@ Pane {
     property string title: ""
     default property alias content: contentColumn.data
     property alias headerActions: headerActionsContainer.data
+    property alias titleTrailing: titleTrailingContainer.data
 
     padding: Design.Theme.space4
     background: Rectangle {
@@ -26,11 +28,16 @@ Pane {
             id: sectionHeader
 
             width: parent.width
-            height: Math.max(titleLabel.implicitHeight,
-                             headerActionsContainer.height) + Design.Theme.space2
-            visible: root.title.length > 0 || headerActionsContainer.children.length > 0
+            height: Math.max(
+                        titleLabel.implicitHeight,
+                        headerActionsContainer.height,
+                        titleTrailingContainer.height
+                    ) + Design.Theme.space2
+            visible: root.title.length > 0
+                     || headerActionsContainer.children.length > 0
+                     || titleTrailingContainer.children.length > 0
 
-            Row {
+            RowLayout {
                 id: headerRow
 
                 anchors.left: parent.left
@@ -40,8 +47,8 @@ Pane {
                 spacing: Design.Theme.space2
 
                 Item {
-                    width: 4
-                    height: parent.height
+                    Layout.preferredWidth: 4
+                    Layout.fillHeight: true
 
                     Rectangle {
                         anchors.centerIn: parent
@@ -55,9 +62,7 @@ Pane {
                 Label {
                     id: titleLabel
 
-                    width: parent.width - 4 - headerActionsContainer.width
-                           - parent.spacing * (headerActionsContainer.width > 0 ? 2 : 1)
-                    height: parent.height
+                    Layout.alignment: Qt.AlignVCenter
                     text: root.title
                     font.family: Design.Theme.fontFamily
                     font.pixelSize: Design.Theme.bodyFontSize + 1
@@ -68,8 +73,21 @@ Pane {
                 }
 
                 Row {
+                    id: titleTrailingContainer
+
+                    Layout.alignment: Qt.AlignVCenter
+                    spacing: Design.Theme.space1
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                }
+
+                Row {
                     id: headerActionsContainer
 
+                    Layout.alignment: Qt.AlignVCenter
                     spacing: Design.Theme.space1
                 }
             }
