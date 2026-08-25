@@ -1,11 +1,15 @@
-"""wikitext → Skia 绘制用片段 + 按宽度换行（仅供卡片渲染）。"""
+"""wikitext → Skia 绘制用片段 + 按宽度换行（仅供卡片渲染）。
+
+卡片 JSON 存原文；本模块是渲染时的唯一展开点。已知模板走
+`_TEMPLATE_HANDLERS`，未知模板只展示末尾无名参数、永不展开命名参数。
+"""
 
 from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
-from typing import Callable
+from dataclasses import dataclass, replace
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +44,34 @@ def _unwrap_bracket_template(inner: str) -> str:
     return inner
 
 
-# [[词条]] — PRTS 式专有名词 / 超链接展示色（与正文区分）
+# [[词条]] / 特殊机制 / 异常效果 — PRTS 超链接展示色
 _LINK_TERM_RGBA = (0.14, 0.48, 0.74, 1.0)
+# PRTS {{popup}} 默认图标色（模板:Popup 的 --darkblue）
+_POPUP_HINT_RGBA = _LINK_TERM_RGBA
+# 圆圈问号占位宽度相对正文字号；与 wiki_paragraph_renderer 绘制口径共用
+_HINT_MARK_ADVANCE_RATIO = 0.82
+_BR_TAG = re.compile(r"<br\s*/?>", re.IGNORECASE)
+
+# 模板:异常效果 名称别名（PRTS 页面现网）
+_STATUS_ALIASES: dict[str, str] = {
+    "眩晕": "晕眩",
+    "不能阻挡": "不可阻挡",
+    "无法阻挡": "不可阻挡",
+    "冷冻": "冻结",
+    "冰冻": "冻结",
+    "隐形": "隐匿",
+    "隐型": "隐匿",
+    "隐身": "隐匿",
+    "睡眠": "沉睡",
+    "无法使用技能": "静默",
+    "免疫失衡": "失衡免疫",
+    "传送": "被传送",
+}
+
+
+def hint_mark_advance(font_size: float) -> float:
+    """{{popup}} 圆圈问号的水平步进，须与绘制直径一致，避免换行测算与落笔错位。"""
+    return font_size * _HINT_MARK_ADVANCE_RATIO
 
 
 @dataclass(frozen=True)
@@ -50,12 +80,29 @@ class WikiStyle:
     bold: bool = False
     dim: bool = False
     underline: bool = False
+    hint: bool = False
+
+
+@dataclass(frozen=True)
+class _TemplateCall:
+    """一次 {{name|...}}：无名参数按出现顺序；命名参数不进入可见正文。"""
+
+    name: str
+    positionals: tuple[str, ...]
+    named: dict[str, str]
 
 
 @dataclass
 class TextSpan:
     text: str
     style: WikiStyle
+
+
+_TemplateHandler = Callable[[_TemplateCall, WikiStyle], list[TextSpan]]
+
+
+def _style_with(base: WikiStyle, **overrides: Any) -> WikiStyle:
+    return replace(base, **overrides)
 
 
 def _css_color(spec: str) -> tuple[float, float, float, float]:
@@ -90,61 +137,170 @@ def _merge_spans(spans: list[TextSpan]) -> list[TextSpan]:
     return out
 
 
+def _split_top_level_pipes(s: str) -> list[str]:
+    """按顶层 `|` 切开，嵌套的 `{{ }}` / `[[ ]]` 内部分隔符不算。"""
+    parts: list[str] = []
+    buf: list[str] = []
+    i = 0
+    n = len(s)
+    tpl_depth = 0
+    link_depth = 0
+    while i < n:
+        if s.startswith("{{", i):
+            tpl_depth += 1
+            buf.append("{{")
+            i += 2
+            continue
+        if s.startswith("}}", i) and tpl_depth:
+            tpl_depth -= 1
+            buf.append("}}")
+            i += 2
+            continue
+        if s.startswith("[[", i):
+            link_depth += 1
+            buf.append("[[")
+            i += 2
+            continue
+        if s.startswith("]]", i) and link_depth:
+            link_depth -= 1
+            buf.append("]]")
+            i += 2
+            continue
+        if s[i] == "|" and tpl_depth == 0 and link_depth == 0:
+            parts.append("".join(buf))
+            buf = []
+            i += 1
+            continue
+        buf.append(s[i])
+        i += 1
+    parts.append("".join(buf))
+    return parts
+
+
+def _parse_template_call(inner: str) -> _TemplateCall:
+    raw = _unwrap_bracket_template(inner.strip())
+    chunks = [c.strip() for c in _split_top_level_pipes(raw)]
+    if not chunks or not chunks[0]:
+        return _TemplateCall(name="", positionals=(), named={})
+    name = chunks[0].lstrip("[").strip()
+    positionals: list[str] = []
+    named: dict[str, str] = {}
+    for chunk in chunks[1:]:
+        if not chunk:
+            continue
+        eq = chunk.find("=")
+        if eq > 0:
+            key = chunk[:eq].strip()
+            if key and " " not in key and "\n" not in key:
+                named[key] = chunk[eq + 1 :].strip()
+                continue
+        positionals.append(chunk)
+    return _TemplateCall(name=name, positionals=tuple(positionals), named=named)
+
+
+def _parse_body(text: str, style: WikiStyle) -> list[TextSpan]:
+    if not text:
+        return []
+    return _parse_inline_spans(text, style)
+
+
+def _link_term_style(base: WikiStyle) -> WikiStyle:
+    return _style_with(base, color=_LINK_TERM_RGBA, bold=True)
+
+
+def _handle_color(call: _TemplateCall, base: WikiStyle) -> list[TextSpan]:
+    spec = call.named.get("1") or (call.positionals[0] if call.positionals else "")
+    body = call.named.get("2")
+    if body is None:
+        body = "|".join(call.positionals[1:]) if len(call.positionals) > 1 else ""
+    if not spec or not body:
+        return _parse_body(body, base) if body else []
+    return _parse_body(body, _style_with(base, color=_css_color(spec)))
+
+
+def _handle_term(call: _TemplateCall, base: WikiStyle) -> list[TextSpan]:
+    display = call.named.get("术语") or (
+        call.positionals[1]
+        if len(call.positionals) > 1
+        else (call.positionals[0] if call.positionals else "")
+    )
+    if not display:
+        return []
+    return _parse_body(display, _style_with(base, underline=True))
+
+
+def _handle_status(call: _TemplateCall, base: WikiStyle) -> list[TextSpan]:
+    raw_name = call.named.get("名称") or (
+        call.positionals[0] if call.positionals else "未知"
+    )
+    canonical = _STATUS_ALIASES.get(raw_name, raw_name)
+    suffix = call.positionals[1] if len(call.positionals) > 1 else ""
+    override = call.named.get("显示名称")
+    if override is None and len(call.positionals) > 2:
+        override = call.positionals[2]
+    label = override if override else f"{canonical}{suffix}"
+    return [TextSpan(label, _link_term_style(base))]
+
+
+def _handle_special(call: _TemplateCall, base: WikiStyle) -> list[TextSpan]:
+    label = call.named.get("名称") or (
+        call.positionals[0] if call.positionals else "未知"
+    )
+    if "color" in call.named:
+        st = _style_with(base, color=_css_color(call.named["color"]), bold=True)
+    else:
+        st = _link_term_style(base)
+    return [TextSpan(label, st)]
+
+
+def _handle_delta(call: _TemplateCall, base: WikiStyle) -> list[TextSpan]:
+    value = call.named.get("1") or (call.positionals[0] if call.positionals else "")
+    if not value:
+        return []
+    return _parse_body(value, base)
+
+
+def _handle_popup(_call: _TemplateCall, _base: WikiStyle) -> list[TextSpan]:
+    return [TextSpan("?", WikiStyle(color=_POPUP_HINT_RGBA, hint=True))]
+
+
+def _handle_unknown(call: _TemplateCall, base: WikiStyle) -> list[TextSpan]:
+    """未知模板：只展示末尾无名参数（常见「标识|可见名」），永不展开命名参数。"""
+    if call.positionals:
+        visible = call.positionals[-1]
+        logger.debug(
+            "_handle_unknown: 模板 %r 无专用处理器，展示末尾无名参数", call.name
+        )
+        return _parse_body(visible, base)
+    logger.debug("_handle_unknown: 模板 %r 仅有命名参数，跳过", call.name)
+    return []
+
+
+_TEMPLATE_HANDLERS: dict[str, _TemplateHandler] = {
+    "color": _handle_color,
+    "术语": _handle_term,
+    "异常效果": _handle_status,
+    "特殊机制": _handle_special,
+    "变动数值": _handle_delta,
+    "popup": _handle_popup,
+}
+
+
 def _render_template_spans(inner: str, base: WikiStyle) -> list[TextSpan]:
-    inner_u = _unwrap_bracket_template(inner.strip())
-    parts = inner_u.split("|")
-    if not parts:
+    call = _parse_template_call(inner)
+    if not call.name:
         return [TextSpan(inner, base)]
-
-    key = parts[0].strip().lower().lstrip("[")
-
-    if key == "color" and len(parts) >= 3:
-        col = _css_color(parts[1])
-        body = "|".join(parts[2:])
-        sub = _parse_inline_spans(
-            body,
-            WikiStyle(
-                color=col,
-                bold=base.bold,
-                dim=base.dim,
-                underline=base.underline,
-            ),
-        )
-        return sub
-
-    if key == "术语" and len(parts) >= 2:
-        display = parts[-1].strip()
-        st = WikiStyle(
-            color=base.color,
-            bold=base.bold,
-            dim=base.dim,
-            underline=True,
-        )
-        return [TextSpan(display, st)]
-
-    if key == "异常效果" and len(parts) >= 3:
-        t = f"{parts[1].strip()}{parts[2].strip()}"
-        return [TextSpan(t, base)]
-
-    if key == "变动数值" and len(parts) >= 2:
-        return [TextSpan(parts[1].strip(), base)]
-
-    if len(parts) >= 2:
-        logger.debug("_render_template_spans: 未知模板 key=%r，按去掉首段的内联展示兜底", key)
-        return _parse_inline_spans("|".join(parts[1:]), base)
-
-    logger.debug("_render_template_spans: 未知模板 key=%r 且无参数，原样展示模板体", key)
-    return [TextSpan(inner_u, base)]
+    handler = _TEMPLATE_HANDLERS.get(call.name.casefold())
+    if handler is None:
+        return _handle_unknown(call, base)
+    return handler(call, base)
 
 
 def _render_link_spans(inner: str, base: WikiStyle) -> list[TextSpan]:
     inner = inner.strip()
     parts = inner.split("|")
     display = parts[-1].strip() if len(parts) > 1 else parts[0].strip()
-    st = WikiStyle(
-        color=_LINK_TERM_RGBA, bold=True, dim=base.dim, underline=base.underline
-    )
-    return [TextSpan(display, st)]
+    return [TextSpan(display, _link_term_style(base))]
 
 
 def _flush_plain_spans(s: str, start: int, end: int, base: WikiStyle) -> list[TextSpan]:
@@ -157,17 +313,7 @@ def _flush_plain_spans(s: str, start: int, end: int, base: WikiStyle) -> list[Te
         if not part:
             continue
         if part.startswith("※"):
-            out.append(
-                TextSpan(
-                    part,
-                    WikiStyle(
-                        dim=True,
-                        bold=base.bold,
-                        color=base.color,
-                        underline=base.underline,
-                    ),
-                )
-            )
+            out.append(TextSpan(part, _style_with(base, dim=True)))
         else:
             out.append(TextSpan(part, base))
     return out
@@ -186,13 +332,7 @@ def _parse_inline_spans(s: str, base: WikiStyle) -> list[TextSpan]:
             if end < 0:
                 i += 1
                 continue
-            inner_base = WikiStyle(
-                color=base.color,
-                bold=True,
-                dim=base.dim,
-                underline=base.underline,
-            )
-            out.extend(_parse_inline_spans(s[i + 3 : end], inner_base))
+            out.extend(_parse_inline_spans(s[i + 3 : end], _style_with(base, bold=True)))
             i = end + 3
             start = i
             continue
@@ -211,35 +351,42 @@ def _parse_inline_spans(s: str, base: WikiStyle) -> list[TextSpan]:
             start = i
             continue
 
+        br = _BR_TAG.match(s, i)
+        if br is not None:
+            out.extend(_flush_plain_spans(s, start, i, base))
+            out.append(TextSpan("\n", base))
+            i = br.end()
+            start = i
+            continue
+
+        if s[i] == "\n":
+            out.extend(_flush_plain_spans(s, start, i, base))
+            out.append(TextSpan("\n", base))
+            i += 1
+            start = i
+            continue
+
         i += 1
 
     out.extend(_flush_plain_spans(s, start, n, base))
     return _merge_spans(out)
 
 
-def wikitext_logical_lines(text: str) -> list[str]:
+def parse_wikitext_to_spans(text: str, base: WikiStyle = WikiStyle()) -> list[TextSpan]:
+    """整段 wikitext → 扁平片段列表。
+
+    `<br>` 与裸换行在模板/链接外部才拆行；模板内部（含 `{{popup|内容=...}}`）
+    由对应处理器决定可见文本，不会把注释后半段漏到正文。
+    """
     if not text:
         return []
-    t = text.replace("\r\n", "\n")
-    t = re.sub(r"<br\s*/?>", "\n", t, flags=re.IGNORECASE)
-    return t.split("\n")
-
-
-def parse_wikitext_to_spans(text: str, base: WikiStyle = WikiStyle()) -> list[TextSpan]:
-    """整段 wikitext → 扁平片段列表（含换行符前的行分别解析后拼接）。"""
-    lines = wikitext_logical_lines(text)
-    acc: list[TextSpan] = []
-    for li, line in enumerate(lines):
-        if li > 0:
-            acc.append(TextSpan("\n", base))
-        acc.extend(_parse_inline_spans(line, base))
-    return _merge_spans(acc)
+    return _parse_inline_spans(text.replace("\r\n", "\n"), base)
 
 
 def wrap_spans_to_lines(
     spans: list[TextSpan],
     max_width: float,
-    measure: Callable[[str, bool], float],
+    measure: Callable[[str, WikiStyle], float],
 ) -> list[list[TextSpan]]:
     """按像素宽度硬换行；保留片段样式。"""
     flat: list[tuple[str, WikiStyle]] = []
@@ -257,7 +404,7 @@ def wrap_spans_to_lines(
             cur = []
             wsum = 0.0
             continue
-        cw = measure(ch, st.bold)
+        cw = measure(ch, st)
         if wsum + cw > max_width and cur:
             lines_chars.append(cur)
             cur = [(ch, st)]

@@ -4,11 +4,55 @@ from __future__ import annotations
 
 import skia
 
-from utils.wiki_span_parser import WikiStyle, parse_wikitext_to_spans, wrap_spans_to_lines
+from utils.wiki_span_parser import (
+    TextSpan,
+    WikiStyle,
+    hint_mark_advance,
+    parse_wikitext_to_spans,
+    wrap_spans_to_lines,
+)
 
 from core.fonts import FontManager
 
 from .layout import build_wiki_measurer
+
+
+def _span_draw_width(
+    sp: TextSpan, fn: skia.Font, fb: skia.Font, font_size: int
+) -> float:
+    if sp.style.hint:
+        return hint_mark_advance(font_size) * len(sp.text)
+    fnt = fb if sp.style.bold else fn
+    return fnt.measureText(sp.text)
+
+
+def _draw_help_circle_outline(
+    canvas: skia.Canvas,
+    font_manager: FontManager,
+    x: float,
+    baseline_y: float,
+    font_size: int,
+    color: tuple[float, float, float, float],
+) -> float:
+    """对应 PRTS 模板:Popup 默认图标 mdi-help-circle-outline，无交互。"""
+    advance = hint_mark_advance(font_size)
+    cx = x + advance / 2.0
+    cy = baseline_y - font_size * 0.32
+    radius = advance * 0.42
+    ring = skia.Paint(Color=skia.Color4f(*color), AntiAlias=True)
+    ring.setStyle(skia.Paint.kStroke_Style)
+    ring.setStrokeWidth(max(1.15, font_size / 15.0))
+    canvas.drawCircle(cx, cy, radius, ring)
+
+    q_size = max(10, int(round(font_size * 0.58)))
+    q_font = font_manager.get_font(q_size)
+    q_font.setEmbolden(True)
+    glyph = "?"
+    qw = q_font.measureText(glyph)
+    q_baseline = cy + q_size * 0.36
+    paint = skia.Paint(Color=skia.Color4f(*color), AntiAlias=True)
+    canvas.drawString(glyph, cx - qw / 2.0, q_baseline, q_font, paint)
+    return x + advance
 
 
 def draw_wiki_paragraph(
@@ -38,10 +82,17 @@ def draw_wiki_paragraph(
     else:
         y = 0.0
     for line in lines:
-        tw = sum((fb if sp.style.bold else fn).measureText(sp.text) for sp in line)
+        tw = sum(_span_draw_width(sp, fn, fb, font_size) for sp in line)
         x0 = x_left + (max_width - tw) / 2 if center else x_left
         x = x0
         for sp in line:
+            if sp.style.hint:
+                color = sp.style.color or default_rgbaf
+                for _ in sp.text:
+                    x = _draw_help_circle_outline(
+                        canvas, font_manager, x, y, font_size, color
+                    )
+                continue
             fnt = fb if sp.style.bold else fn
             if sp.style.dim:
                 c = (0.55, 0.55, 0.55, 1.0)

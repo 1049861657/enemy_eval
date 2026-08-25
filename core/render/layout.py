@@ -6,14 +6,21 @@ import math
 from typing import Callable
 
 from models import EnemyData
-from utils.wiki_span_parser import WikiStyle, parse_wikitext_to_spans, wrap_spans_to_lines
+from utils.wiki_span_parser import (
+    WikiStyle,
+    hint_mark_advance,
+    parse_wikitext_to_spans,
+    wrap_spans_to_lines,
+)
 
 from core.fonts import FontManager
 
 
-def measure_wiki_char(font: object, font_bold: object):
-    def m(ch: str, bold: bool) -> float:
-        f = font_bold if bold else font
+def measure_wiki_char(font: object, font_bold: object, font_size: int):
+    def m(ch: str, style: WikiStyle) -> float:
+        if style.hint:
+            return hint_mark_advance(font_size)
+        f = font_bold if style.bold else font
         return f.measureText(ch)
 
     return m
@@ -31,7 +38,7 @@ def build_wiki_measurer(font_manager: FontManager, font_size: int):
     fn = font_manager.get_font(font_size)
     fb = font_manager.get_font(font_size)
     fb.setEmbolden(True)
-    meas = measure_wiki_char(fn, fb)
+    meas = measure_wiki_char(fn, fb, font_size)
     return fn, fb, meas
 
 

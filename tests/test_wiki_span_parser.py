@@ -50,8 +50,43 @@ class TestParseWikitextToSpans:
         assert spans[0].style.underline is True
 
     def test_yichang_xiaoguo_template_concatenates_effect_and_value(self):
+        # PRTS 模板:异常效果 别名 眩晕→晕眩，第二无名参数拼到显示名后
         spans = parse_wikitext_to_spans("{{异常效果|眩晕|100%}}")
-        assert spans[0].text == "眩晕100%"
+        assert spans[0].text == "晕眩100%"
+        assert spans[0].style.bold is True
+        assert spans[0].style.color is not None
+
+    def test_yichang_xiaoguo_single_name_shows_as_link_term(self):
+        spans = parse_wikitext_to_spans("{{异常效果|孤立}}")
+        assert spans[0].text == "孤立"
+        assert spans[0].style.bold is True
+        assert spans[0].style.color is not None
+
+    def test_teshu_jizhi_shows_mechanism_name_as_link_term(self):
+        spans = parse_wikitext_to_spans("{{特殊机制|非首要目标}}")
+        assert spans[0].text == "非首要目标"
+        assert spans[0].style.bold is True
+        assert spans[0].style.color is not None
+
+    def test_unknown_named_params_are_not_dumped_into_body(self):
+        spans = parse_wikitext_to_spans("前{{未知模板|内容=不该出现}}后")
+        joined = "".join(s.text for s in spans)
+        assert joined == "前后"
+        assert "内容=" not in joined
+
+    def test_popup_template_renders_as_hint_mark_without_tooltip_body(self):
+        # 内容里的 <br> 不得先于模板闭合被拆行，否则注释后半段会漏到正文
+        spans = parse_wikitext_to_spans(
+            "会打断当前动画能力{{popup|内容=能力【披萨轰炸】本身也是动画能力。"
+            "<br>又因为前摇结束离被打断很近（受{{术语|ba.slowdown|迟钝}}影响）。}}"
+            "）<br>※能力说明"
+        )
+        joined = "".join(s.text for s in spans)
+        assert joined == "会打断当前动画能力?）\n※能力说明"
+        assert "又因为前摇" not in joined
+        assert "内容=" not in joined
+        assert "}}" not in joined
+        assert spans[1].style.hint is True
 
     def test_multiline_text_parsed_line_by_line_and_flattened(self):
         spans = parse_wikitext_to_spans("第一行\n第二行")
@@ -70,7 +105,7 @@ class TestParseWikitextToSpans:
 
 class TestWrapSpansToLines:
     @staticmethod
-    def _fixed_width_measure(ch: str, bold: bool) -> float:
+    def _fixed_width_measure(ch: str, style: WikiStyle) -> float:
         # 每个字符固定宽度，便于精确断言换行位置，不依赖真实字体测量
         return 10.0
 
