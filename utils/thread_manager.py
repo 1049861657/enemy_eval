@@ -17,21 +17,13 @@ class CardGeneratorThread(QThread):
     cardGenerated = Signal(object, int)
     errorOccurred = Signal(str, int)
 
-    def __init__(
-        self,
-        enemy_data,
-        revision: int,
-        save_to_file: bool = False,
-        output_path: Optional[str] = None,
-    ):
+    def __init__(self, enemy_data, revision: int):
         super().__init__()
         self.enemy_data = enemy_data
         self._revision = revision
-        self.save_to_file = save_to_file
-        self.output_path = output_path
 
     def run(self):
-        """在后台线程中生成卡片"""
+        """在后台线程中生成卡片预览图。"""
         from core import EnemyCardGenerator
 
         snapshot = self.enemy_data.model_copy(deep=True)
@@ -41,22 +33,16 @@ class CardGeneratorThread(QThread):
                 return
 
             generator = EnemyCardGenerator()
+            skia_image = generator.generate_card_image(snapshot)
 
-            if self.save_to_file:
-                output_path = generator.generate_card(snapshot, self.output_path)
-                if not self.isInterruptionRequested():
-                    self.cardGenerated.emit(output_path, self._revision)
-            else:
-                skia_image = generator.generate_card_image(snapshot)
+            if self.isInterruptionRequested():
+                return
 
-                if self.isInterruptionRequested():
-                    return
-
-                qpixmap = self._skia_to_qpixmap(skia_image)
-                if self.isInterruptionRequested():
-                    return
-                if qpixmap:
-                    self.cardGenerated.emit(qpixmap, self._revision)
+            qpixmap = self._skia_to_qpixmap(skia_image)
+            if self.isInterruptionRequested():
+                return
+            if qpixmap:
+                self.cardGenerated.emit(qpixmap, self._revision)
 
         except Exception as e:
             if not self.isInterruptionRequested():

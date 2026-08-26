@@ -93,7 +93,6 @@ class MainWindow(QMainWindow):
         self._bridge.openRequested.connect(self._open_file)
         self._bridge.saveRequested.connect(self._save_config)
         self._bridge.exportRequested.connect(self._export_image)
-        self._bridge.resetRequested.connect(self._new_card)
         self._bridge.refreshRequested.connect(self._generate_card)
         self._bridge.quitRequested.connect(self.close)
         self._bridge.prtsQueryRequested.connect(self._fetch_prts_data)
@@ -108,9 +107,8 @@ class MainWindow(QMainWindow):
     def _generate_card(self) -> None:
         self._render.request(self.card_model.enemy_data)
 
-    def _on_card_ready(self, result: object, _revision: int) -> None:
-        if not isinstance(result, str):
-            self.status_bar.showMessage("卡片预览已更新")
+    def _on_card_ready(self, _result: object, _revision: int) -> None:
+        self.status_bar.showMessage("卡片预览已更新")
 
     def _on_render_failed(self, error_message: str) -> None:
         self.status_bar.showMessage("生成失败")
@@ -170,7 +168,7 @@ class MainWindow(QMainWindow):
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "导出图片",
-            f"{self.card_model.enemy_data.name}_{self.card_model.enemy_data.grade}.png",
+            f"{self.card_model.enemy_data.name}.png",
             "PNG 图片 (*.png);;JPG 图片 (*.jpg);;所有文件 (*)",
         )
         if not file_path:
@@ -194,7 +192,7 @@ class MainWindow(QMainWindow):
             f"{build_time}\n\n"
             "一个现代化的敌人评价卡片生成工具\n"
             "支持实时预览和属性编辑\n\n"
-            "技术栈：Python 3.12 + PySide6 + Qt Quick + Skia-Python",
+            "技术栈：Python 3.13 + PySide6 + Qt Quick + Skia-Python",
             "info",
         )
 

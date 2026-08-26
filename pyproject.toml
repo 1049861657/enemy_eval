@@ -2,7 +2,7 @@
 name = "enemy-eval"
 version = "0.3.0"
 description = "Enemy evaluation template image generator with GUI"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "pillow>=12.3.0",
     "skia-python>=144.0",

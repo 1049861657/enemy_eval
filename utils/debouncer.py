@@ -63,30 +63,3 @@ class AdaptiveDebouncer:
         if self._timer and self._timer.isActive():
             self._timer.stop()
         self._pending_callback = None
-
-class FixedDebouncer:
-    """固定延迟防抖器。
-
-    封装单次 QTimer 样板：构造时绑定回调与延迟，调用方只需 `schedule()` 重启计时，
-    刷新 UI 时调用 `stop()` 取消待触发的回调。
-    """
-
-    def __init__(self, parent, callback: Callable, delay_ms: int) -> None:
-        self._delay_ms = delay_ms
-        self._callback = callback
-        self._timer = QTimer(parent)
-        self._timer.setSingleShot(True)
-        self._timer.timeout.connect(callback)
-
-    def schedule(self) -> None:
-        """重启计时；若已在计时则重置延迟。"""
-        self._timer.start(self._delay_ms)
-
-    def stop(self) -> None:
-        """取消待触发的回调（用于 refresh_from_model 等同步写入前）。"""
-        if self._timer.isActive():
-            self._timer.stop()
-
-    def cleanup(self) -> None:
-        """显式停止；QTimer 有 parent 时随其销毁自动清理，此方法非必需。"""
-        self.stop()

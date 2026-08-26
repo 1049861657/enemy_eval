@@ -4,7 +4,7 @@
 
 ## 技术栈
 
-- Python 3.12；包管理 **uv**（勿手改 `uv.lock`，依赖或版本变更后在本机执行 `uv lock` / `uv sync`）。
+- Python 3.13；包管理 **uv**（勿手改 `uv.lock`，依赖或版本变更后在本机执行 `uv lock` / `uv sync`）。
 - 渲染 **skia-python**；GUI **PySide6**；配置与数据 **Pydantic**（`models/`）；辅助 Pillow、NumPy；CLI 输出 Rich。
 
 ## 助手必须遵守

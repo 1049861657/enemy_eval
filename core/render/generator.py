@@ -135,7 +135,7 @@ class EnemyCardGenerator:
                     rating_grade.draw_grade_section(self, enemy, skills_section_bottom)
 
                 if not output_path:
-                    output_path = f"output_{enemy.name}_{enemy.grade}.png"
+                    output_path = f"{enemy.name}.png"
 
                 with PerformanceTimer("图片保存"):
                     assert self.surface is not None

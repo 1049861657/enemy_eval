@@ -56,13 +56,11 @@ class QmlBridge(QObject):
     prtsBusyChanged = Signal(bool)
     messageChanged = Signal(str)
     fieldError = Signal(str, str)
-    renderError = Signal(str)
     dialogRequested = Signal(str, str, str)
     newRequested = Signal()
     openRequested = Signal()
     saveRequested = Signal()
     exportRequested = Signal()
-    resetRequested = Signal()
     refreshRequested = Signal()
     quitRequested = Signal()
     prtsQueryRequested = Signal(str)
@@ -84,7 +82,6 @@ class QmlBridge(QObject):
         self._preview_revision = 0
         self._connect_card_model()
         self._render.cardReady.connect(self._on_card_ready)
-        self._render.renderFailed.connect(self._on_render_failed)
         self._render.busyChanged.connect(self._set_busy)
 
     @Property(str, notify=enemyDataChanged)
@@ -164,9 +161,6 @@ class QmlBridge(QObject):
             self._image_provider.set_pixmap(result)
             self._preview_revision += 1
             self.previewChanged.emit(self._preview_revision)
-
-    def _on_render_failed(self, message: str) -> None:
-        self.renderError.emit(message)
 
     @Slot(str, str)
     def updateProperty(self, property_name: str, value_json: str) -> None:  # noqa: N802
@@ -257,10 +251,6 @@ class QmlBridge(QObject):
     @Slot()
     def requestExport(self) -> None:  # noqa: N802
         self.exportRequested.emit()
-
-    @Slot()
-    def requestReset(self) -> None:  # noqa: N802
-        self.resetRequested.emit()
 
     @Slot()
     def requestRefresh(self) -> None:  # noqa: N802

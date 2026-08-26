@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class RenderCoordinator(QObject):
     """见模块文档。"""
 
-    # 渲染完成：(result, revision)；result 为 QPixmap（预览）或文件路径字符串（导出）
+    # 渲染完成：(pixmap, revision)
     cardReady = Signal(object, int)
     # 渲染失败：(error_message,)
     renderFailed = Signal(str)
@@ -40,7 +40,6 @@ class RenderCoordinator(QObject):
         self._revision: int = 0
         self._busy: bool = False
         self.last_generated_pixmap: Optional[QPixmap] = None
-        self.last_generated_path: str = ""
 
     # ──────────────────────────────────────────────────────────────────────────
     # Public API
@@ -103,7 +102,7 @@ class RenderCoordinator(QObject):
         rev = self._revision
         self._pending_data = None
 
-        thread = CardGeneratorThread(enemy_data, revision=rev, save_to_file=False)
+        thread = CardGeneratorThread(enemy_data, revision=rev)
         thread.cardGenerated.connect(self._on_card_generated)
         thread.errorOccurred.connect(self._on_generation_error)
         thread.finished.connect(lambda thr=thread: self._on_thread_finished(thr))
@@ -131,11 +130,7 @@ class RenderCoordinator(QObject):
             return
         if isinstance(result, QPixmap):
             self.last_generated_pixmap = result
-            self.last_generated_path = ""
-        else:
-            self.last_generated_path = str(result)
-            self.last_generated_pixmap = None
-        self.cardReady.emit(result, revision)
+            self.cardReady.emit(result, revision)
 
     def _on_generation_error(self, error_message: str, revision: int) -> None:
         if revision != self._revision:

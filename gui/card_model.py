@@ -20,7 +20,6 @@ class CardModel(QObject):
 
     # 信号定义
     dataChanged = Signal()  # 当任何数据发生变化时发出
-    cardGenerated = Signal(str)  # 当卡片生成完成时发出，传递图片路径
     validationFailed = Signal(str, str)  # (property_name, error_message)：属性校验失败时发出，供 UI 恢复为模型当前真实值
     ratingSchemaChanged = Signal()  # 全局评价标准变更（名称/数量）
     
