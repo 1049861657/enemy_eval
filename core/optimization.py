@@ -14,6 +14,9 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple, List
 
 import skia
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 # 全局共享图像缓存，确保所有实例能共享预下载的图片；OrderedDict 以支持真 LRU
 # （命中时 move_to_end 刷新最近使用位置，超限时从最前端淘汰最久未使用的项）。
@@ -78,6 +81,9 @@ class RenderResourceManager:
             'total_render_time': 0.0
         }
         
+        # 可变高度备用 Surface：只缓存最近一次非默认尺寸，避免每次 new
+        self._variable_surface: Optional[Tuple[int, int, skia.Surface]] = None
+
         # 初始化Canvas池
         self._init_canvas_pool()
     
@@ -104,6 +110,21 @@ class RenderResourceManager:
         surface = skia.Surface(self.config.width, self.config.height)
         canvas = surface.getCanvas()
         return surface, canvas
+
+    def acquire_variable_canvas(
+        self, width: int, height: int
+    ) -> Tuple[skia.Surface, skia.Canvas]:
+        """按 (width, height) 复用一张备用 Surface；尺寸变化时替换。"""
+        cached = self._variable_surface
+        if cached is not None and cached[0] == width and cached[1] == height:
+            surface = cached[2]
+            canvas = surface.getCanvas()
+            canvas.clear(skia.Color4f(0, 0, 0, 0))
+            self._stats["canvas_reuse_count"] += 1
+            return surface, canvas
+        surface = skia.Surface(width, height)
+        self._variable_surface = (width, height, surface)
+        return surface, surface.getCanvas()
     
     def release_canvas(self, surface: skia.Surface, canvas: skia.Canvas):
         """释放Canvas回池"""
@@ -260,14 +281,11 @@ class RenderResourceManager:
         
         return lines if lines else [""]
     
-    def get_performance_stats(self) -> Dict:
-        """获取性能统计"""
-        return self._stats.copy()
-    
     def clear_caches(self):
         """清空所有缓存（挂在应用退出前调用，见 gui/main_window.py::closeEvent）。"""
         self._font_cache.clear()
         self._text_layout_cache.clear()
+        self._variable_surface = None
         with _GLOBAL_IMAGE_CACHE_LOCK:
             self._image_cache.clear()
 
@@ -288,7 +306,7 @@ class ImageProcessor:
             # 直接使用Skia加载，避免PIL→NumPy→Skia转换链
             return skia.Image.MakeFromEncoded(skia.Data.MakeFromFileName(str(path)))
         except Exception as e:
-            print(f"Skia直接加载失败，尝试兼容模式: {e}")
+            logger.warning("Skia直接加载失败，尝试兼容模式", error=str(e))
             return None
 
     # noinspection PyUnreachableCode
@@ -314,7 +332,7 @@ class ImageProcessor:
             
             # 渲染时快速失败：如果缓存中没有，直接返回None避免阻塞
             # 网络图片应该在数据获取阶段预下载到缓存
-            print(f"网络图片未预缓存，跳过加载以避免渲染阻塞: {path}")
+            logger.warning("网络图片未预缓存，跳过加载以避免渲染阻塞", path=path)
             return None
         else:
             # 本地文件处理（保持原逻辑）
@@ -373,7 +391,7 @@ class ImageProcessor:
             return scaled_image
             
         except Exception as e:
-            print(f"优化图像加载失败: {e}")
+            logger.warning("优化图像加载失败", error=str(e))
             return None
     
 
@@ -391,7 +409,7 @@ class PerformanceTimer:
     
     def __exit__(self, *args):
         duration = time.perf_counter() - self.start_time
-        print(f"⏱️ {self.name}: {duration*1000:.2f}ms")
+        logger.debug("性能计时", name=self.name, duration_ms=round(duration * 1000, 2))
 
 
 # 全局单例实例 - 避免重复初始化

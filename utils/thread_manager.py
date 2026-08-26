@@ -8,6 +8,8 @@ import skia
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QImage, QPixmap
 
+from models import EnemyData, RenderOptions
+
 from .error_handler import RenderError
 
 
@@ -17,9 +19,10 @@ class CardGeneratorThread(QThread):
     cardGenerated = Signal(object, int)
     errorOccurred = Signal(str, int)
 
-    def __init__(self, enemy_data, revision: int):
+    def __init__(self, enemy_data: EnemyData, options: RenderOptions, revision: int) -> None:
         super().__init__()
         self.enemy_data = enemy_data
+        self._options = options
         self._revision = revision
 
     def run(self):
@@ -27,13 +30,14 @@ class CardGeneratorThread(QThread):
         from core import EnemyCardGenerator
 
         snapshot = self.enemy_data.model_copy(deep=True)
+        options = self._options.model_copy(deep=True)
 
         try:
             if self.isInterruptionRequested():
                 return
 
             generator = EnemyCardGenerator()
-            skia_image = generator.generate_card_image(snapshot)
+            skia_image = generator.generate_card_image(snapshot, options)
 
             if self.isInterruptionRequested():
                 return

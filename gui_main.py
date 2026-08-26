@@ -7,6 +7,7 @@
 import sys
 from pathlib import Path
 
+import structlog
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtQuickControls2 import QQuickStyle
@@ -15,13 +16,18 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent))
 
+from utils.app_logging import setup_logging
 from utils.app_version import get_app_version
 
 try:
     from gui.main_window import MainWindow
 except ImportError as e:
-    print(f"导入GUI模块失败: {e}")
-    print("请确保已安装PySide6: pip install PySide6")
+    setup_logging()
+    structlog.get_logger(__name__).error(
+        "导入GUI模块失败",
+        error=str(e),
+        hint="请确保已安装PySide6: pip install PySide6",
+    )
     sys.exit(1)
 
 
@@ -112,6 +118,7 @@ def main():
     app.setApplicationVersion(get_app_version())
     app.setApplicationDisplayName("敌人评价卡片实时编辑器")
     app.setOrganizationName("Enemy Eval Team")
+    setup_logging()
     
     # 显示启动画面
     splash = create_splash_screen()

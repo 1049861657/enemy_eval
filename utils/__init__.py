@@ -9,6 +9,7 @@ from .prts_mediawiki_pipeline import fetch_enemy_data
 from .network_image import is_url, download_image_data
 from .resource_manager import resource_manager
 from .rating_schema_store import (
+    current_render_options,
     get_rating_names,
     load_rating_schema,
     save_rating_schema,
@@ -31,6 +32,7 @@ __all__ = [
     'is_url',
     'download_image_data',
     'resource_manager',
+    'current_render_options',
     'get_rating_names',
     'load_rating_schema',
     'save_rating_schema',

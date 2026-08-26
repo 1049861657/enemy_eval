@@ -9,12 +9,14 @@ from .rating_schema import (
     align_rating_scores,
     default_rating_scores,
 )
+from .render_options import RenderOptions
 from .skill_entry import SkillEntry
 
 __all__ = [
     "EnemyData",
     "SkillEntry",
     "RatingSchema",
+    "RenderOptions",
     "DEFAULT_RATING_NAMES",
     "DEFAULT_RATING_SCORE",
     "MAX_RATING_DIMENSIONS",

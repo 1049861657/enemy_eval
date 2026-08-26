@@ -6,8 +6,7 @@ from typing import TYPE_CHECKING
 
 import skia
 
-from models import EnemyData, align_rating_scores
-from utils.rating_schema_store import get_rating_names, is_rating_radar
+from models import EnemyData, RenderOptions, align_rating_scores
 
 from core.fonts import FontManager
 from core.render import layout
@@ -264,29 +263,34 @@ def _draw_rating_panel(
 
 
 def draw_rating_section(
-    gen: "EnemyCardGenerator", enemy: EnemyData, _skills_bottom_y: int
+    gen: "EnemyCardGenerator", enemy: EnemyData, options: RenderOptions
 ) -> None:
-    names = get_rating_names()
+    names = options.rating_names
     if not names:
         return
     scores = align_rating_scores(list(enemy.rating_scores), len(names))
-    if is_rating_radar():
+    if options.rating_radar:
         draw_rating_radar(gen.canvas, gen.font_manager, names, scores)
         return
     _draw_rating_panel(gen, names, scores)
 
 
-def draw_grade_section(gen: "EnemyCardGenerator", enemy: EnemyData, skills_bottom_y: float) -> None:
+def draw_grade_section(
+    gen: "EnemyCardGenerator",
+    enemy: EnemyData,
+    options: RenderOptions,
+    skills_bottom_y: float,
+) -> None:
     block_h = layout.measure_grade_block_height(enemy, gen._wrap_text)
     spacing = 28
     margin = 15
-    names = get_rating_names()
+    names = options.rating_names
     left_floor = float(skills_bottom_y)
     if names:
         left_floor = max(
             left_floor,
             layout.measure_rating_section_bottom(
-                len(names), radar=is_rating_radar()
+                len(names), radar=options.rating_radar
             ),
         )
     content_floor = left_floor + spacing

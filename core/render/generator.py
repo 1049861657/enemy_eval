@@ -6,8 +6,7 @@ from typing import Optional
 
 import skia
 
-from models import EnemyData
-from utils.rating_schema_store import get_rating_names, is_rating_radar
+from models import EnemyData, RenderOptions
 
 from core.fonts import FontManager, get_font_manager
 from core.optimization import (
@@ -61,8 +60,9 @@ class EnemyCardGenerator:
             self.surface, self.canvas = self.resource_manager.acquire_canvas()
             self._canvas_from_pool = True
         else:
-            self.surface = skia.Surface(self.config.width, h)
-            self.canvas = self.surface.getCanvas()
+            self.surface, self.canvas = self.resource_manager.acquire_variable_canvas(
+                self.config.width, h
+            )
             self._canvas_from_pool = False
         self._draw_background_gradient()
 
@@ -91,14 +91,14 @@ class EnemyCardGenerator:
         typeface = self.font_manager.chinese_font if self.font_manager.chinese_font else None
         return self.resource_manager.get_font(size, typeface)
 
-    def _measure_render_height(self, enemy: EnemyData) -> int:
+    def _measure_render_height(self, enemy: EnemyData, options: RenderOptions) -> int:
         return layout.measure_render_height(
             enemy,
             self.config.height,
             self.font_manager,
             self._wrap_text,
-            rating_dimension_count=len(get_rating_names()),
-            rating_radar=is_rating_radar(),
+            rating_dimension_count=len(options.rating_names),
+            rating_radar=options.rating_radar,
         )
 
     def _wrap_text(self, text: str, max_width: int, font_size: int) -> list[str]:
@@ -110,60 +110,34 @@ class EnemyCardGenerator:
         )
         return layout_result.lines
 
-    def generate_card(self, enemy: EnemyData, output_path: Optional[str] = None) -> str:
+    def _draw_card(self, enemy: EnemyData, options: RenderOptions) -> skia.Image:
         self._render_count += 1
-
-        with PerformanceTimer(f"卡片生成#{self._render_count}"):
+        with PerformanceTimer(f"绘制卡片#{self._render_count}"):
             try:
-                self._init_canvas(self._measure_render_height(enemy))
-
-                with PerformanceTimer("头像区域渲染"):
-                    avatar.draw_avatar_section(self, enemy)
-
-                with PerformanceTimer("信息区域渲染"):
-                    info_section_bottom = info.draw_info_section(self, enemy)
-
-                with PerformanceTimer("技能区域渲染"):
-                    skills_section_bottom = skills_talents.draw_skills_talents_section(
-                        self, enemy, int(info_section_bottom)
-                    )
-
-                with PerformanceTimer("评价区渲染"):
-                    rating_grade.draw_rating_section(self, enemy, int(skills_section_bottom))
-
-                with PerformanceTimer("等级区域渲染"):
-                    rating_grade.draw_grade_section(self, enemy, skills_section_bottom)
-
-                if not output_path:
-                    output_path = f"{enemy.name}.png"
-
-                with PerformanceTimer("图片保存"):
-                    assert self.surface is not None
-                    image = self.surface.makeImageSnapshot()
-                    image.save(output_path, skia.kPNG)
-
-                return output_path
-
-            finally:
-                self._cleanup_canvas()
-
-    def generate_card_image(self, enemy: EnemyData) -> skia.Image:
-        self._render_count += 1
-
-        with PerformanceTimer(f"GUI预览渲染#{self._render_count}"):
-            try:
-                self._init_canvas(self._measure_render_height(enemy))
-
+                self._init_canvas(self._measure_render_height(enemy, options))
                 avatar.draw_avatar_section(self, enemy)
                 info_section_bottom = info.draw_info_section(self, enemy)
                 skills_section_bottom = skills_talents.draw_skills_talents_section(
                     self, enemy, int(info_section_bottom)
                 )
-                rating_grade.draw_rating_section(self, enemy, int(skills_section_bottom))
-                rating_grade.draw_grade_section(self, enemy, skills_section_bottom)
-
+                rating_grade.draw_rating_section(self, enemy, options)
+                rating_grade.draw_grade_section(self, enemy, options, skills_section_bottom)
                 assert self.surface is not None
                 return self.surface.makeImageSnapshot()
-
             finally:
                 self._cleanup_canvas()
+
+    def generate_card(
+        self,
+        enemy: EnemyData,
+        options: RenderOptions,
+        output_path: Optional[str] = None,
+    ) -> str:
+        image = self._draw_card(enemy, options)
+        if not output_path:
+            output_path = f"{enemy.name}.png"
+        image.save(output_path, skia.kPNG)
+        return output_path
+
+    def generate_card_image(self, enemy: EnemyData, options: RenderOptions) -> skia.Image:
+        return self._draw_card(enemy, options)

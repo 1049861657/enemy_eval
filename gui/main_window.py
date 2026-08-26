@@ -5,9 +5,10 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtQuickWidgets import QQuickWidget
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QStatusBar
+from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QStatusBar
 
 from core.optimization import get_resource_manager
 from utils import (
@@ -15,6 +16,7 @@ from utils import (
     EnemyEvalException,
     PrtsFetchThread,
     categorize_error_message,
+    current_render_options,
     error_handler,
     get_app_build_time,
     get_app_version,
@@ -55,12 +57,13 @@ class MainWindow(QMainWindow):
         )
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
 
-        self._create_central_widget()
+        if not self._create_central_widget():
+            return
         self._create_status_bar()
         self._connect_signals()
         self._generate_card()
 
-    def _create_central_widget(self) -> None:
+    def _create_central_widget(self) -> bool:
         self._image_provider = CardImageProvider()
         self._bridge = QmlBridge(
             self.card_model, self._render, self._image_provider, parent=self
@@ -75,9 +78,20 @@ class MainWindow(QMainWindow):
             QUrl.fromLocalFile(str(Path(__file__).with_name("qml") / "Workspace.qml"))
         )
         if self.workspace.status() == QQuickWidget.Status.Error:
-            for error in self.workspace.errors():
-                logger.error("QML 加载失败：%s", error.toString())
+            details = "\n".join(
+                error.toString() for error in self.workspace.errors()
+            ) or "未知 QML 错误"
+            logger.error("QML 加载失败：%s", details)
+            self.workspace.hide()
+            QMessageBox.critical(
+                self,
+                "界面加载失败",
+                f"无法加载编辑器界面：\n\n{details}",
+            )
+            QTimer.singleShot(0, QApplication.quit)
+            return False
         self.setCentralWidget(self.workspace)
+        return True
 
     def _create_status_bar(self) -> None:
         self.status_bar = QStatusBar(self)
@@ -105,7 +119,7 @@ class MainWindow(QMainWindow):
         self._debouncer.debounce(self._generate_card)
 
     def _generate_card(self) -> None:
-        self._render.request(self.card_model.enemy_data)
+        self._render.request(self.card_model.enemy_data, current_render_options())
 
     def _on_card_ready(self, _result: object, _revision: int) -> None:
         self.status_bar.showMessage("卡片预览已更新")
@@ -231,7 +245,7 @@ class MainWindow(QMainWindow):
         if self.prts_fetch_thread is thread:
             self.prts_fetch_thread = None
 
-    def closeEvent(self, event) -> None:  # noqa: N802
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
         try:
             with error_handler("清理资源", silent=True):
                 self._render.cleanup()
@@ -239,9 +253,9 @@ class MainWindow(QMainWindow):
                 if thread is not None and thread.isRunning():
                     thread.requestInterruption()
                     if not thread.wait(3000):
-                        logger.warning("PRTS 拉取线程未能在预期时间内停止")
-                        thread.terminate()
-                        thread.wait(1000)
+                        logger.error(
+                            "PRTS 拉取线程未能在 3 秒内停止，放弃等待且不 terminate"
+                        )
                 self._debouncer.cleanup()
                 get_resource_manager().clear_caches()
         except Exception:

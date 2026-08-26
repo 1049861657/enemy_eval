@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QFileDialog, QWidget
 
 from models import RatingSchema, SkillEntry
 from utils.rating_schema_store import (
+    current_render_options,
     get_rating_names,
     is_rating_radar,
     save_rating_schema,
@@ -191,7 +192,7 @@ class QmlBridge(QObject):
             self.ratingRadarChanged.emit(is_rating_radar())
             return
         self.ratingRadarChanged.emit(bool(enabled))
-        self._render.request(self._card_model.enemy_data)
+        self._render.request(self._card_model.enemy_data, current_render_options())
 
     @Slot(str)
     def updateRatingSchema(self, names_json: str) -> None:  # noqa: N802

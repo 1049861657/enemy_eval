@@ -5,10 +5,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import skia
+import structlog
 
 from models import EnemyData
-
 from core.render.layout import center_text_x
+
+logger = structlog.get_logger(__name__)
 
 if TYPE_CHECKING:
     from core.render.generator import EnemyCardGenerator
@@ -41,7 +43,7 @@ def draw_avatar_section(gen: "EnemyCardGenerator", enemy: EnemyData) -> None:
             img_rect = skia.Rect(60, 60, 390, 390)
             canvas.drawImageRect(skia_img, img_rect)
         else:
-            print(f"头像加载失败: {enemy.avatar_path}")
+            logger.warning("头像加载失败", avatar_path=enemy.avatar_path)
 
     font = gen._get_optimized_font(48)
     font.setEmbolden(True)

@@ -16,8 +16,8 @@ from typing import Optional
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPixmap
 
+from models import EnemyData, RenderOptions
 from utils import CardGeneratorThread
-from models import EnemyData
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,7 @@ class RenderCoordinator(QObject):
         self._generator_thread: Optional[CardGeneratorThread] = None
         self._pending_render: bool = False
         self._pending_data: Optional[EnemyData] = None
+        self._pending_options: Optional[RenderOptions] = None
         self._revision: int = 0
         self._busy: bool = False
         self.last_generated_pixmap: Optional[QPixmap] = None
@@ -45,18 +46,19 @@ class RenderCoordinator(QObject):
     # Public API
     # ──────────────────────────────────────────────────────────────────────────
 
-    def request(self, enemy_data: EnemyData) -> None:
+    def request(self, enemy_data: EnemyData, options: RenderOptions) -> None:
         """请求渲染（任意时刻只允许一个线程运行）。
 
         若已有线程在跑，只发出中断请求并标记排队；线程结束后自动用此刻最新的
-        enemy_data 快照发起下一次渲染——天然合并排队期间的多次编辑。
+        enemy_data / options 快照发起下一次渲染——天然合并排队期间的多次编辑。
         """
         if self._generator_thread is not None and self._generator_thread.isRunning():
             self._generator_thread.requestInterruption()
             self._pending_render = True
             self._pending_data = enemy_data
+            self._pending_options = options
             return
-        self._start(enemy_data)
+        self._start(enemy_data, options)
 
     def save_current(self, file_path: str) -> Optional[str]:
         """把最近一次渲染结果保存到 file_path。
@@ -76,14 +78,12 @@ class RenderCoordinator(QObject):
         return None
 
     def cleanup(self) -> None:
-        """窗口关闭前等待线程结束（最多 3 秒）。"""
+        """窗口关闭前请求中断并等待线程结束（最多 3 秒）。超时不 terminate。"""
         t = self._generator_thread
         if t is not None and t.isRunning():
             t.requestInterruption()
             if not t.wait(3000):
-                logger.warning("渲染线程未能在预期时间内停止")
-                t.terminate()
-                t.wait(1000)
+                logger.error("渲染线程未能在 3 秒内停止，放弃等待且不 terminate")
         self.last_generated_pixmap = None
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -97,12 +97,13 @@ class RenderCoordinator(QObject):
         self._busy = busy
         self.busyChanged.emit(busy)
 
-    def _start(self, enemy_data: EnemyData) -> None:
+    def _start(self, enemy_data: EnemyData, options: RenderOptions) -> None:
         self._revision += 1
         rev = self._revision
         self._pending_data = None
+        self._pending_options = None
 
-        thread = CardGeneratorThread(enemy_data, revision=rev)
+        thread = CardGeneratorThread(enemy_data, options, revision=rev)
         thread.cardGenerated.connect(self._on_card_generated)
         thread.errorOccurred.connect(self._on_generation_error)
         thread.finished.connect(lambda thr=thread: self._on_thread_finished(thr))
@@ -119,9 +120,11 @@ class RenderCoordinator(QObject):
         if self._pending_render:
             self._pending_render = False
             pending = self._pending_data
+            pending_options = self._pending_options
             self._pending_data = None
-            if pending is not None:
-                self._start(pending)
+            self._pending_options = None
+            if pending is not None and pending_options is not None:
+                self._start(pending, pending_options)
                 return
         self._set_busy(False)
 

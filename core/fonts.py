@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Optional
 
 import skia
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 _FONT_PATHS = (
     "C:/Windows/Fonts/simhei.ttf",
@@ -38,12 +41,12 @@ def _ensure_shared_chinese_typeface() -> Optional[skia.Typeface]:
             face = skia.Typeface.MakeFromFile(str(p))
             if face:
                 _shared_chinese_typeface = face
-                print(f"成功加载中文字体(已缓存，进程内复用): {font_path}")
+                logger.info("成功加载中文字体(已缓存，进程内复用)", font_path=font_path)
                 return _shared_chinese_typeface
         except Exception as e:
-            print(f"字体加载失败 {font_path}: {e}")
+            logger.warning("字体加载失败", font_path=font_path, error=str(e))
 
-    print("警告: 未能加载中文字体，中文可能显示为方框")
+    logger.warning("未能加载中文字体，中文可能显示为方框")
     return None
 
 

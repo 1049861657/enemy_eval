@@ -7,7 +7,7 @@ import logging
 import threading
 
 from PySide6.QtCore import QSettings
-from models import RatingSchema, default_rating_scores
+from models import RatingSchema, RenderOptions, default_rating_scores
 
 logger = logging.getLogger(__name__)
 
@@ -110,3 +110,11 @@ def set_rating_radar(enabled: bool) -> bool:
             raise RuntimeError("保存评价展示方式失败")
         _radar_cached = value
     return value
+
+
+def current_render_options() -> RenderOptions:
+    """从当前评价标准缓存组装一次绘制输入；core 不得自行调用。"""
+    return RenderOptions(
+        rating_names=get_rating_names(),
+        rating_radar=is_rating_radar(),
+    )
