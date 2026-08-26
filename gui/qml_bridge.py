@@ -10,17 +10,19 @@ from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtWidgets import QFileDialog, QWidget
 
-from models import RatingSchema, SkillEntry
-from utils.rating_schema_store import (
+from models import RatingSchema
+from utils.app_settings_store import (
     current_render_options,
     get_rating_names,
     is_rating_radar,
     save_rating_schema,
     set_rating_radar,
 )
+from utils.error_handler import FileOperationError
 
 from .card_model import CardModel
 from .render_coordinator import RenderCoordinator
+from .skill_list_model import SkillListModel
 
 class CardImageProvider(QQuickImageProvider):
     """将渲染线程交付到主线程的预览图提供给 QML Image。"""
@@ -78,6 +80,7 @@ class QmlBridge(QObject):
         self._card_model = card_model
         self._render = render
         self._image_provider = image_provider
+        self._skills = SkillListModel(card_model, parent=self)
         self._busy = False
         self._prts_busy = False
         self._preview_revision = 0
@@ -87,7 +90,13 @@ class QmlBridge(QObject):
 
     @Property(str, notify=enemyDataChanged)
     def enemyDataJson(self) -> str:  # noqa: N802
-        return json.dumps(self._card_model.get_current_dict(), ensure_ascii=False)
+        return self._card_model.enemy_data.model_dump_json(
+            ensure_ascii=False, exclude={"skills"}
+        )
+
+    @Property(QObject, constant=True)
+    def skills(self) -> SkillListModel:
+        return self._skills
 
     @Property(str, notify=ratingNamesChanged)
     def ratingNamesJson(self) -> str:  # noqa: N802
@@ -114,16 +123,17 @@ class QmlBridge(QObject):
         self._disconnect_card_model()
         self._card_model = card_model
         self._connect_card_model()
+        self._skills.set_card_model(card_model)
         self._publish_model()
 
     def _connect_card_model(self) -> None:
-        self._card_model.dataChanged.connect(self._publish_model)
+        self._card_model.snapshotChanged.connect(self._publish_model)
         self._card_model.validationFailed.connect(self.fieldError)
         self._card_model.ratingSchemaChanged.connect(self._publish_rating_schema)
 
     def _disconnect_card_model(self) -> None:
         for signal, slot in (
-            (self._card_model.dataChanged, self._publish_model),
+            (self._card_model.snapshotChanged, self._publish_model),
             (self._card_model.validationFailed, self.fieldError),
             (self._card_model.ratingSchemaChanged, self._publish_rating_schema),
         ):
@@ -187,7 +197,7 @@ class QmlBridge(QObject):
             return
         try:
             set_rating_radar(bool(enabled))
-        except RuntimeError as error:
+        except FileOperationError as error:
             self.fieldError.emit("rating_display", str(error))
             self.ratingRadarChanged.emit(is_rating_radar())
             return
@@ -204,28 +214,9 @@ class QmlBridge(QObject):
             schema = RatingSchema(names=names)
             save_rating_schema(schema)
             self._card_model.realign_rating_scores_to_schema()
-        except (TypeError, ValueError, json.JSONDecodeError) as error:
+        except (FileOperationError, TypeError, ValueError, json.JSONDecodeError) as error:
             self.fieldError.emit("rating_schema", str(error))
-
-    @Slot(int, str)
-    def updateSkill(self, index: int, skill_json: str) -> None:  # noqa: N802
-        try:
-            self._card_model.update_skill(index, SkillEntry.model_validate(json.loads(skill_json)))
-        except (TypeError, ValueError, json.JSONDecodeError) as error:
-            self.fieldError.emit("skills", str(error))
-
-    @Slot()
-    def addSkill(self) -> None:  # noqa: N802
-        skills = [skill.model_dump() for skill in self._card_model.enemy_data.skills]
-        skills.append(SkillEntry().model_dump())
-        self._card_model.update_property("skills", skills)
-
-    @Slot(int)
-    def removeSkill(self, index: int) -> None:  # noqa: N802
-        skills = list(self._card_model.enemy_data.skills)
-        if 0 <= index < len(skills):
-            del skills[index]
-            self._card_model.update_property("skills", skills)
+            self.ratingNamesChanged.emit(self.ratingNamesJson)
 
     @Slot()
     def chooseAvatar(self) -> None:  # noqa: N802

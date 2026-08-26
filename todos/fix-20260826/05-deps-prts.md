@@ -31,7 +31,7 @@
 
 - [ ] `grep` 确认无 `bs4` / `PIL`。
 - [ ] 移除 `beautifulsoup4`、`pillow`；`numpy` 不再直接声明。
-- [ ] `gui_main.check_dependencies` 只检查实际导入：skia、pydantic、PySide6、httpx。
+- [ ] `gui_main.check_dependencies` 只检查实际导入：skia、pydantic、PySide6、httpx。批次 4 已改为 `uv sync` 并检查前三项；本项补上 httpx。
 - [ ] 验收：`uv run python -c "from core import EnemyCardGenerator"` 可导入。
 
 ## 5.4 导出/保存默认名消毒

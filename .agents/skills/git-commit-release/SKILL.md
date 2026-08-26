@@ -1,154 +1,142 @@
 ---
 name: git-commit-release
-description: 用户明确要求"生成 commit"/"提交"/"发版"/"release"/"bump 版本"时，为 enemy-eval 仓库生成规范化 git commit message，或按 SemVer 更新 pyproject.toml + CHANGELOG.md 并打 tag。不主动触发——改动做完、测试通过后即使该提交了，也停下汇报，等用户明确要求。
+description: 用户明确要求"生成 commit"/"提交"/"发版"/"release"/"bump 版本"时使用。A=日常提交（同步更新 CHANGELOG「未发布」）；B=发版。不主动触发。
 ---
 
-# Git Commit & 版本发布助手
+# Git Commit & 版本发布
 
-本 skill 覆盖两个独立场景，触发条件见上方 description，不主动进入任何场景。
+不主动进入任一场景。禁止未经授权 `git push` / `git push --tags`。
 
-- **场景 A：生成 commit message**
-- **场景 B：发版 / release**（另见 `AGENTS.md`「发版（仅当用户明确要求发版 / release）」一节）
+- **A 日常提交**：写 Conventional Commit；把本次用户可感知改动追加进 `CHANGELOG.md` 的 `[未发布]`，与代码同一 commit。禁止 bump 版本、禁止新建 `## [X.Y.Z]`。
+- **B 发版**：只剪切已攒下的 `[未发布]` → 版本节，改 `pyproject.toml` 版本，打 tag。禁止在发版时凭记忆补条目。
+
+约定原文：`AGENTS.md` 发版节、`CHANGELOG.md` 撰写约定。冲突时先报差异，不擅自覆盖。
 
 ---
 
-## 场景 A：生成 Commit Message
+## 场景 A
 
-### 1. 先看变更，不要凭猜测编造
+### 1. 看变更
 
 ```
 git status
-git diff --staged   # 已 add 的部分
-git diff             # 未 add 的部分
+git diff --staged
+git diff
 ```
 
-**默认范围：工作区当前全部未提交改动（已 add + 未 add）一次性合并进这一个 commit，不主动拆分。** 只有明确认出某处改动与本次任务无关（例如误触的临时文件、他人并行改动）时，才向用户确认是否要拆出去单独处理；改动看起来分属不同模块/文件不构成拆分理由——一次任务的产出即使跨多个模块，也归为一个 commit。未 add 的文件直接 `git add` 纳入这次范围，不要擅自 `git add -A` 之外再自行漏选或分批。
+并读 `CHANGELOG.md` 的 `## [未发布]`（第 2 步在现有条目上追加/改写，不是整节重写）。
 
-### 2. Message 格式（Conventional Commits，仓库既有约定）
+**范围**：工作区全部未提交改动（已 add + 未 add）进这一个 commit。跨模块不算拆分理由。仅当某文件明显与本次无关（误触、他人并行）时才问用户是否拆出。相关文件全部 `git add`，不要漏选。
+
+### 2. 更新 `[未发布]`
+
+对照第 1 步 diff，追加**终端用户可感知**的功能、界面、行为。B 只剪切这一节，漏写则发版 changelog 会缺条目。
+
+- 分类按需：`新增` / `变更` / `修复` / `移除` / `安全`。没有内容的分类不要留空标题。
+- 面向用户：禁止文件名、类名、函数名、模块路径。一条一个价值点，同类小改动可合并。禁止编造 diff 里没有的改动。
+- **保留**仍正确的旧未发布条目，只追加本次新价值点；同一点已有则不重复；被本次证伪/过时的才改写。不要把整节换成「仅本次」的列表。
+- `[未发布]` 若只剩占位注释，写第一条时再补对应 `### 分类`。
+- 工作区若已有人为本次写好的条目：核对是否覆盖本次 diff，缺了再补，正确的不要删。
+- **不写** `[未发布]`（文件保持原样）：用户无感的内部重构；仅 todos / skill / AGENTS；纯格式或类型注解；无行为变化的锁文件。
+
+改完的 `CHANGELOG.md` 与代码打进同一个 commit。
+
+### 3. Message
 
 ```
-<type>(<scope>): <中文祈使句描述>
+<type>(<scope>): <中文祈使句，约 30 字内，无句号>
 
-- [<模块或方面>] <具体做了什么，为什么>
-- [<模块或方面>] <第二条，如需要>
+- [<方面>] <做了什么，为什么>
 ```
 
-规则：
+- 无 emoji。禁止写 diff 里没有发生的事。
+- `type`：`feat` / `fix` / `refactor` / `chore` / `docs` / `perf` / `style`。
+- `scope` 取模块或功能域：`gui`、`core`、`models`、`utils`、`prts`、`packaging`、`版本`；跨模块用 `+`，如 `models+core+gui`。
+- 正文用 `- [方面] …`；只在需要说明影响时写正文。纯小改动可以只有标题行。
 
-- **不加 emoji**。
-- `type` 取值：`feat`（新功能）/ `fix`（修复）/ `refactor`（重构，无行为变化）/ `chore`（杂项，如版本号、依赖）/ `docs`（仅文档）/ `perf`（性能）/ `style`（纯格式）。
-- `scope` 用改动涉及的模块名，取自目录名或功能域：`gui`、`core`、`models`、`utils`、`prts`、`packaging`、`版本` 等；跨多个模块时用 `+` 连接，如 `models+core+gui`。
-- 标题行（`<type>(<scope>): ...`）**祈使/概括式中文**，不超过约 30 字，不写句号。
-- 正文用 `- [方面] 说明` 项目符号，仅在改动值得解释"为什么/影响"时才加正文；纯小改动可以只有标题行。
-- 正文按**改动的实际内容**撰写，禁止编造未发生的改动；每条对应一个真实的文件/逻辑变化。
+### 4. 提交
 
-### 3. 生成后的动作
+把 message 交给用户确认，或按用户已表达的自动化程度直接提交。
 
-把生成的 message 交给用户确认（或按用户已表达的自动化程度直接执行）。
+- 正文没有或多于一行以外的单行正文：`git commit -m "标题" -m "正文（可省）"`
+- 正文是多行项目符号：**必须**写入 `.git/COMMIT_MSG_DRAFT`（第 1 行标题，空一行，再正文），然后 `-F`。禁止用多个 `-m` 传多行（换行会被 shell 吃掉，条目会连成一行）。
+- 正文若含以 `#` 开头的行（含 `### 新增` 这类标题），**必须** `--cleanup=verbatim`，否则 git 默认当注释静默剥离。
 
-- 正文只有一行或没有正文：
-  ```
-  git commit -m "<标题行>" -m "<单行正文，可省略>"
-  ```
-- 正文是多行项目符号：**必须**写入临时文件后 `-F` 提交，禁止塞进多个 `-m`（换行会被 shell 吃掉，条目连成一行）。正文若含以 `#` 开头的行（如 Markdown 三级标题 `### xxx`），**必须**加 `--cleanup=verbatim`，否则 git 会把这些行当注释静默剥离：
-  ```
-  git commit -F .git/COMMIT_MSG_DRAFT --cleanup=verbatim
-  rm -f .git/COMMIT_MSG_DRAFT
-  ```
-  （临时文件第一行是标题，空一行后接正文）
-
-**禁止**：未经用户明确授权不得 `git push`。
+```
+git commit -F .git/COMMIT_MSG_DRAFT --cleanup=verbatim
+rm -f .git/COMMIT_MSG_DRAFT
+```
 
 ---
 
-## 场景 B：发版（Release）
+## 场景 B
 
-日常 commit（场景 A）不触发本流程。
+日常 commit 不触发本流程。只剪切 A 攒下的 `[未发布]`，不要从 git 历史重写用户可见变更。
 
-### 1. 确定新版本号（SemVer：X.Y.Z）
+发版前：若自上次版本 tag 到 HEAD 有用户可见 commit，但 `[未发布]` 为空或明显漏项，**先补齐或问用户，再发版**。禁止凭记忆编条目，禁止把内部实现术语塞进版本节。
 
-读取当前版本：`pyproject.toml` 的 `[project].version`（唯一权威来源，`utils/app_version.py` 从此读取）。
+### 1. 版本号
 
-**硬约束（来自 `AGENTS.md`，不可违反）**：
+读 `pyproject.toml` 的 `[project].version`（唯一权威来源）。**只能改 Y 或 Z**；**禁止改 X**，除非用户在本次对话手写指定新的 X。
 
-- AI **只能建议或修改 Y 或 Z**。
-- **禁止修改 X**（大版本号），除非用户在本次对话中手写明确指定新的 X 值。
-- 判断依据：对比 `CHANGELOG.md` 的 `[未发布]` 小节与实际 `git log` / `git diff`，按顺序检查：
-  1. 新增用户可见的完整功能、涉及 2 个及以上模块的结构性改动、破坏或显著改变既有行为 → `Y+1`，`Z=0`。
-  2. 仅修复 bug、纯性能优化、单模块内部重构、文档/依赖调整 → `Z+1`。
-  3. 同时命中 1 和 2：功能层面达到第 1 条标准就按 `Y+1`；否则按 `Z+1`。
-  4. 仍拿不准：列出 `[未发布]` 条目问用户"这次算 Y+1 还是 Z+1"，不要自己猜。
+以 `[未发布]` 为主，对照上次 tag 以来的 `git log` / `git diff`，按顺序：
 
-### 2. 更新 `CHANGELOG.md`
+1. 用户可见完整功能、跨 ≥2 模块的结构性改动、破坏或显著改变既有行为 → `Y+1`，`Z=0`
+2. 仅修 bug、纯性能、单模块内部重构、文档/依赖 → `Z+1`
+3. 同时命中 1 和 2：功能达第 1 条则 `Y+1`，否则 `Z+1`
+4. 拿不准：列出 `[未发布]` 问用户「这次算 Y+1 还是 Z+1」，不要自己猜
 
-- 将 `## [未发布]` 小节下的条目，剪切整理到新的 `## [X.Y.Z] - <今天日期 YYYY-MM-DD>` 小节下。
-- 按 Keep a Changelog 分类归类：`新增` / `变更` / `修复` / `移除` / `安全`（按需选用，没有对应类别的不要留空标题）。
-- 条目要对应真实改动，禁止编造。
-- 在原 `## [未发布]` 位置保留空壳，格式：`## [未发布]` 一行 + 空行 + `<!-- 下一版本发布前，把此处条目移到新版本下 -->` 一行，供下次改动继续追加。
-- CHANGELOG 面向终端用户：描述可感知的功能、界面与行为变化；禁止文件名、类名、函数名、模块路径及内部实现术语。一条对应一个用户价值点，同类小改动可合并。
+### 2. 剪切 CHANGELOG
 
-### 3. 更新 `pyproject.toml`
+把 `## [未发布]` 下条目**原样剪切**到 `## [X.Y.Z] - YYYY-MM-DD`（分类标题一起走；没有条目的分类不要出现）。只许合并明显重复、修正笔误；**禁止**新增 A 没写过的内容。
 
-```toml
-[project]
-version = "X.Y.Z"
+原位置留空壳：
+
+```
+## [未发布]
+
+<!-- 下一版本发布前，把此处条目移到新版本下 -->
 ```
 
-只改这一处版本号字符串，不动其他字段。若 `uv.lock` 中的 `enemy-eval` 版本号随之自动同步（如运行过 `uv run`/`uv sync`），一并提交，不要单独遗留。
+### 3. `pyproject.toml`
 
-### 4. 提交与打 tag：commit 承载详情，tag 只做一行版本指针
+只改 `version = "X.Y.Z"`，不动其他字段。`uv.lock` 里项目版本若已同步，一并提交。
 
-`chore: release X.Y.Z` 作为 **commit** 标题行单独一行信息量为零——`git log` 必须能直接看到这一版做了什么，所以 commit **正文**照抄第 2 步写入 `## [X.Y.Z]` 的分类条目。
+### 4. Commit 与 tag
 
-**tag message 与 commit message 不同，禁止同步复制分类条目**：tag message 固定写 `release X.Y.Z` 一行，不写分类标题、不写条目；详细变更只进 commit message 与 `CHANGELOG.md`，从不塞进 tag object。
-
-**关键陷阱**：commit 正文含 `### 新增`/`### 变更`/`### 修复` 这类 `#` 开头的 Markdown 标题行时，`git commit -F` **默认会把这些行当注释静默剥离**（git 的 `--cleanup=strip` 默认行为），标题行会无声消失、只剩条目列表。**必须加 `--cleanup=verbatim`** 保留原文。
-
-执行：
+- Commit **标题** `chore: release X.Y.Z`；**正文**照抄本版本 CHANGELOG 分类条目（只含实际有的分类，不留空标题）。
+- Tag **message 不要照抄分类条目**，固定一行 `release X.Y.Z`。详细变更只进 commit 与 `CHANGELOG.md`。
+- 正文含 `### 新增` 等 `#` 开头行，`git commit -F` **必须** `--cleanup=verbatim`，否则分类标题会被 git 当注释剥掉。
 
 ```
 git add pyproject.toml CHANGELOG.md
+git commit -F .git/COMMIT_MSG_DRAFT --cleanup=verbatim
+git tag -a vX.Y.Z -m "release X.Y.Z"
+rm -f .git/COMMIT_MSG_DRAFT
 ```
 
-把 commit 说明写入临时文件（如 `.git/COMMIT_MSG_DRAFT`）。**只复制 CHANGELOG 本版本实际存在的分类**，下面模板里的三个标题是全量示例——本版本没有的分类整个标题一起删掉，不要留空标题：
+草稿（没有的分类整段删掉）：
 
 ```
 chore: release X.Y.Z
 
 ### 新增
 
-- <照抄 CHANGELOG.md 本版本「新增」下的全部条目>
+- <照抄本版本「新增」全部条目>
 
 ### 变更
 
-- <照抄 CHANGELOG.md 本版本「变更」下的全部条目>
+- <照抄本版本「变更」全部条目>
 
 ### 修复
 
-- <照抄 CHANGELOG.md 本版本「修复」下的全部条目>
+- <照抄本版本「修复」全部条目>
 ```
 
-然后 commit 用这个文件（`--cleanup=verbatim`），tag 单独用一行 `-m`：
+### 5. 检查
 
-```
-git commit -F .git/COMMIT_MSG_DRAFT --cleanup=verbatim
-git tag -a vX.Y.Z -m "release X.Y.Z"
-rm -f .git/COMMIT_MSG_DRAFT
-```
-
-**禁止**未经用户明确授权执行 `git push` 或 `git push --tags`。
-
-### 5. 收尾检查清单
-
-- [ ] `pyproject.toml` 版本号与 `CHANGELOG.md` 新增小节版本号一致
-- [ ] `CHANGELOG.md` 的 `[未发布]` 小节已清空并保留占位
-- [ ] `git show -s --format=%B HEAD` 完整含 CHANGELOG 本版本分类标题与条目（不是只剩条目、标题被吃掉）
-- [ ] `git cat-file -p refs/tags/vX.Y.Z` 的 message 只有 `release X.Y.Z` 一行，未混入分类条目
-- [ ] tag 名称为 `vX.Y.Z`（前缀 `v`，与既有 tag 一致）
-- [ ] 未执行任何 `push`，除非用户明确要求
-
----
-
-## 参考：本仓库既有约定原文
-
-详见 `AGENTS.md`「发版（仅当用户明确要求发版 / release）」一节与 `CHANGELOG.md` 顶部"撰写约定"。本 skill 是对这两处规则的可执行展开，若两者冲突以 `AGENTS.md` / `CHANGELOG.md` 原文为准（说明文档可能已被用户更新）。发现冲突时先向用户报告差异，不要擅自选边站或直接覆盖。
+- `pyproject.toml` 版本号与 CHANGELOG 新小节一致
+- `[未发布]` 已清空并留下面占位
+- `git show -s --format=%B HEAD` 含分类标题与条目（不是只剩条目、标题被剥掉）
+- `git cat-file -p refs/tags/vX.Y.Z` 的 message 只有 `release X.Y.Z`
+- tag 名为 `vX.Y.Z`；未执行任何 push

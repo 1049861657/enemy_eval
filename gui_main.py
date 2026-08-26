@@ -4,6 +4,7 @@
 使用PySide6构建的现代化桌面应用程序
 """
 
+import importlib
 import sys
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent))
 
+from utils import resource_manager
 from utils.app_logging import setup_logging
 from utils.app_version import get_app_version
 
@@ -26,14 +28,13 @@ except ImportError as e:
     structlog.get_logger(__name__).error(
         "导入GUI模块失败",
         error=str(e),
-        hint="请确保已安装PySide6: pip install PySide6",
+        hint="请在项目根目录运行 uv sync",
     )
     sys.exit(1)
 
 
 def create_splash_screen():
     """创建启动画面"""
-    from utils import resource_manager
     cover_path = resource_manager.get_pic_path("封面.png")
     pixmap = QPixmap(cover_path)
     
@@ -47,35 +48,19 @@ def create_splash_screen():
     return splash
 
 
-def check_dependencies():
-    """检查依赖项"""
-    missing_deps = []
-    
-    try:
-        import skia
-    except ImportError:
-        missing_deps.append("skia-python")
-    
-    try:
-        import pydantic
-    except ImportError:
-        missing_deps.append("pydantic")
-    
-    try:
-        import PIL
-    except ImportError:
-        missing_deps.append("Pillow")
-    
-    try:
-        import numpy
-    except ImportError:
-        missing_deps.append("numpy")
-    
-    try:
-        import rich
-    except ImportError:
-        missing_deps.append("rich")
-    
+def check_dependencies() -> list[str]:
+    """检查启动所需的渲染与 GUI 依赖。"""
+    required = (
+        ("skia", "skia-python"),
+        ("pydantic", "pydantic"),
+        ("PySide6", "PySide6"),
+    )
+    missing_deps: list[str] = []
+    for module_name, package_name in required:
+        try:
+            importlib.import_module(module_name)
+        except ImportError:
+            missing_deps.append(package_name)
     return missing_deps
 
 
@@ -88,12 +73,12 @@ def show_dependency_error(missing_deps):
     msg.setWindowTitle("依赖项缺失")
     msg.setText("缺少必要的依赖项，程序无法启动。")
     
-    detail_text = "缺少以下依赖项:\\n\\n"
+    detail_text = "缺少以下依赖项:\n\n"
     for dep in missing_deps:
-        detail_text += f"• {dep}\\n"
+        detail_text += f"• {dep}\n"
     
-    detail_text += "\\n请运行以下命令安装：\\n"
-    detail_text += f"pip install {' '.join(missing_deps)}"
+    detail_text += "\n请在项目根目录运行：\n"
+    detail_text += "uv sync"
     
     msg.setDetailedText(detail_text)
     msg.setStandardButtons(QMessageBox.StandardButton.Ok)
@@ -146,7 +131,7 @@ def main():
         msg.setIcon(QMessageBox.Icon.Critical)
         msg.setWindowTitle("启动失败")
         msg.setText("程序启动时发生错误。")
-        msg.setDetailedText(f"错误详情:\\n{str(e)}")
+        msg.setDetailedText(f"错误详情:\n{str(e)}")
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)
         msg.exec()
         

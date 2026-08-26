@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
-from PySide6.QtCore import QSettings
 from pydantic import ValidationError
 
 from models import (
@@ -11,9 +12,11 @@ from models import (
     align_rating_scores,
     default_rating_scores,
 )
-from utils.rating_schema_store import (
+from utils.app_settings_store import (
+    is_rating_radar,
     load_rating_schema,
     save_rating_schema,
+    set_rating_radar,
 )
 
 
@@ -53,22 +56,25 @@ class TestAlignRatingScores:
         assert default_rating_scores(2) == [3, 3]
 
 
-class TestRatingSchemaStore:
-    def test_roundtrip(self, tmp_path, monkeypatch):
-        settings_path = tmp_path / "settings.ini"
-        monkeypatch.setattr(
-            "utils.rating_schema_store._settings",
-            lambda: QSettings(
-                str(settings_path),
-                QSettings.Format.IniFormat,
-            ),
-        )
-        # 清空缓存
-        monkeypatch.setattr("utils.rating_schema_store._cached", None)
-
+class TestAppSettingsStore:
+    def test_roundtrip(self, app_settings_file: Path):
         saved = save_rating_schema(RatingSchema(names=["甲", "乙"]))
         assert saved.names == ["甲", "乙"]
+        set_rating_radar(True)
 
-        monkeypatch.setattr("utils.rating_schema_store._cached", None)
         loaded = load_rating_schema(force_reload=True)
         assert loaded.names == ["甲", "乙"]
+        assert is_rating_radar(force_reload=True) is True
+        assert app_settings_file.is_file()
+
+    def test_missing_file_uses_defaults(self, app_settings_file: Path):
+        assert not app_settings_file.exists()
+        schema = load_rating_schema()
+        assert schema.names == ["对策度", "创新度", "威胁度"]
+        assert is_rating_radar() is False
+
+    def test_corrupt_file_uses_defaults(self, app_settings_file: Path):
+        app_settings_file.write_text("{not valid json", encoding="utf-8")
+        schema = load_rating_schema(force_reload=True)
+        assert schema.names == ["对策度", "创新度", "威胁度"]
+        assert is_rating_radar(force_reload=True) is False

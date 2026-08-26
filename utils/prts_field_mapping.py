@@ -11,6 +11,11 @@ import re
 from typing import Any
 
 from models import SkillEntry
+from .wiki_template_parser import (
+    _extract_all_template_bodies,
+    _extract_template_body,
+    _parse_template_params,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -208,12 +213,6 @@ def _map_common_block(zh: dict[str, str]) -> dict[str, Any]:
 
 def merge_wikitext_enemy(wikitext: str) -> dict[str, Any] | None:
     """从 wikitext 合并 common2 + 全部 levelcontent（按 index 升序覆盖）。"""
-    from utils.wiki_template_parser import (
-        _extract_all_template_bodies,
-        _extract_template_body,
-        _parse_template_params,
-    )
-
     common_body = _extract_template_body(wikitext, COMMON_TEMPLATE)
     level_bodies = _extract_all_template_bodies(wikitext, LEVEL_TEMPLATE)
     if not common_body and not level_bodies:

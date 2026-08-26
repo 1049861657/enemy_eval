@@ -9,8 +9,8 @@ from typing import Dict, Any
 from PySide6.QtCore import QObject, Signal
 
 from models import EnemyData, SkillEntry, align_rating_scores
+from utils.app_settings_store import default_scores_for_current_schema, get_rating_names
 from utils.error_handler import FileOperationError
-from utils.rating_schema_store import default_scores_for_current_schema, get_rating_names
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,7 @@ class CardModel(QObject):
 
     # 信号定义
     dataChanged = Signal()  # 当任何数据发生变化时发出
+    snapshotChanged = Signal()  # 标量表单快照（不含技能列表）需要刷新
     validationFailed = Signal(str, str)  # (property_name, error_message)：属性校验失败时发出，供 UI 恢复为模型当前真实值
     ratingSchemaChanged = Signal()  # 全局评价标准变更（名称/数量）
     
@@ -75,6 +76,7 @@ class CardModel(QObject):
                 # 验证数据
                 self._enemy_data = EnemyData(**current_dict)
                 self.dataChanged.emit()
+                self.snapshotChanged.emit()
             except Exception as e:
                 logger.error("属性 %s 校验失败: %s", property_name, e, exc_info=True)
                 self.validationFailed.emit(property_name, str(e))
@@ -90,7 +92,20 @@ class CardModel(QObject):
         while len(skills) <= index:
             skills.append(SkillEntry())
         skills[index] = entry
-        self.update_property("skills", skills)
+        self.replace_skills(skills)
+
+    def replace_skills(self, skills: list[SkillEntry]) -> bool:
+        """替换技能列表；成功后只发 dataChanged，不刷新标量 JSON 快照。"""
+        current_dict = self._enemy_data.model_dump()
+        current_dict["skills"] = [skill.model_dump() for skill in skills]
+        try:
+            self._enemy_data = EnemyData(**current_dict)
+        except Exception as error:
+            logger.error("技能列表校验失败: %s", error, exc_info=True)
+            self.validationFailed.emit("skills", str(error))
+            return False
+        self.dataChanged.emit()
+        return True
     
     def update_abnormal_resistance(self, resistance_name: str, value: float):
         """更新异常抗性"""
@@ -117,6 +132,7 @@ class CardModel(QObject):
             self._enemy_data = EnemyData(**current_dict)
         self.ratingSchemaChanged.emit()
         self.dataChanged.emit()
+        self.snapshotChanged.emit()
     
     def load_from_file(self, file_path: str) -> None:
         """从文件加载数据；失败时抛出 FileOperationError，不吞异常。"""
@@ -133,6 +149,7 @@ class CardModel(QObject):
             logger.error("加载文件失败: %s", e, exc_info=True)
             raise FileOperationError(f"加载文件失败: {e}") from e
         self.dataChanged.emit()
+        self.snapshotChanged.emit()
     
     def save_to_file(self, file_path: str) -> None:
         """保存数据到文件；失败时抛出 FileOperationError，不吞异常。"""
@@ -152,6 +169,7 @@ class CardModel(QObject):
         """设置完整的敌人数据"""
         self._enemy_data = enemy_data
         self.dataChanged.emit()
+        self.snapshotChanged.emit()
     
     def get_current_dict(self) -> Dict[str, Any]:
         """获取当前数据的字典形式"""

@@ -19,11 +19,6 @@ class RenderError(EnemyEvalException):
     pass
 
 
-class ValidationError(EnemyEvalException):
-    """验证错误"""
-    pass
-
-
 class FileOperationError(EnemyEvalException):
     """文件操作错误"""
     pass
@@ -43,12 +38,11 @@ def error_handler(operation: str, silent: bool = False) -> Generator[None, None,
         # 重新抛出业务异常
         raise
     except Exception as e:
-        error_msg = f"{operation} 失败: {str(e)}"
+        error_msg = f"{operation} 失败: {e}"
         logger.error(error_msg, exc_info=True)
         if not silent:
-            raise EnemyEvalException(f"{operation} 操作失败") from e
-        else:
-            logger.warning(f"静默失败: {error_msg}")
+            raise EnemyEvalException(error_msg) from e
+        logger.warning("静默失败: %s", error_msg)
 
 
 def categorize_error_message(error_message: str) -> tuple[str, str]:

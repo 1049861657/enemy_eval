@@ -2,8 +2,11 @@
 
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator
+
+from utils.network_image import is_url
 
 from .rating_schema import MAX_RATING_DIMENSIONS
 from .skill_entry import SkillEntry
@@ -77,11 +80,7 @@ class EnemyData(BaseModel):
         if not v:
             return v
 
-        from utils.network_image import is_url
-
         if is_url(v):
-            from urllib.parse import urlparse
-
             parsed = urlparse(v)
             if not all([parsed.scheme, parsed.netloc]):
                 raise ValueError(f"无效的图片URL: {v}")

@@ -11,6 +11,8 @@ from PySide6.QtGui import QImage, QPixmap
 from models import EnemyData, RenderOptions
 
 from .error_handler import RenderError
+from .prts_enemy_builder import strip_debug_keys, to_enemy_data
+from .prts_mediawiki_pipeline import error_message_for_raw, fetch_enemy_from_prts_mediawiki
 
 
 class CardGeneratorThread(QThread):
@@ -90,11 +92,6 @@ class PrtsFetchThread(QThread):
     def run(self):
         """在后台线程中拉取 PRTS 数据并预下载头像。"""
         from core.render.avatar_prefetch import preload_prts_avatar_image
-        from utils.prts_enemy_builder import strip_debug_keys, to_enemy_data
-        from utils.prts_mediawiki_pipeline import (
-            error_message_for_raw,
-            fetch_enemy_from_prts_mediawiki,
-        )
 
         try:
             if self.isInterruptionRequested():

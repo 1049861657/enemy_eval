@@ -16,6 +16,8 @@ from typing import Dict, Optional, Tuple, List
 import skia
 import structlog
 
+from utils.network_image import get_url_cache_key, is_url
+
 logger = structlog.get_logger(__name__)
 
 # 全局共享图像缓存，确保所有实例能共享预下载的图片；OrderedDict 以支持真 LRU
@@ -314,10 +316,7 @@ class ImageProcessor:
         """优化的头像加载，带缓存和高质量缩放，支持网络URL"""
         if not path:
             return None
-        
-        # 导入网络工具（按需导入，减少启动时间）
-        from utils.network_image import is_url, get_url_cache_key
-        
+
         # 区分本地文件和网络URL
         if is_url(path):
             # 网络图片处理 - 优化：优先使用缓存，避免渲染时网络阻塞

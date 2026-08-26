@@ -39,8 +39,8 @@
 | 0 | [`00-research.md`](./00-research.md) | 官方文档调研与依赖取舍 | — | 已按「目标栈」修订 |
 | 1 | [`01-stability-shutdown-logging.md`](./01-stability-shutdown-logging.md) | 关窗、structlog、QML 失败可见 | P0 | 已完成 |
 | 2 | [`02-render-purity.md`](./02-render-purity.md) | `RenderOptions` + 单一绘制路径 | P0 | 已完成 |
-| 3 | [`03-settings-errors.md`](./03-settings-errors.md) | pydantic-settings + platformdirs | P0 | 待执行 |
-| 4 | [`04-gui-qml.md`](./04-gui-qml.md) | 拆工作区、`model_dump_json`、技能 ListModel | P1 | 待执行 |
+| 3 | [`03-settings-errors.md`](./03-settings-errors.md) | pydantic-settings + platformdirs | P0 | 已完成 |
+| 4 | [`04-gui-qml.md`](./04-gui-qml.md) | 拆工作区、`model_dump_json`、技能 ListModel | P1 | 已完成 |
 | 5 | [`05-deps-prts.md`](./05-deps-prts.md) | **httpx 替换 requests**；去掉未用依赖；文件名消毒 | P0 | 待执行 |
 | 6 | [`06-tooling-docs.md`](./06-tooling-docs.md) | ruff；修正 `AGENTS.md` | P2 | 待执行 |
 

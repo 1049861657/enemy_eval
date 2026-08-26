@@ -205,8 +205,7 @@ class MainWindow(QMainWindow):
             f"版本：{self._app_version}"
             f"{build_time}\n\n"
             "一个现代化的敌人评价卡片生成工具\n"
-            "支持实时预览和属性编辑\n\n"
-            "技术栈：Python 3.13 + PySide6 + Qt Quick + Skia-Python",
+            "支持实时预览和属性编辑",
             "info",
         )
 

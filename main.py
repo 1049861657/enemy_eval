@@ -11,8 +11,8 @@ from rich.progress import track
 from core import EnemyCardGenerator
 from models import EnemyData, SkillEntry
 from utils.app_logging import setup_logging
+from utils.app_settings_store import current_render_options
 from utils.app_version import get_app_version
-from utils.rating_schema_store import current_render_options
 
 console = Console()
 

@@ -53,15 +53,13 @@ class TestQmlBridgeModelUpdates:
     def test_skill_slots_add_update_and_remove(self, bridge):
         controller, model, _ = bridge
 
-        controller.addSkill()
-        controller.updateSkill(
-            0,
-            json.dumps(
-                {"名称": "冲锋", "冷却时间": "3", "技力消耗": "10", "效果": "造成伤害"},
-                ensure_ascii=False,
-            ),
-        )
-        controller.removeSkill(0)
+        controller.skills.add()
+        controller.skills.updateField(0, "名称", "冲锋")
+        controller.skills.updateField(0, "冷却时间", "3")
+        controller.skills.updateField(0, "技力消耗", "10")
+        controller.skills.updateField(0, "效果", "造成伤害")
+        assert model.enemy_data.skills[0].名称 == "冲锋"
+        controller.skills.remove(0)
 
         assert model.enemy_data.skills == []
 
