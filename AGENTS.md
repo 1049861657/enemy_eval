@@ -5,7 +5,7 @@
 ## 技术栈
 
 - Python 3.13；包管理 **uv**（勿手改 `uv.lock`，依赖或版本变更后在本机执行 `uv lock` / `uv sync`）。
-- 渲染 **skia-python**；GUI **PySide6**；配置与数据 **Pydantic**（`models/`）；辅助 Pillow、NumPy；CLI 输出 Rich。
+- 渲染 **skia-python**；GUI **PySide6**；配置与数据 **Pydantic**（`models/`）；HTTP **httpx**（`httpx[http2]` + `httpx-retries`）；日志 **structlog**；路径 **platformdirs**；图像 LRU **cachetools**；CLI 输出 Rich。
 
 ## 助手必须遵守
 
@@ -15,35 +15,37 @@
 4. 修改时**直接替换**，不保留兼容层、不提供迁移说明。
 5. **不要**做回退式凑合实现。
 6. GUI：Qt 职责分离；Python 侧信号槽在 `__init__` 中连接；界面 `gui/qml/`，主题 `Theme.qml`。
-7. 配置一律 **JSON**，路径与形状符合 Pydantic；文件放 `data/`，命名 `{敌人名称}_config.json`。
-8. **禁止**在函数体中间插入 `import`，一律文件顶部。
+7. 配置一律 **JSON**，路径与形状符合 Pydantic。敌人配置放 `data/`，命名 `{敌人名称}_config.json`。应用偏好为 `platformdirs.user_config_path("敌人评价卡片编辑器", appauthor="Enemy Eval Team") / "app_settings.json"`（`utils/app_settings_store.py`）。
+8. **禁止**在函数体中间插入 `import`，一律文件顶部。仅允许 `utils/thread_manager.py` 的 `CardGeneratorThread.run` 与 `PrtsFetchThread._pull` 延迟导入 `core`（防循环）。
 
 ## 架构要点（防循环依赖）
 
-- **对外渲染**：`from core import EnemyCardGenerator`（实现于 `core/render/`）。
+- **对外渲染**：`from core import EnemyCardGenerator`（实现于 `core/render/`）。唯一绘制入口 `_draw_card(enemy, options)`；`RenderOptions` 由 GUI/CLI 传入，core 不读偏好存储。
 - **utils**：通用工具；`thread_manager` 运行时再导入渲染相关，避免与 `core` 循环引用。
-- **gui**：QML 工作区 + Python 编排（`main_window` / `qml_bridge` / `card_model`）；组件 PascalCase。
-- **错误**：统一 `utils/error_handler.py`（如 `RenderError`、`EnemyEvalException`）；展示走 `categorize_error_message`。
-- **性能**：资源见 `core/optimization.py`；长任务 `thread_manager`；预览防抖 `debouncer`。
-- **代码风格**：私有 `_` 前缀；完整类型注解（GUI 尤甚）；导入顺序：标准库 → 第三方 → 本项目。
+- **PRTS**：网络层 `utils/prts_api_client.py`（async `AsyncClient` / 同步 `Client`）；编排 `utils/prts_mediawiki_pipeline.py` 为 async，resolve → parse → imageinfo **串行**。GUI 经 `PrtsFetchThread`：同一 `AsyncClient` 上 await 拉取再下头像；关窗 `requestInterruption` 后 `task.cancel()`，不 `terminate`。超时用 `request_timeout(read)`（四参数写全）。
+- **gui**：QML 工作区拆为 `Editor*Page` / `CommandBar` / `PrtsQueryDialog`；Python 编排（`main_window` / `qml_bridge` / `card_model` / `skill_list_model`）；组件 PascalCase。技能列表走 `QAbstractListModel`；标量 JSON 不含 `skills`。
+- **错误**：统一 `utils/error_handler.py`（如 `RenderError`、`EnemyEvalException`、`FileOperationError`）；展示走 `categorize_error_message`。
+- **性能**：资源见 `core/optimization.py`（全局图像缓存 `cachetools.LRUCache` + 锁）；长任务 `thread_manager`；预览防抖 `debouncer`。
+- **代码风格**：私有 `_` 前缀；完整类型注解（GUI 尤甚）；导入顺序：标准库 → 第三方 → 本项目。保存/导出默认名用 `utils/filenames.py::safe_filename`。
 
 ## 目录结构（索引）
 
 ```
 enemy_eval/
-├── main.py / gui_main.py          # CLI / GUI 入口
-├── models/                        # Pydantic（EnemyData、技能、样式等）
+├── main.py / gui_main.py # CLI / GUI 入口
+├── models/               # Pydantic（EnemyData、SkillEntry、RatingSchema、RenderOptions）
 ├── core/
 │   ├── fonts.py / optimization.py
-│   └── render/                    # generator、layout、wiki_text、stars、sections/
-├── utils/                         # debouncer、error_handler、thread_manager 等
-├── gui/                           # main_window、qml/、card_model、qml_bridge、render_coordinator
-├── data/                          # *_config.json
-├── enemy/                         # 按敌人分的资源
-├── resource/                      # ico 等
+│   └── render/           # generator、layout、wiki_text、stars、sections/、avatar_prefetch
+├── utils/                # app_settings_store、prts_*、filenames、debouncer、error_handler、thread_manager
+├── gui/                  # main_window、qml/、card_model、qml_bridge、skill_list_model、render_coordinator
+├── data/                 # *_config.json
+├── enemy/                # 按敌人分的资源
+├── resource/pic/         # 启动封面
+├── gui/qml/icons/        # 界面图标
 ├── AGENTS.md
 ├── CHANGELOG.md
-├── pyproject.toml                 # [project].version 为唯一版本号来源
+├── pyproject.toml        # [project].version 为唯一版本号来源
 └── uv.lock
 ```
 
@@ -51,8 +53,8 @@ enemy_eval/
 
 1. 把 `CHANGELOG.md`「未发布」剪切到本版；对照自上次 tag 核对完整性。
 2. SemVer：AI **只可建议或修改 `Y` 或 `Z`**；**禁止改 `X`**，除非用户手写指定。
-   - 变化大：`Y+1`，`Z=0`。
-   - 变化小：`Z+1`。
+ - 变化大：`Y+1`，`Z=0`。
+ - 变化小：`Z+1`。
 3. 更新 `CHANGELOG.md` 对应版本节；`pyproject.toml` 的 `[project].version` 与之一致（`utils.app_version` 读此处）。
 4. Git：提交信息示例 `chore: release X.Y.Z`。附注 tag 示例：`git tag -a vX.Y.Z -m "release X.Y.Z"`。**未经授权不要代为 `git push`。**
 

@@ -1,4 +1,4 @@
-"""PRTS MediaWiki API 客户端：Session 管理、超时、重试、原始 JSON 拉取。
+"""PRTS MediaWiki API 客户端：超时、重试、原始 JSON 拉取。
 
 只负责网络层：不理解 wikitext 语义（见 utils/wiki_template_parser.py /
 utils/prts_field_mapping.py），也不组装 Pydantic 模型（见 utils/prts_enemy_builder.py）。
@@ -9,9 +9,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+import httpx
+from httpx_retries import Retry, RetryTransport
 
 logger = logging.getLogger(__name__)
 
@@ -27,46 +26,77 @@ DEFAULT_HEADERS = {
     "Accept-Language": "zh-CN,zh;q=0.9",
 }
 
-# 统一超时常量：原实现里 12.0/22.0/10/30.0 四处不同数值散落在函数默认参数中。
 DEFAULT_TIMEOUT_PARSE = 22.0
 DEFAULT_TIMEOUT_IMAGEINFO = 12.0
-# resolve_enemy_page_title 是精确定位页面标题的“加分项”而非必需项：失败/超时直接退回
-# 裸名 parse 即可（多数敌人裸名本来就命中）。给它更短的超时+零重试，避免 PRTS 源站
-# 瞬时抖动（Varnish 502/503）时，因 session 级重试的指数退避把单次查询拖到 10+ 秒，
-# 拖累整条串行链路（ask → parse → imageinfo）。
+# resolve 是精确定位页面标题的加分项：失败/超时直接退回裸名 parse。
 RESOLVE_TIMEOUT = 4.0
+CONNECT_TIMEOUT = 5.0
 
 _RETRY_TOTAL = 2
 _RETRY_BACKOFF_FACTOR = 0.5
 _RETRY_STATUS_FORCELIST = (502, 503, 504)
+_CONNECT_RETRIES = 2
 
 
-def _build_session_with_retry(retry_total: int, backoff_factor: float) -> requests.Session:
-    session = requests.Session()
-    session.headers.update(DEFAULT_HEADERS)
-    retry = Retry(
-        total=retry_total,
-        backoff_factor=backoff_factor,
-        status_forcelist=_RETRY_STATUS_FORCELIST,
-        allowed_methods=frozenset({"GET"}),
+def request_timeout(read: float) -> httpx.Timeout:
+    return httpx.Timeout(
+        connect=CONNECT_TIMEOUT,
+        read=read,
+        write=read,
+        pool=CONNECT_TIMEOUT,
     )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
-    return session
 
 
-def build_session() -> requests.Session:
-    """创建带默认 headers + 有限重试策略的 Session，消除单次网络抖动即整体失败的脆弱性。"""
-    return _build_session_with_retry(_RETRY_TOTAL, _RETRY_BACKOFF_FACTOR)
+def _retry_transport(*, async_mode: bool) -> RetryTransport:
+    retry = Retry(
+        total=_RETRY_TOTAL,
+        backoff_factor=_RETRY_BACKOFF_FACTOR,
+        status_forcelist=_RETRY_STATUS_FORCELIST,
+    )
+    if async_mode:
+        inner: httpx.AsyncHTTPTransport | httpx.HTTPTransport = httpx.AsyncHTTPTransport(
+            http2=True,
+            retries=_CONNECT_RETRIES,
+        )
+    else:
+        inner = httpx.HTTPTransport(http2=True, retries=_CONNECT_RETRIES)
+    return RetryTransport(transport=inner, retry=retry)
 
 
-def _fetch_parse_json(
-    session: requests.Session, page_title: str, timeout: float = DEFAULT_TIMEOUT_PARSE
+def build_async_client() -> httpx.AsyncClient:
+    """带默认 headers、超时、连接重试与 502/503/504 重试的异步客户端。"""
+    return httpx.AsyncClient(
+        http2=True,
+        headers=DEFAULT_HEADERS,
+        timeout=request_timeout(DEFAULT_TIMEOUT_PARSE),
+        transport=_retry_transport(async_mode=True),
+        follow_redirects=True,
+    )
+
+
+def build_client() -> httpx.Client:
+    """同步客户端，headers/超时/重试与异步客户端一致（smoke 脚本使用）。"""
+    return httpx.Client(
+        http2=True,
+        headers=DEFAULT_HEADERS,
+        timeout=request_timeout(DEFAULT_TIMEOUT_PARSE),
+        transport=_retry_transport(async_mode=False),
+        follow_redirects=True,
+    )
+
+
+def _log_http_version(response: httpx.Response) -> None:
+    logger.debug("PRTS HTTP version: %s", response.http_version)
+
+
+async def _fetch_parse_json(
+    client: httpx.AsyncClient,
+    page_title: str,
+    timeout: float = DEFAULT_TIMEOUT_PARSE,
 ) -> tuple[Optional[dict[str, Any]], Optional[str]]:
     """请求 MediaWiki `action=parse`，返回 `(json, None)` 或 `(None, error_message)`。"""
     try:
-        r = session.get(
+        r = await client.get(
             PRTS_MEDIAWIKI_API,
             params={
                 "action": "parse",
@@ -75,16 +105,19 @@ def _fetch_parse_json(
                 "format": "json",
                 "formatversion": "2",
             },
-            timeout=timeout,
+            timeout=request_timeout(timeout),
         )
         r.raise_for_status()
+        _log_http_version(r)
         return r.json(), None
-    except requests.RequestException as e:
+    except httpx.HTTPError as e:
         return None, str(e)
 
 
-def resolve_enemy_page_title(
-    enemy_name: str, timeout: float = RESOLVE_TIMEOUT
+async def resolve_enemy_page_title(
+    client: httpx.AsyncClient,
+    enemy_name: str,
+    timeout: float = RESOLVE_TIMEOUT,
 ) -> tuple[Optional[str], Optional[str]]:
     """用 Semantic MediaWiki 的 `action=ask` 按敌人信息模板写入的语义属性 `名称` 精确定位页面标题。
 
@@ -93,31 +126,27 @@ def resolve_enemy_page_title(
     `(敌方)`/`(敌人)`/`(我方)` 等后缀与同名干员/道具页消歧义（PRTS 对此并无统一规则，
     猜测后缀会漏掉如 `变格博士(敌人)` 这类情况）。
 
-    这只是精确定位页面标题的“加分项”而非必需项——多数敌人裸名本来就直接命中页面。
-    因此这里用独立的零重试、短超时 Session：PRTS 源站偶发 502/503 抖动时快速失败，
-    交由调用方退回裸名 parse，而不是吃满 session 级重试的指数退避（可能长达数秒到
-    十余秒），拖累 ask → parse → imageinfo 这条串行链路的整体延迟。
+    这只是精确定位页面标题的加分项而非必需项——多数敌人裸名本来就直接命中页面。
+    单次请求用短 read 超时，避免 ask 抖动拖累 ask → parse → imageinfo 串行链路。
 
     返回 `(page_title, None)`；未命中返回 `(None, None)`；网络错误返回 `(None, error_message)`。
     """
     query = f"[[分类:敌人]][[名称::{enemy_name}]]"
-    session = _build_session_with_retry(retry_total=0, backoff_factor=0)
     try:
-        r = session.get(
+        r = await client.get(
             PRTS_MEDIAWIKI_API,
             params={
                 "action": "ask",
                 "query": query,
                 "format": "json",
             },
-            timeout=timeout,
+            timeout=request_timeout(timeout),
         )
         r.raise_for_status()
+        _log_http_version(r)
         j = r.json()
-    except requests.RequestException as e:
+    except httpx.HTTPError as e:
         return None, str(e)
-    finally:
-        session.close()
 
     if "error" in j:
         return None, None
@@ -131,13 +160,15 @@ def resolve_enemy_page_title(
     return None, None
 
 
-def fetch_avatar_imageinfo(
-    session: requests.Session, enemy_name: str, timeout: float = DEFAULT_TIMEOUT_IMAGEINFO
+async def fetch_avatar_imageinfo(
+    client: httpx.AsyncClient,
+    enemy_name: str,
+    timeout: float = DEFAULT_TIMEOUT_IMAGEINFO,
 ) -> tuple[Optional[str], dict[str, Any]]:
     """查询敌人头像文件的 imageinfo，返回 `(去除查询串的 URL 或 None, 原始响应/错误)`。"""
     file_title = f"文件:头像_敌人_{enemy_name}.png"
     try:
-        r = session.get(
+        r = await client.get(
             PRTS_MEDIAWIKI_API,
             params={
                 "action": "query",
@@ -147,9 +178,10 @@ def fetch_avatar_imageinfo(
                 "format": "json",
                 "formatversion": "2",
             },
-            timeout=timeout,
+            timeout=request_timeout(timeout),
         )
         r.raise_for_status()
+        _log_http_version(r)
         data = r.json()
         pages = data.get("query", {}).get("pages", [])
         if not pages or pages[0].get("missing"):

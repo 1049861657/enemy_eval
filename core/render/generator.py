@@ -7,6 +7,7 @@ from typing import Optional
 import skia
 
 from models import EnemyData, RenderOptions
+from utils.filenames import safe_filename
 
 from core.fonts import FontManager, get_font_manager
 from core.optimization import (
@@ -135,7 +136,7 @@ class EnemyCardGenerator:
     ) -> str:
         image = self._draw_card(enemy, options)
         if not output_path:
-            output_path = f"{enemy.name}.png"
+            output_path = f"{safe_filename(enemy.name)}.png"
         image.save(output_path, skia.kPNG)
         return output_path
 

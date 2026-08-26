@@ -94,10 +94,7 @@
 
 ## 9. 质量工具
 
-出处：[Ruff](https://docs.astral.sh/ruff/)
-
-- `target-version = "py313"`。dev 依赖。
-- lint：`E`/`F`/`I`/`UP`（pyupgrade，对 3.13 有意义）/`B`（bugbear）。本轮不强制全仓库 `ruff format`。
+原计划加 Ruff。执行时去掉：改代码走 AI，未接编辑器诊断闭环，单独加依赖无收益。
 
 ## 10. 明确不做（架构会变差，不是怕换库）
 

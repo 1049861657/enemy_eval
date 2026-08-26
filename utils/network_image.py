@@ -3,14 +3,19 @@
 """
 
 import hashlib
-import io
 import logging
 from typing import Optional
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import urlopen
+
+import httpx
+
+from utils.prts_api_client import request_timeout
 
 logger = logging.getLogger(__name__)
+
+_CHUNK = 8192
+DEFAULT_IMAGE_TIMEOUT = 10.0
+DEFAULT_IMAGE_MAX_SIZE = 10 * 1024 * 1024
 
 
 def is_url(path: str) -> bool:
@@ -23,53 +28,38 @@ def is_url(path: str) -> bool:
         return False
 
 
-def download_image_data(url: str, timeout: int = 10, max_size: int = 10 * 1024 * 1024) -> Optional[bytes]:
-    """
-    下载网络图片数据
-    
-    Args:
-        url: 图片URL
-        timeout: 超时时间（秒）
-        max_size: 最大文件大小（字节）
-        
-    Returns:
-        图片二进制数据，失败返回None
-    """
+def _headers_reject_body(response: httpx.Response, max_size: int) -> bool:
+    content_type = response.headers.get("content-type", "")
+    if not content_type.startswith("image/"):
+        return True
+    content_length = response.headers.get("content-length")
+    return bool(content_length) and int(content_length) > max_size
+
+
+async def download_image_data(
+    client: httpx.AsyncClient,
+    url: str,
+    timeout: float = DEFAULT_IMAGE_TIMEOUT,
+    max_size: int = DEFAULT_IMAGE_MAX_SIZE,
+) -> Optional[bytes]:
+    """用已有 AsyncClient 流式下载图片；失败返回 None。可被 task.cancel 打断。"""
+    if not is_url(url):
+        return None
+
     try:
-        # 基础URL验证
-        if not is_url(url):
-            return None
-            
-        # 下载图片数据
-        with urlopen(url, timeout=timeout) as response:
-            # 检查内容类型
-            content_type = response.headers.get('Content-Type', '')
-            if not content_type.startswith('image/'):
+        async with client.stream(
+            "GET", url, timeout=request_timeout(timeout)
+        ) as response:
+            response.raise_for_status()
+            if _headers_reject_body(response, max_size):
                 return None
-                
-            # 检查文件大小
-            content_length = response.headers.get('Content-Length')
-            if content_length and int(content_length) > max_size:
-                return None
-                
-            # 分块下载，控制大小
-            data = io.BytesIO()
-            total_size = 0
-            
-            while True:
-                chunk = response.read(8192)  # 8KB chunks
-                if not chunk:
-                    break
-                    
-                total_size += len(chunk)
-                if total_size > max_size:
+            chunks = bytearray()
+            async for chunk in response.aiter_bytes(_CHUNK):
+                chunks.extend(chunk)
+                if len(chunks) > max_size:
                     return None
-                    
-                data.write(chunk)
-            
-            return data.getvalue()
-            
-    except (URLError, HTTPError, OSError, ValueError) as e:
+            return bytes(chunks)
+    except (httpx.HTTPError, OSError, ValueError) as e:
         logger.debug("下载网络图片失败 %s: %s", url, e)
         return None
 

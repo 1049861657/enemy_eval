@@ -44,13 +44,25 @@ qt_quick_modules = [
     "PySide6.QtQuickControls2",
     "PySide6.QtQuickWidgets",
 ]
+# httpx[http2] 惰性加载 h2；QThread.run / _pull 内延迟导入 core.render。
+# skia-python 运行时依赖 numpy（C 扩展内 import），分析入口看不到。
+_runtime_hiddenimports = [
+    "numpy",
+    "h2",
+    "hpack",
+    "hyperframe",
+    "httpx_retries",
+    "cachetools",
+    "core.render.generator",
+    "core.render.avatar_prefetch",
+]
 
 analysis = Analysis(
     ["gui_main.py"],
     pathex=[],
     binaries=[],
     datas=project_data,
-    hiddenimports=qt_quick_modules,
+    hiddenimports=qt_quick_modules + _runtime_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

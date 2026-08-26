@@ -8,7 +8,7 @@
 
 - [x] 位置：`gui/render_coordinator.py::cleanup`、`gui/main_window.py::closeEvent`。
 - [x] 只 `requestInterruption()` + `wait(3000)`（最多 5000）。超时 `logger.error`，**不** `terminate`，`event.accept()`。
-- [ ] 批次 5 之后补：PRTS 线程在 `run()` 里持有 `asyncio.Task`；`requestInterruption` 被轮询到后 `task.cancel()`。验收改为：拉取中途关窗，3s 内进程退出且无 `terminate`。
+- [x] 批次 5 已补：PRTS 线程在 `run()` 里持有 `asyncio.Task`；`requestInterruption` 被轮询到后 `task.cancel()`。验收：拉取中途关窗，3s 内进程退出且无 `terminate`。
 - [x] 验收（本批）：产品代码无 `terminate(`。关窗 3–5s 内返回桌面。
 
 ## 1.2 structlog + 滚动文件

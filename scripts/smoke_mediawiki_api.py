@@ -14,19 +14,21 @@ MediaWiki API 人工联网冒烟脚本（非自动化测试，不接入 CI/pytes
 from __future__ import annotations
 
 import argparse
+import asyncio
 import copy
 import json
 import sys
 from pathlib import Path
 
-import requests
+import httpx
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from utils.filenames import safe_filename  # noqa: E402
+from utils.prts_api_client import build_client, request_timeout  # noqa: E402
 from utils.prts_mediawiki_pipeline import (  # noqa: E402
-    DEFAULT_HEADERS,
     PRTS_MEDIAWIKI_API,
     fetch_enemy_from_prts_mediawiki_with_debug,
     strip_debug_keys,
@@ -35,16 +37,15 @@ from utils.prts_mediawiki_pipeline import (  # noqa: E402
 DEFAULT_DEBUG_DIR = ROOT / "data" / "prts_debug"
 
 
-def _safe_filename(title: str) -> str:
-    for c in r'\/:*?"<>|':
-        title = title.replace(c, "_")
-    return title.strip() or "untitled"
-
-
 def api_get_json(params: dict[str, str], timeout: float = 30.0) -> dict:
-    r = requests.get(PRTS_MEDIAWIKI_API, params=params, headers=dict(DEFAULT_HEADERS), timeout=timeout)
-    r.raise_for_status()
-    return r.json()
+    with build_client() as client:
+        r = client.get(
+            PRTS_MEDIAWIKI_API,
+            params=params,
+            timeout=request_timeout(timeout),
+        )
+        r.raise_for_status()
+        return r.json()
 
 
 def run_smoke() -> int:
@@ -156,11 +157,13 @@ def dump_mediawiki_debug(enemy_name: str, extracted: dict, raw: dict, out_dir: P
 
 def run_enemy_experiment(enemy_name: str, dump_dir: Path | None) -> int:
     print(f"\n--- 新管线 prts_mediawiki_pipeline: 「{enemy_name}」---\n")
-    api_raw, raw_bundle = fetch_enemy_from_prts_mediawiki_with_debug(enemy_name)
+    api_raw, raw_bundle = asyncio.run(
+        fetch_enemy_from_prts_mediawiki_with_debug(enemy_name)
+    )
     if "error" in api_raw:
         print("[失败]", api_raw.get("error_type"), api_raw.get("error"))
         if dump_dir is not None:
-            err_dir = dump_dir / _safe_filename(enemy_name)
+            err_dir = dump_dir / safe_filename(enemy_name)
             err_dir.mkdir(parents=True, exist_ok=True)
             err_path = err_dir / "error.json"
             err_path.write_text(
@@ -175,7 +178,7 @@ def run_enemy_experiment(enemy_name: str, dump_dir: Path | None) -> int:
         return 1
 
     if dump_dir is not None:
-        per_enemy_dir = dump_dir / _safe_filename(enemy_name)
+        per_enemy_dir = dump_dir / safe_filename(enemy_name)
         dump_mediawiki_debug(enemy_name, api_raw, raw_bundle, per_enemy_dir)
 
     interesting = strip_debug_keys(api_raw)
@@ -226,6 +229,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except requests.RequestException as exc:
+    except httpx.HTTPError as exc:
         print("网络或 HTTP 错误:", exc, file=sys.stderr)
         raise SystemExit(2)

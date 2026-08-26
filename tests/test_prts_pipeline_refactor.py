@@ -1,7 +1,7 @@
 """PRTS pipeline refactor regression tests (todos/fix-20260706/03-prts-pipeline-refactor.md).
 
 Covers:
-1. utils/prts_api_client.py — session/retry/timeout + JSON fetch + avatar imageinfo.
+1. utils/prts_api_client.py — client/retry/timeout + JSON fetch + avatar imageinfo.
 2. utils/prts_mediawiki_pipeline.py — facade re-exports and error message mapping.
 3. utils/thread_manager.py::PrtsFetchThread — run() success/error/exception paths.
 4. core/optimization.py / core.render.avatar_prefetch — shared global image cache lock.
@@ -12,13 +12,18 @@ No real network calls, no real Skia network-image decodes, no hangs.
 
 from __future__ import annotations
 
+import asyncio
 import threading
-from unittest.mock import MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
+import httpx
 import pytest
-import requests
 
 from models import EnemyData
+
+
+def _run(coro):
+    return asyncio.run(coro)
 
 
 class TestPrtsApiClient:
@@ -30,44 +35,50 @@ class TestPrtsApiClient:
         assert DEFAULT_TIMEOUT_PARSE == 22.0
         assert DEFAULT_TIMEOUT_IMAGEINFO == 12.0
 
-    def test_build_session_returns_session_with_retry_adapters(self):
-        from requests.adapters import HTTPAdapter
+    def test_build_async_client_headers_and_timeout(self):
+        from utils.prts_api_client import (
+            CONNECT_TIMEOUT,
+            DEFAULT_TIMEOUT_PARSE,
+            build_async_client,
+        )
 
-        from utils.prts_api_client import build_session
-
-        session = build_session()
-        assert isinstance(session, requests.Session)
-        # Both http and https are mounted to the same adapter instance
-        assert "http://" in session.adapters
-        assert "https://" in session.adapters
-        adapter = session.adapters["http://"]
-        assert isinstance(adapter, HTTPAdapter)
-        assert adapter is session.adapters["https://"]
+        client = build_async_client()
+        try:
+            assert isinstance(client, httpx.AsyncClient)
+            assert "Mozilla" in client.headers["User-Agent"]
+            assert client.headers["Accept-Language"].startswith("zh-CN")
+            assert client.timeout.connect == CONNECT_TIMEOUT
+            assert client.timeout.read == DEFAULT_TIMEOUT_PARSE
+            assert client.timeout.write == DEFAULT_TIMEOUT_PARSE
+            assert client.timeout.pool == CONNECT_TIMEOUT
+        finally:
+            _run(client.aclose())
 
     def test_fetch_parse_json_success(self):
         from utils.prts_api_client import _fetch_parse_json
 
         expected_json = {"parse": {"title": "测试敌人"}}
-        response = Mock()
+        response = MagicMock()
         response.json.return_value = expected_json
-        session = Mock()
-        session.get.return_value = response
+        response.http_version = "HTTP/2"
+        client = MagicMock()
+        client.get = AsyncMock(return_value=response)
 
-        result, err = _fetch_parse_json(session, "测试敌人")
+        result, err = _run(_fetch_parse_json(client, "测试敌人"))
         assert result == expected_json
         assert err is None
-        session.get.assert_called_once()
-        _, call_kwargs = session.get.call_args
+        client.get.assert_awaited_once()
+        _, call_kwargs = client.get.call_args
         assert "params" in call_kwargs
         assert call_kwargs["params"]["action"] == "parse"
 
     def test_fetch_parse_json_request_exception(self):
         from utils.prts_api_client import _fetch_parse_json
 
-        session = Mock()
-        session.get.side_effect = requests.RequestException("网络超时")
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=httpx.HTTPError("网络超时"))
 
-        result, err = _fetch_parse_json(session, "测试敌人")
+        result, err = _run(_fetch_parse_json(client, "测试敌人"))
         assert result is None
         assert "网络超时" in err
 
@@ -85,12 +96,13 @@ class TestPrtsApiClient:
                 ]
             }
         }
-        response = Mock()
+        response = MagicMock()
         response.json.return_value = raw_json
-        session = Mock()
-        session.get.return_value = response
+        response.http_version = "HTTP/1.1"
+        client = MagicMock()
+        client.get = AsyncMock(return_value=response)
 
-        url, data = fetch_avatar_imageinfo(session, "测试敌人")
+        url, data = _run(fetch_avatar_imageinfo(client, "测试敌人"))
         assert url == "https://example.com/avatar.png"
         assert data is raw_json
 
@@ -98,12 +110,13 @@ class TestPrtsApiClient:
         from utils.prts_api_client import fetch_avatar_imageinfo
 
         raw_json = {"query": {"pages": [{"missing": True}]}}
-        response = Mock()
+        response = MagicMock()
         response.json.return_value = raw_json
-        session = Mock()
-        session.get.return_value = response
+        response.http_version = "HTTP/2"
+        client = MagicMock()
+        client.get = AsyncMock(return_value=response)
 
-        url, data = fetch_avatar_imageinfo(session, "测试敌人")
+        url, data = _run(fetch_avatar_imageinfo(client, "测试敌人"))
         assert url is None
         assert data is raw_json
 
@@ -111,22 +124,23 @@ class TestPrtsApiClient:
         from utils.prts_api_client import fetch_avatar_imageinfo
 
         raw_json = {"query": {"pages": [{}]}}
-        response = Mock()
+        response = MagicMock()
         response.json.return_value = raw_json
-        session = Mock()
-        session.get.return_value = response
+        response.http_version = "HTTP/2"
+        client = MagicMock()
+        client.get = AsyncMock(return_value=response)
 
-        url, data = fetch_avatar_imageinfo(session, "测试敌人")
+        url, data = _run(fetch_avatar_imageinfo(client, "测试敌人"))
         assert url is None
         assert data is raw_json
 
     def test_fetch_avatar_imageinfo_exception(self):
         from utils.prts_api_client import fetch_avatar_imageinfo
 
-        session = Mock()
-        session.get.side_effect = requests.RequestException("连接失败")
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=httpx.HTTPError("连接失败"))
 
-        url, data = fetch_avatar_imageinfo(session, "测试敌人")
+        url, data = _run(fetch_avatar_imageinfo(client, "测试敌人"))
         assert url is None
         assert data == {"error": "连接失败"}
 
@@ -165,7 +179,8 @@ class TestPrtsMediawikiPipelineFacade:
         assert facade.LEVEL_KEY_MAP is mapping.LEVEL_KEY_MAP
         assert facade.COMMON_KEY_MAP is mapping.COMMON_KEY_MAP
         assert facade.ABNORMAL_MAP is mapping.ABNORMAL_MAP
-        assert facade.build_session is api.build_session
+        assert facade.build_async_client is api.build_async_client
+        assert facade.build_client is api.build_client
         assert facade._fetch_parse_json is api._fetch_parse_json
         assert facade.fetch_avatar_imageinfo is api.fetch_avatar_imageinfo
         assert facade.PRTS_MEDIAWIKI_API is api.PRTS_MEDIAWIKI_API
@@ -225,13 +240,13 @@ class TestPrtsFetchThread:
         monkeypatch.setattr(
             pipeline,
             "fetch_enemy_from_prts_mediawiki",
-            Mock(return_value={"name": "测试敌人"}),
+            AsyncMock(return_value={"name": "测试敌人"}),
         )
         monkeypatch.setattr(
             builder, "strip_debug_keys", Mock(return_value={"name": "测试敌人"})
         )
         monkeypatch.setattr(builder, "to_enemy_data", Mock(return_value=enemy_data))
-        monkeypatch.setattr(prefetch, "preload_prts_avatar_image", Mock())
+        monkeypatch.setattr(prefetch, "preload_prts_avatar_image", AsyncMock())
 
         thread = PrtsFetchThread("测试敌人")
         spy = Mock()
@@ -248,7 +263,7 @@ class TestPrtsFetchThread:
         monkeypatch.setattr(
             pipeline,
             "fetch_enemy_from_prts_mediawiki",
-            Mock(return_value={"error": "boom", "error_type": "network"}),
+            AsyncMock(return_value={"error": "boom", "error_type": "network"}),
         )
         monkeypatch.setattr(
             pipeline, "error_message_for_raw", Mock(return_value="网络错误：boom")
@@ -269,7 +284,7 @@ class TestPrtsFetchThread:
         monkeypatch.setattr(
             pipeline,
             "fetch_enemy_from_prts_mediawiki",
-            Mock(side_effect=ValueError("模拟异常")),
+            AsyncMock(side_effect=ValueError("模拟异常")),
         )
 
         thread = PrtsFetchThread("测试敌人")

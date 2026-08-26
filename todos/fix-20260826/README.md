@@ -2,7 +2,7 @@
 
 来源：针对「4 高 + 全局最优」的全仓库调研（官方文档 + 现码对照）。目标是打一版**可长期维护的稳定发布**，不破坏现有功能。
 
-口径修订：尚未发第一版，**直接上目标栈**（httpx / pydantic-settings / platformdirs / structlog / cachetools / ruff），不为「少换依赖」留过渡。仍拒绝的只剩架构会变差的选项（Skia GPU、QtAsyncio preview、orjson）。细节见 [`00-research.md`](./00-research.md)。
+口径修订：尚未发第一版，**直接上目标栈**（httpx / pydantic-settings / platformdirs / structlog / cachetools），不为「少换依赖」留过渡。仍拒绝的只剩架构会变差的选项（Skia GPU、QtAsyncio preview、orjson）。Ruff 已从本计划去掉。细节见 [`00-research.md`](./00-research.md)。
 
 本目录只写计划，不改产品代码。执行时按批次独立提交：完成一批后勾选 checkbox，再进下一批。
 
@@ -28,7 +28,7 @@
 
 ## 建议执行顺序
 
-`01` 稳定性（先去掉 `terminate`、让失败可见）→ `05` HTTP（httpx + 可取消；让关窗真能打断 PRTS）→ `02` 渲染纯化 → `03` 偏好 JSON → `04` GUI/QML → `06` 工具链。
+`01` 稳定性（先去掉 `terminate`、让失败可见）→ `05` HTTP（httpx + 可取消；让关窗真能打断 PRTS）→ `02` 渲染纯化 → `03` 偏好 JSON → `04` GUI/QML → `06` 文档索引。
 
 `01` 必须最先。`05` 提到紧接 `01`：取消能力属于可用性，不是「依赖打扫」。`02` 与 `03` 不可对调。`04` 在 `02`/`03` 之后。`06` 可与 `04` 并行。
 
@@ -41,14 +41,12 @@
 | 2 | [`02-render-purity.md`](./02-render-purity.md) | `RenderOptions` + 单一绘制路径 | P0 | 已完成 |
 | 3 | [`03-settings-errors.md`](./03-settings-errors.md) | pydantic-settings + platformdirs | P0 | 已完成 |
 | 4 | [`04-gui-qml.md`](./04-gui-qml.md) | 拆工作区、`model_dump_json`、技能 ListModel | P1 | 已完成 |
-| 5 | [`05-deps-prts.md`](./05-deps-prts.md) | **httpx 替换 requests**；去掉未用依赖；文件名消毒 | P0 | 待执行 |
-| 6 | [`06-tooling-docs.md`](./06-tooling-docs.md) | ruff；修正 `AGENTS.md` | P2 | 待执行 |
+| 5 | [`05-deps-prts.md`](./05-deps-prts.md) | **httpx 替换 requests**；去掉未用依赖；文件名消毒 | P0 | 已完成 |
+| 6 | [`06-tooling-docs.md`](./06-tooling-docs.md) | 修正 `AGENTS.md` 与 CHANGELOG | P2 | 已完成 |
 
 ## 依赖取舍（结论先行）
 
 **新增运行时：** `httpx[http2]`、`httpx-retries`、`pydantic-settings`、`platformdirs`、`structlog`、`cachetools`。
-
-**新增开发：** `ruff`。
 
 **移除运行时：** `requests`、`beautifulsoup4`、`pillow`；`numpy` 改为 `skia-python` 传递依赖，不再直接声明。
 

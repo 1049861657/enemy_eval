@@ -21,6 +21,7 @@ from utils import (
     get_app_build_time,
     get_app_version,
 )
+from utils.filenames import safe_filename
 
 from .card_model import CardModel
 from .constants import (
@@ -162,7 +163,7 @@ class MainWindow(QMainWindow):
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "保存配置文件",
-            f"{self.card_model.enemy_data.name}_config.json",
+            f"{safe_filename(self.card_model.enemy_data.name)}_config.json",
             "JSON 文件 (*.json);;所有文件 (*)",
         )
         if not file_path:
@@ -182,7 +183,7 @@ class MainWindow(QMainWindow):
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "导出图片",
-            f"{self.card_model.enemy_data.name}.png",
+            f"{safe_filename(self.card_model.enemy_data.name)}.png",
             "PNG 图片 (*.png);;JPG 图片 (*.jpg);;所有文件 (*)",
         )
         if not file_path:

@@ -54,6 +54,7 @@ def check_dependencies() -> list[str]:
         ("skia", "skia-python"),
         ("pydantic", "pydantic"),
         ("PySide6", "PySide6"),
+        ("httpx", "httpx"),
     )
     missing_deps: list[str] = []
     for module_name, package_name in required:

@@ -1,7 +1,7 @@
 """PRTS 敌人数据管线门面：MediaWiki API → wikitext 模板解析 → EnemyData。
 
 本文件是对外统一入口，编排以下几个职责单一的模块完成整条管线：
-- utils/prts_api_client.py      —— HTTP Session/超时/重试/原始 JSON 拉取
+- utils/prts_api_client.py      —— HTTP 超时/重试/原始 JSON 拉取
 - utils/wiki_template_parser.py —— 纯 wikitext 模板字符串解析
 - utils/prts_field_mapping.py   —— 中文字段名 → 英文字段的映射表与合并规则
 - utils/prts_enemy_builder.py   —— 合并字典 → EnemyData 的 Pydantic 组装
@@ -26,14 +26,16 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional, Tuple
 
+import httpx
+
 from models import EnemyData
 
 from utils.prts_api_client import (
     DEFAULT_HEADERS,
-    DEFAULT_TIMEOUT_IMAGEINFO,
     DEFAULT_TIMEOUT_PARSE,
     PRTS_MEDIAWIKI_API,
-    build_session,
+    build_async_client,
+    build_client,
     fetch_avatar_imageinfo,
     resolve_enemy_page_title,
     _fetch_parse_json,
@@ -61,6 +63,8 @@ __all__ = [
     "merge_wikitext_enemy",
     "to_enemy_data",
     "strip_debug_keys",
+    "build_async_client",
+    "build_client",
     "fetch_enemy_from_prts_mediawiki",
     "fetch_enemy_from_prts_mediawiki_with_debug",
     "fetch_enemy_data",
@@ -69,8 +73,8 @@ __all__ = [
 ]
 
 
-def _enemy_from_parse_response(
-    session, j: dict[str, Any], page_title: str
+async def _enemy_from_parse_response(
+    client: httpx.AsyncClient, j: dict[str, Any], page_title: str
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     bundle: dict[str, Any] = {
         "parse_json": j,
@@ -106,7 +110,9 @@ def _enemy_from_parse_response(
         merged["name"] = page_title
     merged.setdefault("skills", [])
 
-    av, img_raw = fetch_avatar_imageinfo(session, str(merged.get("name") or page_title))
+    av, img_raw = await fetch_avatar_imageinfo(
+        client, str(merged.get("name") or page_title)
+    )
     bundle["imageinfo_json"] = img_raw
     if av:
         merged["avatar_path"] = av
@@ -120,8 +126,32 @@ def _enemy_from_parse_response(
     return merged, bundle
 
 
-def _fetch_enemy_resolved(
-    enemy_name: str, timeout: float
+async def _fetch_enemy_on_client(
+    client: httpx.AsyncClient, enemy_name: str, timeout: float
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    resolved_title, _resolve_err = await resolve_enemy_page_title(client, enemy_name)
+    page_title = resolved_title or enemy_name
+
+    j, err = await _fetch_parse_json(client, page_title, timeout)
+    if err is not None:
+        return {"error": err, "error_type": "network"}, {
+            "parse_json": None,
+            "html": "",
+            "wikitext": "",
+            "imageinfo_json": None,
+        }
+
+    result, bundle = await _enemy_from_parse_response(client, j, page_title)
+    if "error" not in result and not result.get("name"):
+        result["name"] = enemy_name
+    return result, bundle
+
+
+async def _fetch_enemy_resolved(
+    enemy_name: str,
+    timeout: float,
+    *,
+    client: httpx.AsyncClient | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """按敌人名称精确定位并拉取敌人页面。
 
@@ -132,31 +162,20 @@ def _fetch_enemy_resolved(
     `(我方)` 均在使用，如 弑君者(敌方)、变格博士(敌人)），猜测式重试无法覆盖全部情况。
 
     语义查询未命中、超时或出错时，退回直接按 enemy_name 拉取页面（多数敌人裸名本来就
-    直接命中）；resolve_enemy_page_title 内部用独立的短超时、零重试请求，避免其自身
-    抖动拖累这里的整体延迟。
+    直接命中）。resolve / parse / imageinfo 串行。传入 client 则复用（GUI 拉取后再下头像）；
+    否则自建并在返回前关闭。
     """
-    resolved_title, _resolve_err = resolve_enemy_page_title(enemy_name)
-    page_title = resolved_title or enemy_name
-
-    session = build_session()
-
-    j, err = _fetch_parse_json(session, page_title, timeout)
-    if err is not None:
-        return {"error": err, "error_type": "network"}, {
-            "parse_json": None,
-            "html": "",
-            "wikitext": "",
-            "imageinfo_json": None,
-        }
-
-    result, bundle = _enemy_from_parse_response(session, j, page_title)
-    if "error" not in result and not result.get("name"):
-        result["name"] = enemy_name
-    return result, bundle
+    if client is not None:
+        return await _fetch_enemy_on_client(client, enemy_name, timeout)
+    async with build_async_client() as owned:
+        return await _fetch_enemy_on_client(owned, enemy_name, timeout)
 
 
-def fetch_enemy_from_prts_mediawiki(
-    page_title: str, timeout: float = DEFAULT_TIMEOUT_PARSE
+async def fetch_enemy_from_prts_mediawiki(
+    page_title: str,
+    timeout: float = DEFAULT_TIMEOUT_PARSE,
+    *,
+    client: httpx.AsyncClient | None = None,
 ) -> dict[str, Any]:
     """
     parse API → wikitext 合并 → 头像 imageinfo。
@@ -165,15 +184,18 @@ def fetch_enemy_from_prts_mediawiki(
     先用 Semantic MediaWiki 语义属性精确定位敌人页面（见 _fetch_enemy_resolved），
     覆盖敌我同名单位（如 弑君者、W、变格博士）的消歧义，无需猜测页面后缀。
     """
-    result, _ = _fetch_enemy_resolved(page_title, timeout)
+    result, _ = await _fetch_enemy_resolved(page_title, timeout, client=client)
     return result
 
 
-def fetch_enemy_from_prts_mediawiki_with_debug(
-    page_title: str, timeout: float = DEFAULT_TIMEOUT_PARSE
+async def fetch_enemy_from_prts_mediawiki_with_debug(
+    page_title: str,
+    timeout: float = DEFAULT_TIMEOUT_PARSE,
+    *,
+    client: httpx.AsyncClient | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """同 fetch_enemy_from_prts_mediawiki，附带 {parse_json, html, wikitext, imageinfo_json} 供调试导出。"""
-    return _fetch_enemy_resolved(page_title, timeout)
+    return await _fetch_enemy_resolved(page_title, timeout, client=client)
 
 
 def error_message_for_raw(raw: dict[str, Any], enemy_name: str) -> str:
@@ -189,18 +211,13 @@ def error_message_for_raw(raw: dict[str, Any], enemy_name: str) -> str:
     return f"获取PRTS数据失败：{msg}"
 
 
-def fetch_enemy_data(enemy_name: str) -> Tuple[Optional[EnemyData], Optional[str]]:
-    """
-    GUI / CLI 使用：拉取 PRTS 并转为 EnemyData。
-    grade、简评、三星评价仍由用户在界面中填写。
+async def fetch_enemy_data(enemy_name: str) -> Tuple[Optional[EnemyData], Optional[str]]:
+    """拉取 PRTS 并转为 EnemyData。grade、简评、三星评价仍由调用方填写。
 
-    注意：不在此处预下载头像——头像预下载属于渲染层职责（Skia 解码/缩放/写入
-    core.optimization._GLOBAL_IMAGE_CACHE），由调用方在后台线程中自行调用
-    core.render.avatar_prefetch.preload_prts_avatar_image（见
-    utils/thread_manager.py::PrtsFetchThread），避免 utils 反向依赖 core。
+    不预下载头像（渲染层职责，见 PrtsFetchThread）。这是 coroutine，须 await。
     """
     try:
-        raw = fetch_enemy_from_prts_mediawiki(enemy_name)
+        raw = await fetch_enemy_from_prts_mediawiki(enemy_name)
         if "error" in raw:
             return None, error_message_for_raw(raw, enemy_name)
 
@@ -214,9 +231,9 @@ def fetch_enemy_data(enemy_name: str) -> Tuple[Optional[EnemyData], Optional[str
         return None, f"获取PRTS数据时发生错误：{str(e)}"
 
 
-def fetch_enemy_data_raw(enemy_name: str) -> dict[str, Any]:
+async def fetch_enemy_data_raw(enemy_name: str) -> dict[str, Any]:
     """合并后的扁平字典（无 _ 调试键）；失败时含 error / error_type。"""
-    data = fetch_enemy_from_prts_mediawiki(enemy_name)
+    data = await fetch_enemy_from_prts_mediawiki(enemy_name)
     if "error" in data:
         return data
     return strip_debug_keys(data)

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 
+import httpx
 import skia
 
 from core.optimization import _GLOBAL_IMAGE_CACHE, _GLOBAL_IMAGE_CACHE_LOCK
@@ -22,14 +23,16 @@ logger = logging.getLogger(__name__)
 _AVATAR_TARGET_SIZE = (330, 330)
 
 
-def preload_prts_avatar_image(avatar_path: str) -> None:
-    """预下载网络头像到全局图像缓存，减轻首次渲染阻塞。"""
+async def preload_prts_avatar_image(
+    client: httpx.AsyncClient, avatar_path: str
+) -> None:
+    """用已有客户端预下载网络头像到全局图像缓存，减轻首次渲染阻塞。"""
     if not avatar_path:
         return
     try:
         if not is_url(avatar_path):
             return
-        image_data = download_image_data(avatar_path)
+        image_data = await download_image_data(client, avatar_path)
         if not image_data:
             return
 

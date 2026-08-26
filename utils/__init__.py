@@ -5,8 +5,7 @@ from .app_version import get_app_build_time, get_app_version
 from .debouncer import AdaptiveDebouncer
 from .error_handler import EnemyEvalException, RenderError, FileOperationError, error_handler, categorize_error_message
 from .thread_manager import CardGeneratorThread, PrtsFetchThread
-from .prts_mediawiki_pipeline import fetch_enemy_data
-from .network_image import is_url, download_image_data
+from .network_image import is_url
 from .resource_manager import resource_manager
 from .app_settings_store import (
     current_render_options,
@@ -27,9 +26,7 @@ __all__ = [
     'categorize_error_message',
     'CardGeneratorThread',
     'PrtsFetchThread',
-    'fetch_enemy_data',
     'is_url',
-    'download_image_data',
     'resource_manager',
     'current_render_options',
     'get_rating_names',

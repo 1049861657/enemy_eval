@@ -2,6 +2,7 @@
 卡片生成线程管理器
 """
 import array
+import asyncio
 from typing import Optional
 
 import skia
@@ -10,9 +11,9 @@ from PySide6.QtGui import QImage, QPixmap
 
 from models import EnemyData, RenderOptions
 
+from . import prts_enemy_builder as builder
+from . import prts_mediawiki_pipeline as pipeline
 from .error_handler import RenderError
-from .prts_enemy_builder import strip_debug_keys, to_enemy_data
-from .prts_mediawiki_pipeline import error_message_for_raw, fetch_enemy_from_prts_mediawiki
 
 
 class CardGeneratorThread(QThread):
@@ -81,7 +82,7 @@ class CardGeneratorThread(QThread):
 
 
 class PrtsFetchThread(QThread):
-    """PRTS 数据拉取线程：避免 fetch_enemy_data 的两次 HTTP 请求 + 头像下载/解码阻塞主线程。"""
+    """PRTS 数据拉取线程：避免 fetch 的 HTTP 请求 + 头像下载/解码阻塞主线程。"""
 
     fetchFinished = Signal(object, object)  # (Optional[EnemyData], Optional[str] error_msg)
 
@@ -91,32 +92,52 @@ class PrtsFetchThread(QThread):
 
     def run(self):
         """在后台线程中拉取 PRTS 数据并预下载头像。"""
+        try:
+            asyncio.run(self._fetch())
+        except Exception as e:
+            if not self.isInterruptionRequested():
+                self.fetchFinished.emit(None, f"获取PRTS数据时发生错误：{str(e)}")
+
+    async def _fetch(self) -> None:
+        task = asyncio.create_task(self._pull())
+        try:
+            while not task.done():
+                if self.isInterruptionRequested():
+                    task.cancel()
+                    break
+                await asyncio.sleep(0.05)
+            await task
+        except asyncio.CancelledError:
+            return
+
+    async def _pull(self) -> None:
         from core.render.avatar_prefetch import preload_prts_avatar_image
 
-        try:
+        async with pipeline.build_async_client() as client:
             if self.isInterruptionRequested():
                 return
 
-            raw = fetch_enemy_from_prts_mediawiki(self.enemy_name)
+            raw = await pipeline.fetch_enemy_from_prts_mediawiki(
+                self.enemy_name, client=client
+            )
             if self.isInterruptionRequested():
                 return
 
             if "error" in raw:
-                self.fetchFinished.emit(None, error_message_for_raw(raw, self.enemy_name))
+                self.fetchFinished.emit(
+                    None, pipeline.error_message_for_raw(raw, self.enemy_name)
+                )
                 return
 
-            clean = strip_debug_keys(raw)
+            clean = builder.strip_debug_keys(raw)
             if clean.get("avatar_path"):
-                preload_prts_avatar_image(clean["avatar_path"])
+                await preload_prts_avatar_image(client, clean["avatar_path"])
 
             if self.isInterruptionRequested():
                 return
 
-            enemy_data = to_enemy_data(clean, self.enemy_name)
+            enemy_data = builder.to_enemy_data(clean, self.enemy_name)
             if enemy_data:
                 self.fetchFinished.emit(enemy_data, None)
             else:
                 self.fetchFinished.emit(None, "PRTS数据格式不兼容，无法导入。")
-        except Exception as e:
-            if not self.isInterruptionRequested():
-                self.fetchFinished.emit(None, f"获取PRTS数据时发生错误：{str(e)}")
