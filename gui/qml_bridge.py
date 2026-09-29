@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from threading import Lock
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
@@ -15,6 +16,7 @@ from utils.app_settings_store import (
     current_render_options,
     get_rating_names,
     is_rating_radar,
+    recent_files,
     save_rating_schema,
     set_rating_radar,
 )
@@ -57,11 +59,16 @@ class QmlBridge(QObject):
     previewChanged = Signal(int)
     busyChanged = Signal(bool)
     prtsBusyChanged = Signal(bool)
+    recentFilesChanged = Signal(str)
     messageChanged = Signal(str, str)
     fieldError = Signal(str, str)
     dialogRequested = Signal(str, str, str)
     newRequested = Signal()
     openRequested = Signal()
+    openRecentRequested = Signal(str)
+    removeRecentRequested = Signal(str)
+    removeRecentConfirmRequested = Signal(str, str)
+    clearRecentRequested = Signal()
     saveRequested = Signal()
     exportRequested = Signal()
     refreshRequested = Signal()
@@ -119,6 +126,17 @@ class QmlBridge(QObject):
     def prtsBusy(self) -> bool:  # noqa: N802
         return self._prts_busy
 
+    @Property(str, notify=recentFilesChanged)
+    def recentFilesJson(self) -> str:  # noqa: N802
+        """最近打开或保存过的配置；名称与可用性随列表交给界面。"""
+        return json.dumps(
+            [
+                {"path": path, "name": Path(path).name, "exists": Path(path).is_file()}
+                for path in recent_files()
+            ],
+            ensure_ascii=False,
+        )
+
     @Property(int, notify=previewChanged)
     def previewRevision(self) -> int:  # noqa: N802
         return self._preview_revision
@@ -171,6 +189,14 @@ class QmlBridge(QObject):
     def show_toast(self, message: str, tone: str = "info") -> None:
         """非阻塞反馈使用短暂提示；tone 取 info / success / warning / error，配色与图标由界面映射。"""
         self.messageChanged.emit(message, tone)
+
+    def refresh_recent_files(self) -> None:
+        """最近列表发生变化后，把最新列表一并推给界面。"""
+        self.recentFilesChanged.emit(self.recentFilesJson)
+
+    def confirm_remove_recent(self, path: str) -> None:
+        """最近项的文件已不存在时，请求界面确认是否移除该记录（不弹报错）。"""
+        self.removeRecentConfirmRequested.emit(path, Path(path).name)
 
     def _on_card_ready(self, result: object, _revision: int) -> None:
         if isinstance(result, QPixmap):
@@ -240,6 +266,18 @@ class QmlBridge(QObject):
     @Slot()
     def requestOpen(self) -> None:  # noqa: N802
         self.openRequested.emit()
+
+    @Slot(str)
+    def requestOpenRecent(self, path: str) -> None:  # noqa: N802
+        self.openRecentRequested.emit(path)
+
+    @Slot(str)
+    def requestRemoveRecent(self, path: str) -> None:  # noqa: N802
+        self.removeRecentRequested.emit(path)
+
+    @Slot()
+    def requestClearRecent(self) -> None:  # noqa: N802
+        self.clearRecentRequested.emit()
 
     @Slot()
     def requestSave(self) -> None:  # noqa: N802

@@ -13,7 +13,12 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBo
 from core.optimization import get_resource_manager
 from core.render.avatar_prefetch import is_avatar_cached
 from models.media import is_url
-from utils.app_settings_store import current_render_options
+from utils.app_settings_store import (
+    clear_recent_files,
+    current_render_options,
+    remember_recent_file,
+    remove_recent_file,
+)
 from utils.app_version import get_app_build_time, get_app_version
 from utils.debouncer import AdaptiveDebouncer
 from utils.error_handler import (
@@ -108,6 +113,9 @@ class MainWindow(QMainWindow):
         self._render.busyChanged.connect(self._on_render_busy)
         self._bridge.newRequested.connect(self._new_card)
         self._bridge.openRequested.connect(self._open_file)
+        self._bridge.openRecentRequested.connect(self._open_file)
+        self._bridge.removeRecentRequested.connect(self._remove_recent)
+        self._bridge.clearRecentRequested.connect(self._clear_recent)
         self._bridge.saveRequested.connect(self._save_config)
         self._bridge.exportRequested.connect(self._export_image)
         self._bridge.refreshRequested.connect(self._generate_card)
@@ -184,10 +192,14 @@ class MainWindow(QMainWindow):
         previous_model.deleteLater()
         self._generate_card()
 
-    def _open_file(self) -> None:
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "打开配置文件", "", "JSON 文件 (*.json);;所有文件 (*)"
-        )
+    def _open_file(self, path: str | None = None) -> None:
+        """打开配置；带路径时直接打开（最近打开列表）。文件已不存在时改为询问是否移除该记录，不弹报错。"""
+        from_recent = path is not None
+        file_path = path
+        if file_path is None:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "打开配置文件", "", "JSON 文件 (*.json);;所有文件 (*)"
+            )
         if not file_path:
             return
         try:
@@ -196,7 +208,13 @@ class MainWindow(QMainWindow):
                 self._warn_missing_avatar()
                 self.status_bar.showMessage(f"已加载：{Path(file_path).name}")
                 self._generate_card()
+                remember_recent_file(file_path)
+                self._bridge.refresh_recent_files()
         except EnemyEvalException as error:
+            self._bridge.refresh_recent_files()
+            if from_recent and not Path(file_path).exists():
+                self._bridge.confirm_remove_recent(file_path)
+                return
             title, message = categorize_error_message(str(error))
             self._bridge.show_dialog(title, message, "warning")
 
@@ -213,9 +231,19 @@ class MainWindow(QMainWindow):
             with error_handler("保存配置文件"):
                 self.card_model.save_to_file(file_path)
                 self.status_bar.showMessage(f"已保存：{Path(file_path).name}")
+                remember_recent_file(file_path)
+                self._bridge.refresh_recent_files()
         except EnemyEvalException as error:
             title, message = categorize_error_message(str(error))
             self._bridge.show_dialog(title, message, "warning")
+
+    def _remove_recent(self, path: str) -> None:
+        remove_recent_file(path)
+        self._bridge.refresh_recent_files()
+
+    def _clear_recent(self) -> None:
+        clear_recent_files()
+        self._bridge.refresh_recent_files()
 
     def _export_image(self) -> None:
         if self._render.last_generated_pixmap is None:

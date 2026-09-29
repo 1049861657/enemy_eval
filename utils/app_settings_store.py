@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,7 @@ logger = structlog.get_logger(__name__)
 _APP_NAME = "敌人评价卡片编辑器"
 _APP_AUTHOR = "Enemy Eval Team"
 _SETTINGS_FILENAME = "app_settings.json"
+_MAX_RECENT_FILES = 8
 _lock = threading.RLock()
 _cached: AppSettings | None = None
 
@@ -65,6 +67,7 @@ class AppSettings(BaseSettings):
 
     rating_names: list[str] = Field(default_factory=lambda: list(DEFAULT_RATING_NAMES))
     rating_radar: bool = False
+    recent_files: list[str] = Field(default_factory=list)
 
     @classmethod
     def settings_customise_sources(
@@ -116,6 +119,29 @@ def _persist(settings: AppSettings) -> None:
         )
     except Exception as error:
         raise FileOperationError(f"保存评价偏好失败: {error}") from error
+
+
+def _with_recent_files(current: AppSettings, entries: list[str]) -> AppSettings:
+    """在既有偏好上替换最近列表，其余字段原样保留。"""
+    return AppSettings.model_validate(
+        {
+            "rating_names": list(current.rating_names),
+            "rating_radar": current.rating_radar,
+            "recent_files": entries,
+        }
+    )
+
+
+def _replace_recent_files(current: AppSettings, entries: list[str]) -> None:
+    """写入新的最近列表；失败只记日志并保留原内存状态。"""
+    global _cached
+    settings = _with_recent_files(current, entries)
+    try:
+        _persist(settings)
+    except FileOperationError as error:
+        logger.warning("最近列表未写入，已忽略", error=str(error))
+        return
+    _cached = settings
 
 
 def load_app_settings(*, force_reload: bool = False) -> AppSettings:
@@ -178,6 +204,47 @@ def set_rating_radar(enabled: bool) -> bool:
         _persist(settings)
         _cached = settings
     return value
+
+
+def recent_files() -> list[str]:
+    """最近打开或保存过的配置绝对路径，最近的在前；返回副本。"""
+    return list(load_app_settings().recent_files)
+
+
+def remember_recent_file(path: str) -> None:
+    """把配置路径记为最近一项；重复项提到最前，超出上限截断，写盘失败只记日志。"""
+    absolute = os.path.abspath(path)
+    key = os.path.normcase(absolute)
+    with _lock:
+        current = load_app_settings()
+        others = [
+            entry
+            for entry in current.recent_files
+            if os.path.normcase(os.path.abspath(entry)) != key
+        ]
+        _replace_recent_files(current, [absolute, *others][:_MAX_RECENT_FILES])
+
+
+def remove_recent_file(path: str) -> None:
+    """从最近列表移除指定配置；不在列表中则不动。"""
+    key = os.path.normcase(os.path.abspath(path))
+    with _lock:
+        current = load_app_settings()
+        entries = [
+            entry
+            for entry in current.recent_files
+            if os.path.normcase(os.path.abspath(entry)) != key
+        ]
+        if entries != list(current.recent_files):
+            _replace_recent_files(current, entries)
+
+
+def clear_recent_files() -> None:
+    """清空最近列表。"""
+    with _lock:
+        current = load_app_settings()
+        if current.recent_files:
+            _replace_recent_files(current, [])
 
 
 def current_render_options() -> RenderOptions:

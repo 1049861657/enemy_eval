@@ -14,7 +14,10 @@ from models import (
 )
 from utils.app_settings_store import (
     is_rating_radar,
+    load_app_settings,
     load_rating_schema,
+    recent_files,
+    remember_recent_file,
     save_rating_schema,
     set_rating_radar,
 )
@@ -61,10 +64,14 @@ class TestAppSettingsStore:
         saved = save_rating_schema(RatingSchema(names=["甲", "乙"]))
         assert saved.names == ["甲", "乙"]
         set_rating_radar(True)
+        config_path = str(app_settings_file.parent / "甲_config.json")
+        remember_recent_file(config_path)
 
         loaded = load_rating_schema(force_reload=True)
         assert loaded.names == ["甲", "乙"]
         assert is_rating_radar(force_reload=True) is True
+        assert recent_files() == [config_path]
+        assert load_app_settings(force_reload=True).recent_files == [config_path]
         assert app_settings_file.is_file()
 
     def test_missing_file_uses_defaults(self, app_settings_file: Path):
@@ -72,6 +79,7 @@ class TestAppSettingsStore:
         schema = load_rating_schema()
         assert schema.names == ["对策度", "创新度", "威胁度"]
         assert is_rating_radar() is False
+        assert recent_files() == []
 
     def test_corrupt_file_uses_defaults(self, app_settings_file: Path):
         app_settings_file.write_text("{not valid json", encoding="utf-8")

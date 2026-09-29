@@ -13,6 +13,7 @@ Item {
 
     property var enemyData: ({})
     property var ratingNames: []
+    property var recentFiles: []
     property bool schemaEditMode: false
     property var schemaDraft: []
     property var fieldErrors: ({})
@@ -21,6 +22,7 @@ Item {
     property var toastStyle: root.toastStyleFor(root.toastTone)
     property string detailedTarget: ""
     property int detailedSkillIndex: -1
+    property string recentPendingRemoval: ""
 
     function refreshData(serialized, clearErrors) {
         enemyData = JSON.parse(serialized)
@@ -30,6 +32,10 @@ Item {
 
     function refreshRatingNames(serialized) {
         ratingNames = JSON.parse(serialized)
+    }
+
+    function refreshRecentFiles(serialized) {
+        recentFiles = JSON.parse(serialized)
     }
 
     function commit(field, value) {
@@ -76,6 +82,13 @@ Item {
         newCardDialog.open()
     }
 
+    function confirmRemoveRecent(path, name) {
+        recentPendingRemoval = path
+        removeRecentDialog.dialogTitle = name
+        removeRecentDialog.message = "文件已不存在，是否从最近打开中移除该记录？"
+        removeRecentDialog.open()
+    }
+
     function openDetailed(target, title, value, skillIndex) {
         detailedTarget = target
         detailedSkillIndex = skillIndex === undefined ? -1 : skillIndex
@@ -92,12 +105,15 @@ Item {
     Component.onCompleted: {
         refreshData(root.controller.enemyDataJson, true)
         refreshRatingNames(root.controller.ratingNamesJson)
+        refreshRecentFiles(root.controller.recentFilesJson)
     }
 
     Connections {
         target: root.controller
         function onEnemyDataChanged(serialized) { root.refreshData(serialized, true) }
         function onRatingNamesChanged(serialized) { root.refreshRatingNames(serialized) }
+        function onRecentFilesChanged(serialized) { root.refreshRecentFiles(serialized) }
+        function onRemoveRecentConfirmRequested(path, name) { root.confirmRemoveRecent(path, name) }
         function onMessageChanged(message, tone) { root.showToast(message, tone) }
         function onFieldError(field, message) {
             var errors = Object.assign({}, root.fieldErrors)
@@ -292,6 +308,15 @@ Item {
         showCancel: true
         destructive: true
         onConfirmed: root.controller.requestNew()
+    }
+
+    AppMessageDialog {
+        id: removeRecentDialog
+        tone: "question"
+        confirmText: "移除"
+        showCancel: true
+        destructive: true
+        onConfirmed: root.controller.requestRemoveRecent(root.recentPendingRemoval)
     }
 
     PrtsQueryDialog {

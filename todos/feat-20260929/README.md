@@ -25,7 +25,7 @@
 | 任务 | 文件 | 优先级 | 状态 |
 |---|---|---|---|
 | 1 | `01-config-loading-and-avatar-path.md` | P0 | 已实现，待验收 |
-| 2 | `02-recent-files.md` | P1 | 未开始 |
+| 2 | `02-recent-files.md` | P1 | 已实现，待验收 |
 | 3 | `03-undo-redo.md` | P1 | 未开始 |
 | 4 | `04-update-check.md` | P2 | 未开始 |
 | 5 | `05-portable-distribution.md` | P2 | 未开始 |
