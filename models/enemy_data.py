@@ -1,6 +1,5 @@
 """敌人卡片编辑用的核心数据模型。"""
 
-from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -49,7 +48,10 @@ class EnemyData(BaseModel):
         description="各评价维度分数(1-5)，与全局评价标准顺序对应；名称不在此持久化",
     )
 
-    avatar_path: Optional[str] = Field(None, description="头像图片路径")
+    avatar_path: Optional[str] = Field(
+        None,
+        description="头像图片路径：图片 URL，或本地路径（可为相对配置目录的相对路径）",
+    )
 
     skills: list[SkillEntry] = Field(default_factory=list, description="技能列表")
     talents_abilities: str = Field(default="", description="天赋&能力描述文本")
@@ -76,6 +78,7 @@ class EnemyData(BaseModel):
     @field_validator("avatar_path")
     @classmethod
     def validate_avatar_path(cls, v):
+        """只校验形状：URL 需可解析出主机；本地路径只要求非空。"""
         if not v:
             return v
 
@@ -83,7 +86,4 @@ class EnemyData(BaseModel):
             parsed = urlparse(v)
             if not all([parsed.scheme, parsed.netloc]):
                 raise ValueError(f"无效的图片URL: {v}")
-        else:
-            if not Path(v).exists():
-                raise ValueError(f"图片文件不存在: {v}")
         return v

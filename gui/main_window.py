@@ -168,6 +168,13 @@ class MainWindow(QMainWindow):
         if busy:
             self.status_bar.showMessage("正在生成卡片…")
 
+    def _warn_missing_avatar(self) -> None:
+        """本地头像文件不存在时提示一次；不阻断加载。"""
+        avatar_path = self.card_model.enemy_data.avatar_path or ""
+        if not avatar_path or is_url(avatar_path) or Path(avatar_path).exists():
+            return
+        self._bridge.show_toast("头像文件不存在，已按无头像显示", "warning")
+
     def _new_card(self) -> None:
         previous_model = self.card_model
         previous_model.dataChanged.disconnect(self._on_data_changed)
@@ -186,6 +193,7 @@ class MainWindow(QMainWindow):
         try:
             with error_handler("加载配置文件"):
                 self.card_model.load_from_file(file_path)
+                self._warn_missing_avatar()
                 self.status_bar.showMessage(f"已加载：{Path(file_path).name}")
                 self._generate_card()
         except EnemyEvalException as error:
@@ -211,7 +219,7 @@ class MainWindow(QMainWindow):
 
     def _export_image(self) -> None:
         if self._render.last_generated_pixmap is None:
-            self._bridge.show_toast("请先生成卡片预览")
+            self._bridge.show_toast("请先生成卡片预览", "info")
             return
         file_path, _ = QFileDialog.getSaveFileName(
             self,
@@ -224,7 +232,7 @@ class MainWindow(QMainWindow):
         error = self._render.save_current(file_path)
         if error is None:
             self.status_bar.showMessage(f"已导出：{Path(file_path).name}")
-            self._bridge.show_toast(f"已导出：{file_path}")
+            self._bridge.show_toast(f"已导出：{file_path}", "success")
         else:
             title, message = categorize_error_message(error)
             self._bridge.show_dialog(title, message, "error")
@@ -245,7 +253,7 @@ class MainWindow(QMainWindow):
 
     def _fetch_prts_data(self, enemy_name: str) -> None:
         if self.prts_fetch_thread is not None and self.prts_fetch_thread.isRunning():
-            self._bridge.show_toast("正在获取 PRTS 数据，请稍候")
+            self._bridge.show_toast("正在获取 PRTS 数据，请稍候", "info")
             return
         self.status_bar.showMessage(f"正在从 PRTS 获取「{enemy_name}」的数据…")
         self._bridge.set_prts_busy(True)

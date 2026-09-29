@@ -17,7 +17,8 @@ Item {
     property var schemaDraft: []
     property var fieldErrors: ({})
     property string toastText: ""
-    property bool toastIsError: false
+    property string toastTone: "info"
+    property var toastStyle: root.toastStyleFor(root.toastTone)
     property string detailedTarget: ""
     property int detailedSkillIndex: -1
 
@@ -45,9 +46,22 @@ Item {
         prtsDialog.open()
     }
 
-    function showToast(message, isError) {
+    function toastStyleFor(tone) {
+        switch (tone) {
+        case "success":
+            return { color: Design.Theme.success, subtle: Design.Theme.successSubtle, glyph: "✓" }
+        case "warning":
+            return { color: Design.Theme.warning, subtle: Design.Theme.warningSubtle, glyph: "!" }
+        case "error":
+            return { color: Design.Theme.danger, subtle: Design.Theme.dangerSubtle, glyph: "!" }
+        default:
+            return { color: Design.Theme.accent, subtle: Design.Theme.accentSubtle, glyph: "i" }
+        }
+    }
+
+    function showToast(message, tone) {
         toastText = message
-        toastIsError = isError
+        toastTone = tone
         toastTimer.restart()
     }
 
@@ -84,12 +98,12 @@ Item {
         target: root.controller
         function onEnemyDataChanged(serialized) { root.refreshData(serialized, true) }
         function onRatingNamesChanged(serialized) { root.refreshRatingNames(serialized) }
-        function onMessageChanged(message) { root.showToast(message, false) }
+        function onMessageChanged(message, tone) { root.showToast(message, tone) }
         function onFieldError(field, message) {
             var errors = Object.assign({}, root.fieldErrors)
             errors[field] = message
             root.fieldErrors = errors
-            root.showToast(message, true)
+            root.showToast(message, "error")
             root.refreshData(root.controller.enemyDataJson, false)
         }
         function onDialogRequested(title, message, tone) {
@@ -199,9 +213,8 @@ Item {
 
     Rectangle {
         id: toast
-        anchors.right: parent.right
+        anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
-        anchors.rightMargin: Design.Theme.space5
         anchors.topMargin: 64
         visible: opacity > 0
         opacity: toastTimer.running ? 1 : 0
@@ -226,7 +239,7 @@ Item {
             anchors.bottom: parent.bottom
             width: 4
             radius: 2
-            color: root.toastIsError ? Design.Theme.danger : Design.Theme.success
+            color: root.toastStyle.color
         }
 
         Row {
@@ -238,13 +251,12 @@ Item {
                 width: 20
                 height: 20
                 radius: 10
-                color: root.toastIsError
-                       ? Design.Theme.dangerSubtle : Design.Theme.successSubtle
+                color: root.toastStyle.subtle
 
                 Label {
                     anchors.centerIn: parent
-                    text: root.toastIsError ? "!" : "✓"
-                    color: root.toastIsError ? Design.Theme.danger : Design.Theme.success
+                    text: root.toastStyle.glyph
+                    color: root.toastStyle.color
                     font.pixelSize: 12
                     font.weight: Font.Bold
                 }

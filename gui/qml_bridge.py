@@ -57,7 +57,7 @@ class QmlBridge(QObject):
     previewChanged = Signal(int)
     busyChanged = Signal(bool)
     prtsBusyChanged = Signal(bool)
-    messageChanged = Signal(str)
+    messageChanged = Signal(str, str)
     fieldError = Signal(str, str)
     dialogRequested = Signal(str, str, str)
     newRequested = Signal()
@@ -168,9 +168,9 @@ class QmlBridge(QObject):
         """请求 QML 使用统一的应用内弹窗展示消息。"""
         self.dialogRequested.emit(title, message, tone)
 
-    def show_toast(self, message: str) -> None:
-        """非阻塞反馈使用短暂提示，不中断当前操作。"""
-        self.messageChanged.emit(message)
+    def show_toast(self, message: str, tone: str = "info") -> None:
+        """非阻塞反馈使用短暂提示；tone 取 info / success / warning / error，配色与图标由界面映射。"""
+        self.messageChanged.emit(message, tone)
 
     def _on_card_ready(self, result: object, _revision: int) -> None:
         if isinstance(result, QPixmap):

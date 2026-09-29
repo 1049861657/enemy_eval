@@ -89,27 +89,35 @@ class TestEnemyDataNumericRangeValidation:
 
 
 class TestEnemyDataAvatarPathValidation:
+    """头像路径只做形状校验：文件存在性属运行期状态，缺失由渲染与界面降级处理。"""
+
     def test_none_avatar_path_is_allowed(self):
         enemy = EnemyData(**_valid_enemy_kwargs(avatar_path=None))
         assert enemy.avatar_path is None
+
+    def test_empty_avatar_path_is_allowed(self):
+        enemy = EnemyData(**_valid_enemy_kwargs(avatar_path=""))
+        assert enemy.avatar_path == ""
 
     def test_valid_http_url_is_allowed(self):
         enemy = EnemyData(**_valid_enemy_kwargs(avatar_path="https://example.com/a.png"))
         assert enemy.avatar_path == "https://example.com/a.png"
 
-    def test_malformed_url_scheme_is_rejected(self):
-        # is_url() 判定 scheme 为 http/https 才算 URL；ftp:// 会被当作本地路径校验，
-        # 本地不存在该路径时应该抛出校验错误
+    def test_url_without_host_is_rejected(self):
         with pytest.raises(ValidationError):
-            EnemyData(**_valid_enemy_kwargs(avatar_path="ftp://example.com/a.png"))
+            EnemyData(**_valid_enemy_kwargs(avatar_path="https://"))
 
-    def test_nonexistent_local_path_is_rejected(self):
-        with pytest.raises(ValidationError):
-            EnemyData(**_valid_enemy_kwargs(avatar_path="不存在的路径/不存在的文件.png"))
+    def test_nonexistent_local_path_is_allowed(self):
+        enemy = EnemyData(**_valid_enemy_kwargs(avatar_path="不存在的路径/不存在的文件.png"))
+        assert enemy.avatar_path == "不存在的路径/不存在的文件.png"
 
-    def test_existing_local_path_is_allowed(self):
-        enemy = EnemyData(**_valid_enemy_kwargs(avatar_path="pyproject.toml"))
-        assert enemy.avatar_path == "pyproject.toml"
+    def test_relative_local_path_is_allowed(self):
+        enemy = EnemyData(**_valid_enemy_kwargs(avatar_path=r"enemy\墟\头像.png"))
+        assert enemy.avatar_path == r"enemy\墟\头像.png"
+
+    def test_non_http_prefix_is_treated_as_local_path(self):
+        enemy = EnemyData(**_valid_enemy_kwargs(avatar_path="ftp://example.com/a.png"))
+        assert enemy.avatar_path == "ftp://example.com/a.png"
 
 
 class TestEnemyDataDefaults:

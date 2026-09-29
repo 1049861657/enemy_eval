@@ -335,7 +335,7 @@ class TestMainWindowPrtsFetchGuard:
         main_window.prts_fetch_thread = fake_thread
 
         messages = []
-        main_window._bridge.messageChanged.connect(messages.append)
+        main_window._bridge.messageChanged.connect(lambda message, _tone: messages.append(message))
 
         main_window._fetch_prts_data("新敌人")
 

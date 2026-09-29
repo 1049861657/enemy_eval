@@ -4,12 +4,14 @@
 
 import json
 import logging
+from pathlib import Path
 from typing import Dict, Any
 
 from PySide6.QtCore import QObject, Signal
 
 from models import EnemyData, SkillEntry, align_rating_scores
 from utils.app_settings_store import default_scores_for_current_schema, get_rating_names
+from utils.avatar_paths import resolve_stored_path, to_stored_path
 from utils.error_handler import FileOperationError
 
 logger = logging.getLogger(__name__)
@@ -138,7 +140,7 @@ class CardModel(QObject):
         self.snapshotChanged.emit()
     
     def load_from_file(self, file_path: str) -> None:
-        """从文件加载数据；失败时抛出 FileOperationError，不吞异常。"""
+        """从文件加载数据；相对头像路径按配置文件所在目录解析。失败时抛出 FileOperationError，不吞异常。"""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -147,6 +149,9 @@ class CardModel(QObject):
             scores = align_rating_scores(list(enemy.rating_scores), len(names))
             if scores != list(enemy.rating_scores):
                 enemy = enemy.model_copy(update={"rating_scores": scores})
+            resolved_avatar = resolve_stored_path(enemy.avatar_path or "", Path(file_path).parent)
+            if resolved_avatar != (enemy.avatar_path or ""):
+                enemy = enemy.model_copy(update={"avatar_path": resolved_avatar})
             self._enemy_data = enemy
         except Exception as e:
             logger.error("加载文件失败: %s", e, exc_info=True)
@@ -156,13 +161,16 @@ class CardModel(QObject):
         self.avatarPathChanged.emit(self._enemy_data.avatar_path or "")
     
     def save_to_file(self, file_path: str) -> None:
-        """保存数据到文件；失败时抛出 FileOperationError，不吞异常。"""
+        """保存数据到文件；头像路径按目标文件所在目录转为存储形式。失败时抛出 FileOperationError，不吞异常。"""
         try:
             names = get_rating_names()
             payload = self._enemy_data.model_dump()
             payload["rating_scores"] = align_rating_scores(
                 list(self._enemy_data.rating_scores), len(names)
             )
+            avatar_path = self._enemy_data.avatar_path
+            if avatar_path:
+                payload["avatar_path"] = to_stored_path(avatar_path, Path(file_path).parent)
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(payload, f, ensure_ascii=False, indent=2)
         except Exception as e:
