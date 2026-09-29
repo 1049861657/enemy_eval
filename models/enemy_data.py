@@ -6,8 +6,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator
 
-from utils.network_image import is_url
-
+from .media import is_url
 from .rating_schema import MAX_RATING_DIMENSIONS
 from .skill_entry import SkillEntry
 

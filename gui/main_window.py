@@ -11,17 +11,18 @@ from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QStatusBar
 
 from core.optimization import get_resource_manager
-from utils import (
-    AdaptiveDebouncer,
+from core.render.avatar_prefetch import is_avatar_cached
+from models.media import is_url
+from utils.app_settings_store import current_render_options
+from utils.app_version import get_app_build_time, get_app_version
+from utils.debouncer import AdaptiveDebouncer
+from utils.error_handler import (
     EnemyEvalException,
-    PrtsFetchThread,
     categorize_error_message,
-    current_render_options,
     error_handler,
-    get_app_build_time,
-    get_app_version,
 )
 from utils.filenames import safe_filename
+from utils.thread_manager import NetworkAvatarPrefetchThread, PrtsFetchThread
 
 from .card_model import CardModel
 from .constants import (
@@ -45,6 +46,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.card_model = CardModel(self)
         self.prts_fetch_thread: PrtsFetchThread | None = None
+        self.avatar_prefetch_thread: NetworkAvatarPrefetchThread | None = None
         self._render = RenderCoordinator(self)
         self._debouncer = AdaptiveDebouncer(min_delay=200, max_delay=520)
         self._app_version = get_app_version()
@@ -115,9 +117,40 @@ class MainWindow(QMainWindow):
 
     def _connect_model_signals(self) -> None:
         self.card_model.dataChanged.connect(self._on_data_changed)
+        self.card_model.avatarPathChanged.connect(self._ensure_avatar_cached)
 
     def _on_data_changed(self) -> None:
         self._debouncer.debounce(self._generate_card)
+
+    def _ensure_avatar_cached(self, avatar_path: str) -> None:
+        """网络头像不进渲染线程下载：先在后台补进图像缓存，再重绘一次。
+
+        PRTS 拉取路径已在拉取线程里预取，这里命中缓存后直接返回。
+        """
+        if not is_url(avatar_path) or is_avatar_cached(avatar_path):
+            return
+        running = self.avatar_prefetch_thread
+        if running is not None and running.isRunning():
+            running.requestInterruption()
+        thread = NetworkAvatarPrefetchThread(avatar_path)
+        thread.prefetchFinished.connect(
+            lambda ok, url=avatar_path: self._on_avatar_prefetched(ok, url)
+        )
+        thread.finished.connect(lambda t=thread: self._on_avatar_thread_finished(t))
+        self.avatar_prefetch_thread = thread
+        thread.start()
+
+    def _on_avatar_prefetched(self, ok: bool, avatar_path: str) -> None:
+        if not ok:
+            return
+        if avatar_path != (self.card_model.enemy_data.avatar_path or ""):
+            return  # 预取期间头像已改，等新线程的结果
+        self._generate_card()
+
+    def _on_avatar_thread_finished(self, thread: NetworkAvatarPrefetchThread) -> None:
+        thread.deleteLater()
+        if self.avatar_prefetch_thread is thread:
+            self.avatar_prefetch_thread = None
 
     def _generate_card(self) -> None:
         self._render.request(self.card_model.enemy_data, current_render_options())
@@ -205,7 +238,7 @@ class MainWindow(QMainWindow):
             "敌人评价卡片实时编辑器\n\n"
             f"版本：{self._app_version}"
             f"{build_time}\n\n"
-            "一个现代化的敌人评价卡片生成工具\n"
+            "一个明日方舟的敌人评价卡片生成工具\n"
             "支持实时预览和属性编辑",
             "info",
         )
@@ -255,6 +288,13 @@ class MainWindow(QMainWindow):
                     if not thread.wait(3000):
                         logger.error(
                             "PRTS 拉取线程未能在 3 秒内停止，放弃等待且不 terminate"
+                        )
+                prefetch_thread = self.avatar_prefetch_thread
+                if prefetch_thread is not None and prefetch_thread.isRunning():
+                    prefetch_thread.requestInterruption()
+                    if not prefetch_thread.wait(3000):
+                        logger.error(
+                            "头像预取线程未能在 3 秒内停止，放弃等待且不 terminate"
                         )
                 self._debouncer.cleanup()
                 get_resource_manager().clear_caches()

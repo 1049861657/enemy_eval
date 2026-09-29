@@ -95,7 +95,12 @@ ScrollView {
                     RatingStars {
                         visible: !root.workspace.schemaEditMode
                         dimensionName: ratingRow.modelData
-                        score: (root.workspace.enemyData.rating_scores || [])[ratingRow.index] || 1
+                        score: {
+                            var scores = root.workspace.enemyData.rating_scores || []
+                            return scores[ratingRow.index] !== undefined
+                                   ? scores[ratingRow.index]
+                                   : root.workspace.controller.defaultRatingScore
+                        }
                         onScoreSelected: (score) => root.workspace.controller.updateRatingScore(
                             ratingRow.index, score)
                     }

@@ -82,8 +82,7 @@ class FontManager:
         return template.makeWithSize(size)
 
 
-# 全局单例实例 - 与 core/optimization.py::get_resource_manager() 保持对称，
-# 避免 EnemyCardGenerator 每次实例化都重新加载/缓存字体。
+# 全局单例：EnemyCardGenerator 每次实例化复用同一 FontManager。
 _global_font_manager: Optional[FontManager] = None
 
 

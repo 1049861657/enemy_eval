@@ -17,9 +17,9 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from utils import resource_manager
 from utils.app_logging import setup_logging
 from utils.app_version import get_app_version
+from utils.resource_manager import resource_manager
 
 try:
     from gui.main_window import MainWindow
@@ -38,7 +38,7 @@ def create_splash_screen():
     cover_path = resource_manager.get_pic_path("封面.png")
     pixmap = QPixmap(cover_path)
     
-    # 智能缩放到最佳显示尺寸
+    # 等比缩放至 800×600 上限
     pixmap = pixmap.scaled(800, 600, Qt.AspectRatioMode.KeepAspectRatio, 
                           Qt.TransformationMode.SmoothTransformation)
     
@@ -102,7 +102,6 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("敌人评价卡片编辑器")
     app.setApplicationVersion(get_app_version())
-    app.setApplicationDisplayName("敌人评价卡片实时编辑器")
     app.setOrganizationName("Enemy Eval Team")
     setup_logging()
     

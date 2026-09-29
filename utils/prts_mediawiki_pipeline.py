@@ -17,7 +17,7 @@ levelcontent 中 技能N* 会合并为 skills；对外入口为 fetch_enemy_data
 
 注意：本文件不包含头像预下载逻辑。头像下载/Skia 解码属于渲染层职责，
 由 GUI 层的 utils/thread_manager.py::PrtsFetchThread 在后台线程中调用
-core.render.avatar_prefetch.preload_prts_avatar_image 完成，
+core.render.avatar_prefetch.preload_network_avatar_image 完成，
 使本文件及其编排的各模块保持对 core 零依赖。
 """
 

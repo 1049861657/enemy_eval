@@ -23,6 +23,7 @@ class CardModel(QObject):
     snapshotChanged = Signal()  # 标量表单快照（不含技能列表）需要刷新
     validationFailed = Signal(str, str)  # (property_name, error_message)：属性校验失败时发出，供 UI 恢复为模型当前真实值
     ratingSchemaChanged = Signal()  # 全局评价标准变更（名称/数量）
+    avatarPathChanged = Signal(str)  # 头像路径变更（可能是网络 URL），GUI 据此补预缓存
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -77,6 +78,8 @@ class CardModel(QObject):
                 self._enemy_data = EnemyData(**current_dict)
                 self.dataChanged.emit()
                 self.snapshotChanged.emit()
+                if property_name == "avatar_path":
+                    self.avatarPathChanged.emit(self._enemy_data.avatar_path or "")
             except Exception as e:
                 logger.error("属性 %s 校验失败: %s", property_name, e, exc_info=True)
                 self.validationFailed.emit(property_name, str(e))
@@ -150,6 +153,7 @@ class CardModel(QObject):
             raise FileOperationError(f"加载文件失败: {e}") from e
         self.dataChanged.emit()
         self.snapshotChanged.emit()
+        self.avatarPathChanged.emit(self._enemy_data.avatar_path or "")
     
     def save_to_file(self, file_path: str) -> None:
         """保存数据到文件；失败时抛出 FileOperationError，不吞异常。"""
@@ -166,10 +170,15 @@ class CardModel(QObject):
             raise FileOperationError(f"保存文件失败: {e}") from e
     
     def set_enemy_data(self, enemy_data: EnemyData):
-        """设置完整的敌人数据"""
+        """设置完整的敌人数据；分数按当前评价标准对齐，保证与渲染侧等长。"""
+        names = get_rating_names()
+        scores = align_rating_scores(list(enemy_data.rating_scores), len(names))
+        if scores != list(enemy_data.rating_scores):
+            enemy_data = enemy_data.model_copy(update={"rating_scores": scores})
         self._enemy_data = enemy_data
         self.dataChanged.emit()
         self.snapshotChanged.emit()
+        self.avatarPathChanged.emit(self._enemy_data.avatar_path or "")
     
     def get_current_dict(self) -> Dict[str, Any]:
         """获取当前数据的字典形式"""

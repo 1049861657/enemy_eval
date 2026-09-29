@@ -1,8 +1,8 @@
-"""
-高性能渲染优化模块
-- 渲染资源复用池：减少85%的Canvas初始化开销
-- 图像处理优化：直接Skia处理，消除PIL转换
-- 文本布局缓存：智能缓存文本测量结果
+"""渲染资源复用与缓存。
+
+- Canvas 复用池
+- 图像加载与缩放（Skia 直读 + 全局图像缓存）
+- 文本布局缓存
 """
 
 import hashlib
@@ -16,7 +16,8 @@ import skia
 import structlog
 from cachetools import LRUCache
 
-from utils.network_image import get_url_cache_key, is_url
+from models.media import is_url
+from utils.network_image import get_url_cache_key
 
 logger = structlog.get_logger(__name__)
 
@@ -46,34 +47,30 @@ class RenderConfig:
 
 
 # 全局共享图像缓存；LRUCache 在写入超限时淘汰最久未使用项。
-# 渲染线程（CardGeneratorThread）与 PRTS 拉取线程（PrtsFetchThread，见
-# utils/thread_manager.py + core/render/avatar_prefetch.py）可能并发读写，
-# 因此配一把最小粒度的锁：只保护这一个全局缓存，不为整个
-# RenderResourceManager 加锁（Canvas 池/字体缓存/文本布局缓存目前仍只在单一
-# 串行化的渲染线程内访问，见 gui/main_window.py 的渲染排队机制）。
+# 渲染线程（CardGeneratorThread）与预取线程（PrtsFetchThread /
+# NetworkAvatarPrefetchThread，见 core/render/avatar_prefetch.py）会并发读写，
+# 因此只对这一个缓存加锁。
 _GLOBAL_IMAGE_CACHE = LRUCache(maxsize=RenderConfig.image_cache_size)
 _GLOBAL_IMAGE_CACHE_LOCK = threading.Lock()
 
 
 class RenderResourceManager:
-    """渲染资源复用池 - 核心性能优化"""
+    """渲染资源复用池：Canvas 池、字体缓存、文本布局缓存、图像缓存。"""
     
     def __init__(self, config: Optional[RenderConfig] = None):
         self.config = config or RenderConfig()
         
-        # Canvas复用池 - 避免频繁创建Surface
+        # Canvas 复用池：避免重复创建 Surface
         self._canvas_pool: List[Tuple[skia.Surface, skia.Canvas]] = []
         self._canvas_in_use: set = set()
         
-        # 字体缓存 - 避免重复加载。无容量上限：key 是 (size, id(typeface)) 组合，
-        # 本项目内 size 取值是有限枚举（各绘制点固定字号），实际增长上限很低，
-        # 无需引入淘汰逻辑；若未来 size 来源变为不可控的动态值，需要重新评估。
+        # 字体缓存：key = (字号, typeface id)；字号为固定枚举，故不设容量上限。
         self._font_cache: Dict[int, skia.Font] = {}
         
-        # 文本布局缓存 - 智能缓存测量结果
+        # 文本布局缓存：按文本与字号缓存测量结果
         self._text_layout_cache: Dict[str, TextLayoutResult] = {}
         
-        # 图像缓存 - 使用全局共享缓存
+        # 图像缓存：与预取线程共享的全局缓存
         self._image_cache = _GLOBAL_IMAGE_CACHE
         
         # 性能统计
@@ -84,7 +81,7 @@ class RenderResourceManager:
             'total_render_time': 0.0
         }
         
-        # 可变高度备用 Surface：只缓存最近一次非默认尺寸，避免每次 new
+        # 可变高度备用 Surface：只保留最近一次非默认尺寸
         self._variable_surface: Optional[Tuple[int, int, skia.Surface]] = None
 
         # 初始化Canvas池
@@ -198,7 +195,7 @@ class RenderResourceManager:
         return result
     
     def _wrap_text_optimized(self, text: str, max_width: int, font: skia.Font) -> List[str]:
-        """优化的文本换行算法 - 支持中文避头尾规则、主动换行和制表符处理"""
+        """文本换行：中文避头尾规则、主动换行符、制表符。"""
         if not text:
             return [""]
         
@@ -294,19 +291,18 @@ class RenderResourceManager:
 
 
 class ImageProcessor:
-    """高性能图像处理器 - 消除PIL转换开销"""
+    """图像加载与缩放：Skia 直读 + 全局缓存。"""
     
     def __init__(self, cache_manager: RenderResourceManager):
         self.cache_manager = cache_manager
     
     @staticmethod
     def load_image_direct(path: str) -> Optional[skia.Image]:
-        """直接加载为Skia图像，避免PIL转换"""
+        """按路径直读为 Skia 图像；文件不存在或解码失败返回 None。"""
         if not Path(path).exists():
             return None
         
         try:
-            # 直接使用Skia加载，避免PIL→NumPy→Skia转换链
             return skia.Image.MakeFromEncoded(skia.Data.MakeFromFileName(str(path)))
         except Exception as e:
             logger.warning("Skia直接加载失败，尝试兼容模式", error=str(e))
@@ -314,69 +310,56 @@ class ImageProcessor:
 
     # noinspection PyUnreachableCode
     def load_avatar_optimized(self, path: str, target_size: Tuple[int, int] = (330, 330)) -> Optional[skia.Image]:
-        """优化的头像加载，带缓存和高质量缩放，支持网络URL"""
+        """头像加载：本地文件按 mtime 缓存，网络 URL 只读缓存；缩放至 target_size。"""
         if not path:
             return None
 
-        # 区分本地文件和网络URL
         if is_url(path):
-            # 网络图片处理 - 优化：优先使用缓存，避免渲染时网络阻塞
+            # 网络 URL：只读缓存，未命中即返回 None，不在渲染线程下载
             cache_key = f"{get_url_cache_key(path)}_{target_size}"
             
-            # 检查缓存
             with _GLOBAL_IMAGE_CACHE_LOCK:
                 cached = self.cache_manager._image_cache.get(cache_key)
                 if cached is not None:
                     self.cache_manager._stats['image_cache_hits'] += 1
                     return cached
             
-            # 渲染时快速失败：如果缓存中没有，直接返回None避免阻塞
-            # 网络图片应该在数据获取阶段预下载到缓存
+            # 网络头像由预取线程写入缓存（core/render/avatar_prefetch.py）
             logger.warning("网络图片未预缓存，跳过加载以避免渲染阻塞", path=path)
             return None
         else:
-            # 本地文件处理（保持原逻辑）
+            # 本地文件：mtime 参与缓存键
             if not Path(path).exists():
                 return None
             
-            # 生成缓存键
             cache_key = f"{path}_{target_size}_{Path(path).stat().st_mtime}"
             
-            # 检查缓存
             with _GLOBAL_IMAGE_CACHE_LOCK:
                 cached = self.cache_manager._image_cache.get(cache_key)
                 if cached is not None:
                     self.cache_manager._stats['image_cache_hits'] += 1
                     return cached
             
-            # 直接Skia加载
             original_image = self.load_image_direct(path)
             if not original_image:
                 return None
         
-        # 统一的缩放和缓存处理
         try:
-            # 高质量缩放 - 使用正确的API
             if (original_image.width(), original_image.height()) != target_size:
                 target_w, target_h = target_size
                 
-                # 创建目标Surface
                 scaled_surface = skia.Surface(target_w, target_h)
                 scaled_canvas = scaled_surface.getCanvas()
                 
-                # 使用高质量SamplingOptions（基于文档的正确配置）
-                # FilterQuality.kHigh_FilterQuality -> SamplingOptions(CubicResampler.Mitchell())
+                # Mitchell 立方重采样
                 sampling = skia.SamplingOptions(skia.CubicResampler.Mitchell())
                 
-                # 创建Paint（可选，用于额外效果）
                 paint = skia.Paint()
                 paint.setAntiAlias(True)
                 
-                # 计算源和目标区域
                 src_rect = skia.Rect(0, 0, original_image.width(), original_image.height())
                 dst_rect = skia.Rect(0, 0, target_w, target_h)
                 
-                # 绘制缩放后的图像 - 使用正确的API调用
                 scaled_canvas.drawImageRect(original_image, src_rect, dst_rect, sampling, paint)
                 scaled_image = scaled_surface.makeImageSnapshot()
             else:

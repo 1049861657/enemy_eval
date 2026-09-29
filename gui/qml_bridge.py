@@ -10,7 +10,7 @@ from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtWidgets import QFileDialog, QWidget
 
-from models import RatingSchema
+from models import DEFAULT_RATING_SCORE, RatingSchema
 from utils.app_settings_store import (
     current_render_options,
     get_rating_names,
@@ -105,6 +105,11 @@ class QmlBridge(QObject):
     @Property(bool, notify=ratingRadarChanged)
     def ratingRadar(self) -> bool:  # noqa: N802
         return is_rating_radar()
+
+    @Property(int, constant=True)
+    def defaultRatingScore(self) -> int:  # noqa: N802
+        """评价维度缺位时的补分，与 models.rating_schema 的默认值同源。"""
+        return DEFAULT_RATING_SCORE
 
     @Property(bool, notify=busyChanged)
     def busy(self) -> bool:

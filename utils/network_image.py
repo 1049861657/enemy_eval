@@ -5,10 +5,10 @@
 import hashlib
 import logging
 from typing import Optional
-from urllib.parse import urlparse
 
 import httpx
 
+from models.media import is_url
 from utils.prts_api_client import request_timeout
 
 logger = logging.getLogger(__name__)
@@ -16,16 +16,6 @@ logger = logging.getLogger(__name__)
 _CHUNK = 8192
 DEFAULT_IMAGE_TIMEOUT = 10.0
 DEFAULT_IMAGE_MAX_SIZE = 10 * 1024 * 1024
-
-
-def is_url(path: str) -> bool:
-    """检查路径是否为网络URL"""
-    try:
-        parsed = urlparse(path)
-        return parsed.scheme in ('http', 'https')
-    except ValueError:
-        # urlparse 对畸形字符串（如包含非法端口号）通常抛 ValueError
-        return False
 
 
 def _headers_reject_body(response: httpx.Response, max_size: int) -> bool:

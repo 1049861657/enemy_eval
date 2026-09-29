@@ -1,6 +1,6 @@
 ---
 name: git-commit-release
-description: 用户明确要求"生成 commit"/"提交"/"发版"/"release"/"bump 版本"时使用。A=日常提交（同步更新 CHANGELOG「未发布」）；B=发版。不主动触发。
+description: 用户明确要求"生成 commit"/"提交"/"发版"/"release"/"bump 版本"时使用。A=日常提交；B=发版。不主动触发。
 ---
 
 # Git Commit & 版本发布

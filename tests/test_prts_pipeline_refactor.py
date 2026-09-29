@@ -1,4 +1,4 @@
-"""PRTS pipeline refactor regression tests (todos/fix-20260706/03-prts-pipeline-refactor.md).
+"""PRTS 数据管线契约测试。
 
 Covers:
 1. utils/prts_api_client.py — client/retry/timeout + JSON fetch + avatar imageinfo.
@@ -246,7 +246,7 @@ class TestPrtsFetchThread:
             builder, "strip_debug_keys", Mock(return_value={"name": "测试敌人"})
         )
         monkeypatch.setattr(builder, "to_enemy_data", Mock(return_value=enemy_data))
-        monkeypatch.setattr(prefetch, "preload_prts_avatar_image", AsyncMock())
+        monkeypatch.setattr(prefetch, "preload_network_avatar_image", AsyncMock())
 
         thread = PrtsFetchThread("测试敌人")
         spy = Mock()

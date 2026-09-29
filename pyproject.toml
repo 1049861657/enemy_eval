@@ -5,21 +5,21 @@ description = "Enemy evaluation template image generator with GUI"
 requires-python = ">=3.13"
 dependencies = [
     "skia-python>=144.0",
-    "pydantic>=2.13.4",
+    "pydantic>=2.13.5",
     "rich>=15.0.0",
     "pyside6>=6.11.2",
-    "pyinstaller>=6.22.2",
+    "pyinstaller>=6.22.3",
     "pyinstaller-hooks-contrib>=2026.7",
     "structlog>=26.1.0",
-    "platformdirs>=4.11.4",
+    "platformdirs>=4.12.1",
     "pydantic-settings>=2.15.0",
     "httpx[http2]>=0.28.1",
     "httpx-retries>=0.6.0",
-    "cachetools>=7.1.7",
+    "cachetools>=7.2.0",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
-    "pyright>=1.1.411",
+    "pyright>=1.1.414",
 ]

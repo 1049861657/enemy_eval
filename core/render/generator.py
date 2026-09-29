@@ -23,7 +23,7 @@ from .sections import avatar, info, rating_grade, skills_talents
 
 
 class EnemyCardGenerator:
-    """高性能敌人评价卡片生成器（Canvas 池、渐变背景、分区模块化绘制）。"""
+    """敌人评价卡片生成器：Canvas 池、渐变背景、分区绘制。"""
 
     def __init__(
         self,

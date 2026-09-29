@@ -1,4 +1,4 @@
-"""Pydantic 数据模型包；对外保持 `from models import X` 不变。"""
+"""Pydantic 数据模型包；对外接口为 `from models import X`。"""
 
 from .enemy_data import EnemyData
 from .rating_schema import (

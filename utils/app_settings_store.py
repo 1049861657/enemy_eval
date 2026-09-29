@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import threading
 from pathlib import Path
+from typing import Any
 
 import structlog
 from platformdirs import user_config_path
@@ -33,6 +35,29 @@ def settings_file_path() -> Path:
     return user_config_path(_APP_NAME, appauthor=_APP_AUTHOR) / _SETTINGS_FILENAME
 
 
+class _TolerantJsonConfigSettingsSource(JsonConfigSettingsSource):
+    """偏好文件缺失或损坏时按「该文件不存在」处理。
+
+    基类在构造期解析文件，解析错误会在建模型阶段抛 ValidationError；本类把损坏吸收在
+    读取层，上层只需再处理「JSON 合法但内容不合法」。
+    """
+
+    def _read_file(self, file_path: Path) -> dict[str, Any]:
+        try:
+            data = super()._read_file(file_path)
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as error:
+            logger.warning(
+                "评价偏好文件无法解析，已忽略",
+                path=str(file_path),
+                error=str(error),
+            )
+            return {}
+        if not isinstance(data, dict):
+            logger.warning("评价偏好文件内容不是对象，已忽略", path=str(file_path))
+            return {}
+        return data
+
+
 class AppSettings(BaseSettings):
     """评价偏好。维度合法性由 RatingSchema 校验，本模型只承载字段。"""
 
@@ -53,7 +78,7 @@ class AppSettings(BaseSettings):
         del env_settings, dotenv_settings, file_secret_settings
         return (
             init_settings,
-            JsonConfigSettingsSource(
+            _TolerantJsonConfigSettingsSource(
                 settings_cls,
                 json_file=settings_file_path(),
                 json_file_encoding="utf-8",
