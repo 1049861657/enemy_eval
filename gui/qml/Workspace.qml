@@ -43,9 +43,13 @@ Item {
     }
 
     function commitAttackType(value) {
-        commit("attack_type", value)
         if (value === "近战" || value === "不攻击")
-            commit("attack_range_radius", 0)
+            root.controller.updateProperties(JSON.stringify({
+                attack_type: value,
+                attack_range_radius: 0
+            }))
+        else
+            commit("attack_type", value)
     }
 
     function openPrtsDialog() {
@@ -76,8 +80,8 @@ Item {
                 ? "恢复默认数据？"
                 : "丢弃当前内容并新建？"
         newCardDialog.message = isReset
-                ? "当前编辑内容将被默认数据替换，且无法撤销。"
-                : "所有未保存的修改都将丢失，且无法撤销。"
+                ? "当前编辑内容将被默认数据替换。"
+                : "所有未保存的修改都将丢失。"
         newCardDialog.confirmText = isReset ? "恢复默认" : "丢弃并新建"
         newCardDialog.open()
     }
@@ -127,6 +131,14 @@ Item {
         }
     }
 
+    readonly property bool historyKeysEnabled: {
+        var focused = root.Window.activeFocusItem
+        return !(focused instanceof TextInput || focused instanceof TextEdit)
+    }
+
+    Shortcut { sequence: "Ctrl+Z"; enabled: root.historyKeysEnabled; onActivated: root.controller.requestUndo() }
+    Shortcut { sequence: "Ctrl+Shift+Z"; enabled: root.historyKeysEnabled; onActivated: root.controller.requestRedo() }
+    Shortcut { sequence: "Ctrl+Y"; enabled: root.historyKeysEnabled; onActivated: root.controller.requestRedo() }
     Shortcut { sequence: "Ctrl+N"; onActivated: root.confirmNewCard(false) }
     Shortcut { sequence: "Ctrl+O"; onActivated: root.controller.requestOpen() }
     Shortcut { sequence: "Ctrl+S"; onActivated: root.controller.requestSave() }

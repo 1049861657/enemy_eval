@@ -14,6 +14,63 @@ ToolBar {
     implicitHeight: 52
     padding: Design.Theme.space2
 
+    component HistoryHalf: Item {
+        id: half
+
+        required property bool available
+        required property url iconSource
+        required property string tip
+        required property string accessibleName
+        property bool leading: true
+
+        signal triggered()
+
+        ToolTip.visible: hover.hovered
+        ToolTip.text: half.tip
+        ToolTip.delay: 600
+
+        ToolButton {
+            id: button
+
+            anchors.fill: parent
+            padding: 0
+            leftPadding: 0
+            rightPadding: 0
+            topPadding: 0
+            bottomPadding: 0
+            display: AbstractButton.IconOnly
+            icon.source: half.iconSource
+            icon.width: 18
+            icon.height: 18
+            icon.color: half.available ? Design.Theme.textPrimary : Design.Theme.borderStrong
+            opacity: half.available ? 1 : 0.72
+            Accessible.name: half.accessibleName
+            onClicked: {
+                if (half.available)
+                    half.triggered()
+            }
+
+            HoverHandler {
+                id: hover
+                cursorShape: half.available ? Qt.PointingHandCursor : Qt.ArrowCursor
+            }
+
+            background: Rectangle {
+                color: half.available && button.down
+                       ? Design.Theme.controlPressed
+                       : "transparent"
+                topLeftRadius: half.leading ? Design.Theme.radiusMedium : 0
+                bottomLeftRadius: half.leading ? Design.Theme.radiusMedium : 0
+                topRightRadius: half.leading ? 0 : Design.Theme.radiusMedium
+                bottomRightRadius: half.leading ? 0 : Design.Theme.radiusMedium
+
+                Design.AppFocusFrame {
+                    active: button.visualFocus
+                }
+            }
+        }
+    }
+
     RowLayout {
         anchors.fill: parent
         spacing: Design.Theme.space2
@@ -135,6 +192,54 @@ ToolBar {
                 MenuSeparator {}
                 MenuItem { text: "关于"; onTriggered: root.workspace.controller.requestAbout() }
                 MenuItem { text: "退出\tCtrl+Q"; onTriggered: root.workspace.controller.requestQuit() }
+            }
+        }
+
+        Rectangle {
+            id: historyCapsule
+
+            implicitWidth: Design.Theme.controlHeight * 2 + 1
+            implicitHeight: Design.Theme.controlHeight
+            radius: Design.Theme.radiusMedium
+            color: Design.Theme.surfaceSubtle
+            border.width: 1
+            border.color: Design.Theme.border
+
+            Row {
+                anchors.fill: parent
+                spacing: 0
+
+                HistoryHalf {
+                    width: (historyCapsule.width - 1) / 2
+                    height: historyCapsule.height
+                    available: root.workspace.controller.canUndo
+                    iconSource: "icons/undo.svg"
+                    tip: "撤销　Ctrl+Z"
+                    accessibleName: "撤销"
+                    leading: true
+                    onTriggered: root.workspace.controller.requestUndo()
+                }
+                Item {
+                    width: 1
+                    height: parent.height
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 1
+                        height: parent.height - Design.Theme.space3
+                        color: Design.Theme.border
+                    }
+                }
+                HistoryHalf {
+                    width: (historyCapsule.width - 1) / 2
+                    height: historyCapsule.height
+                    available: root.workspace.controller.canRedo
+                    iconSource: "icons/redo.svg"
+                    tip: "重做　Ctrl+Y"
+                    accessibleName: "重做"
+                    leading: false
+                    onTriggered: root.workspace.controller.requestRedo()
+                }
             }
         }
         Item { Layout.fillWidth: true }

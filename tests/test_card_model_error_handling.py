@@ -12,6 +12,7 @@ from unittest.mock import Mock
 import pytest
 
 from gui.card_model import CardModel
+from models import SkillEntry
 from utils.error_handler import FileOperationError
 
 
@@ -41,6 +42,7 @@ class TestUpdatePropertyErrorHandling:
         assert result is None
         assert card_model.enemy_data.grade == "A"
         assert data_changed.call_count == 1
+        assert card_model.undo_stack().count() == 1
         validation_failed.assert_not_called()
 
     def test_invalid_update_emits_validation_failed_and_keeps_old_value(self, card_model):
@@ -55,6 +57,7 @@ class TestUpdatePropertyErrorHandling:
         assert result is None
         assert card_model.enemy_data.model_dump() == old_dump
         data_changed.assert_not_called()
+        assert card_model.undo_stack().count() == 0
         assert validation_failed.call_count == 1
         property_name, error_message = validation_failed.call_args.args
         assert property_name == "grade"
@@ -164,3 +167,76 @@ class TestSaveToFileErrorHandling:
         assert isinstance(message, str)
         assert message
         assert "保存文件失败" in message
+
+
+class TestUndoStack:
+    def test_undo_and_redo_restore_one_step_at_a_time(self, card_model):
+        card_model.update_property("name", "甲")
+        card_model.update_property("max_hp", 2000)
+        data_changed = Mock()
+        card_model.dataChanged.connect(data_changed)
+
+        card_model.undo_stack().undo()
+
+        assert card_model.enemy_data.max_hp == 1000
+        assert card_model.enemy_data.name == "甲"
+        assert data_changed.call_count == 1
+        assert card_model.undo_stack().canRedo()
+
+        card_model.undo_stack().redo()
+
+        assert card_model.enemy_data.max_hp == 2000
+        assert card_model.undo_stack().canUndo()
+        assert not card_model.undo_stack().canRedo()
+
+    def test_attack_type_and_range_share_one_step(self, card_model):
+        card_model.update_property("attack_type", "远程")
+        card_model.update_property("attack_range_radius", 2.5)
+        card_model.update_properties(
+            {"attack_type": "近战", "attack_range_radius": 0.0}
+        )
+
+        assert card_model.undo_stack().count() == 3
+
+        card_model.undo_stack().undo()
+
+        assert card_model.enemy_data.attack_type == "远程"
+        assert card_model.enemy_data.attack_range_radius == 2.5
+
+    def test_skill_replace_skips_snapshot_and_undoes(self, card_model):
+        snapshot = Mock()
+        card_model.snapshotChanged.connect(snapshot)
+
+        assert card_model.replace_skills([SkillEntry(名称="冲锋")]) is True
+        snapshot.assert_not_called()
+
+        card_model.undo_stack().undo()
+
+        assert card_model.enemy_data.skills == []
+        snapshot.assert_not_called()
+
+    def test_realign_clears_stack_and_keeps_card(self, card_model):
+        card_model.update_property("name", "改过")
+
+        card_model.realign_rating_scores_to_schema()
+
+        assert card_model.enemy_data.name == "改过"
+        assert card_model.undo_stack().count() == 0
+        assert not card_model.undo_stack().canUndo()
+        assert not card_model.undo_stack().canRedo()
+
+    def test_load_and_set_enemy_data_clear_stack(self, card_model, tmp_path):
+        card_model.update_property("name", "甲")
+        config_path = tmp_path / "enemy.json"
+        _write_enemy_config(config_path, card_model, name="乙")
+
+        card_model.load_from_file(str(config_path))
+
+        assert card_model.enemy_data.name == "乙"
+        assert card_model.undo_stack().count() == 0
+
+        card_model.update_property("name", "丙")
+        card_model.set_enemy_data(card_model.enemy_data.model_copy(update={"name": "丁"}))
+
+        assert card_model.enemy_data.name == "丁"
+        assert card_model.undo_stack().count() == 0

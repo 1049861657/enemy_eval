@@ -90,6 +90,45 @@ class TestQmlBridgeLifecycle:
         export_requested.assert_called_once_with()
         refresh_requested.assert_called_once_with()
 
+    def test_can_undo_and_can_redo_follow_the_current_stack(self, bridge):
+        controller, model, _ = bridge
+        changed = Mock()
+        controller.undoStateChanged.connect(changed)
+
+        assert controller.canUndo is False
+        assert controller.canRedo is False
+
+        controller.updateProperty("name", '"甲"')
+
+        assert model.enemy_data.name == "甲"
+        assert controller.canUndo is True
+        assert controller.canRedo is False
+        assert changed.called
+
+        controller.requestUndo()
+
+        assert model.enemy_data.name == "新敌人"
+        assert controller.canUndo is False
+        assert controller.canRedo is True
+
+        controller.requestRedo()
+
+        assert model.enemy_data.name == "甲"
+        assert controller.canUndo is True
+        assert controller.canRedo is False
+
+    def test_replacing_model_rebinds_undo_stack(self, bridge):
+        controller, model, _ = bridge
+        controller.updateProperty("name", '"甲"')
+        replacement = CardModel()
+
+        controller.set_card_model(replacement)
+
+        assert controller.canUndo is False
+        controller.requestUndo()
+        assert model.enemy_data.name == "甲"
+        assert replacement.enemy_data.name == "新敌人"
+
     def test_prts_query_ignores_blank_input(self, bridge):
         controller, _, _ = bridge
         requested = Mock()

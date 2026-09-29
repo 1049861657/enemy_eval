@@ -17,7 +17,7 @@
 |---|---|---|---|---|
 | 01 | 配置加载容错与头像路径可移植 | `01-config-loading-and-avatar-path.md` | P0 | 头像缺失或配置被搬动时配置仍能打开、能出图，且保存的路径可随配置搬动 |
 | 02 | 最近打开列表 | `02-recent-files.md` | P1 | 记住最近打开/保存的配置，菜单一键回到 |
-| 03 | 撤销 / 重做 | `03-undo-redo.md` | P1 | 数据变更（含技能表与长文本）可撤销、可重做，有标准快捷键与菜单文案 |
+| 03 | 撤销 / 重做 | `03-undo-redo.md` | P1 | 卡片编辑可撤销、可重做；评价标准变更清空撤销记录；标准快捷键；「更多」右侧图标胶囊，不显示具体操作名 |
 | 04 | 启动时版本检查提示 | `04-update-check.md` | P2 | 启动后一次静默检查远端版本，仅 UI 提示，不自更新 |
 | 05 | 便携分发与打包体积收敛 | `05-portable-distribution.md` | P2 | 产出解压即用的 zip，并去掉产物中未使用的 Qt 模块 |
 
@@ -39,7 +39,7 @@
 |---|---|---|
 | D1 | 校验器只校验**数据**，不校验环境（去掉 `Path.exists()`） | 环境状态是运行期事实；放进校验器会让"数据合法性"与"环境可用性"耦合，实测后果是整份配置打不开。渲染侧本就有降级路径 |
 | D2 | 相对路径以**配置文件所在目录**为基准；跨盘回退绝对路径 | Python 官方文档明确：`os.path.relpath` 与 `pathlib.Path.relative_to` 在 Windows 跨盘时抛 `ValueError`，必须显式回退 |
-| D3 | 撤销采用**状态快照 + `QUndoStack` 容器**，不为每种变更写命令类 | `CardModel` 每次变更都整份重建 `EnemyData`，旧实例天然是快照；`QUndoStack` 仍提供标准的 `canUndo/undoText` 与 `setUndoLimit`、`mergeWith` 语义 |
+| D3 | 撤销采用**状态快照 + `QUndoStack` 容器**，不为每种变更写命令类 | `CardModel` 每次变更都整份重建 `EnemyData`。一条命令保存前后两份快照；`push()` 调用 `redo()` 完成写入。栈提供 `canUndo`/`canRedo` 与 `setUndoLimit`。评价标准名称在应用偏好中，保存标准后清空栈 |
 | D4 | 版本检查**默认开启、可关闭、24h 冷却、不自更新** | 官方限流按 IP 计且匿名 304 也消耗配额；自更新需签名与替换运行中进程，风险与工程量远超收益 |
 | D5 | 打包继续用 **PyInstaller onedir**，不换 Nuitka / `pyside6-deploy` | `pyside6-deploy` 是 Nuitka 包装，Qt 官方部署文档承认它同样可能拉入未使用的 Qt 大模块；库依赖多时 onedir 体积 PyInstaller 更优 |
 | D6 | 体积收敛走"**事后过滤 `analysis.binaries`/`datas` + QML 白名单**"，而非只加 `excludes` | 本机 hook 源码显示 `hook-PySide6.py` 只额外收集 ANGLE/`opengl32sw`/ICU；`Qt6WebEngineCore.dll` 是被收集的 `PySide6/qml` 全量树经二进制依赖分析连带进来的，`excludes`（模块级）无法拦住 |

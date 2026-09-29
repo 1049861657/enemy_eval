@@ -75,6 +75,7 @@ class QmlBridge(QObject):
     quitRequested = Signal()
     prtsQueryRequested = Signal(str)
     aboutRequested = Signal()
+    undoStateChanged = Signal()
 
     def __init__(
         self,
@@ -148,17 +149,32 @@ class QmlBridge(QObject):
         self._connect_card_model()
         self._skills.set_card_model(card_model)
         self._publish_model()
+        self.undoStateChanged.emit()
+
+    @Property(bool, notify=undoStateChanged)
+    def canUndo(self) -> bool:  # noqa: N802
+        return self._card_model.undo_stack().canUndo()
+
+    @Property(bool, notify=undoStateChanged)
+    def canRedo(self) -> bool:  # noqa: N802
+        return self._card_model.undo_stack().canRedo()
 
     def _connect_card_model(self) -> None:
         self._card_model.snapshotChanged.connect(self._publish_model)
         self._card_model.validationFailed.connect(self.fieldError)
         self._card_model.ratingSchemaChanged.connect(self._publish_rating_schema)
+        stack = self._card_model.undo_stack()
+        stack.canUndoChanged.connect(self._publish_undo_state)
+        stack.canRedoChanged.connect(self._publish_undo_state)
 
     def _disconnect_card_model(self) -> None:
+        stack = self._card_model.undo_stack()
         for signal, slot in (
             (self._card_model.snapshotChanged, self._publish_model),
             (self._card_model.validationFailed, self.fieldError),
             (self._card_model.ratingSchemaChanged, self._publish_rating_schema),
+            (stack.canUndoChanged, self._publish_undo_state),
+            (stack.canRedoChanged, self._publish_undo_state),
         ):
             try:
                 signal.disconnect(slot)
@@ -167,6 +183,9 @@ class QmlBridge(QObject):
 
     def _publish_model(self) -> None:
         self.enemyDataChanged.emit(self.enemyDataJson)
+
+    def _publish_undo_state(self, _available: bool) -> None:
+        self.undoStateChanged.emit()
 
     def _publish_rating_schema(self) -> None:
         self.ratingNamesChanged.emit(self.ratingNamesJson)
@@ -214,6 +233,19 @@ class QmlBridge(QObject):
             return
         self._card_model.update_property(property_name, value)
 
+    @Slot(str)
+    def updateProperties(self, values_json: str) -> None:  # noqa: N802
+        """按 JSON 对象一次写入多个字段。"""
+        try:
+            values = json.loads(values_json)
+        except json.JSONDecodeError:
+            self.fieldError.emit("properties", "输入格式无效")
+            return
+        if not isinstance(values, dict):
+            self.fieldError.emit("properties", "输入格式无效")
+            return
+        self._card_model.update_properties(values)
+
     @Slot(str, float)
     def updateResistance(self, resistance_name: str, value: float) -> None:  # noqa: N802
         self._card_model.update_abnormal_resistance(resistance_name, value)
@@ -258,6 +290,14 @@ class QmlBridge(QObject):
         )
         if path:
             self._card_model.update_property("avatar_path", path)
+
+    @Slot()
+    def requestUndo(self) -> None:  # noqa: N802
+        self._card_model.undo_stack().undo()
+
+    @Slot()
+    def requestRedo(self) -> None:  # noqa: N802
+        self._card_model.undo_stack().redo()
 
     @Slot()
     def requestNew(self) -> None:  # noqa: N802
