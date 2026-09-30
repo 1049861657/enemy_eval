@@ -68,6 +68,13 @@ class AppSettings(BaseSettings):
     rating_names: list[str] = Field(default_factory=lambda: list(DEFAULT_RATING_NAMES))
     rating_radar: bool = False
     recent_files: list[str] = Field(default_factory=list)
+    update_check_enabled: bool = True
+    update_check_last_ts: float = 0.0
+    update_check_block_until: float = 0.0
+    update_check_etag: str = ""
+    update_seen_tag: str = ""
+    update_seen_url: str = ""
+    update_check_skip_tag: str = ""
 
     @classmethod
     def settings_customise_sources(
@@ -121,15 +128,30 @@ def _persist(settings: AppSettings) -> None:
         raise FileOperationError(f"保存评价偏好失败: {error}") from error
 
 
+def _cloned(current: AppSettings, **updates: Any) -> AppSettings:
+    """在既有偏好上改若干字段，其余原样保留。"""
+    data = current.model_dump()
+    data.update(updates)
+    return AppSettings.model_validate(data)
+
+
+def _write_updates(**updates: Any) -> None:
+    """写入偏好字段。写盘失败只记日志，内存保持原状。"""
+    global _cached
+    with _lock:
+        current = _cached if _cached is not None else _read_settings()
+        settings = _cloned(current, **updates)
+        try:
+            _persist(settings)
+        except FileOperationError as error:
+            logger.warning("偏好未写入，已忽略", error=str(error))
+            return
+        _cached = settings
+
+
 def _with_recent_files(current: AppSettings, entries: list[str]) -> AppSettings:
     """在既有偏好上替换最近列表，其余字段原样保留。"""
-    return AppSettings.model_validate(
-        {
-            "rating_names": list(current.rating_names),
-            "rating_radar": current.rating_radar,
-            "recent_files": entries,
-        }
-    )
+    return _cloned(current, recent_files=entries)
 
 
 def _replace_recent_files(current: AppSettings, entries: list[str]) -> None:
@@ -165,12 +187,7 @@ def save_rating_schema(schema: RatingSchema) -> RatingSchema:
     validated = RatingSchema.model_validate(schema)
     with _lock:
         current = _cached if _cached is not None else _read_settings()
-        settings = AppSettings.model_validate(
-            {
-                "rating_names": list(validated.names),
-                "rating_radar": current.rating_radar,
-            }
-        )
+        settings = _cloned(current, rating_names=list(validated.names))
         _persist(settings)
         _cached = settings
     return validated
@@ -195,12 +212,7 @@ def set_rating_radar(enabled: bool) -> bool:
     value = bool(enabled)
     with _lock:
         current = _cached if _cached is not None else _read_settings()
-        settings = AppSettings.model_validate(
-            {
-                "rating_names": list(current.rating_names),
-                "rating_radar": value,
-            }
-        )
+        settings = _cloned(current, rating_radar=value)
         _persist(settings)
         _cached = settings
     return value
@@ -237,6 +249,40 @@ def remove_recent_file(path: str) -> None:
         ]
         if entries != list(current.recent_files):
             _replace_recent_files(current, entries)
+
+
+def set_update_check_enabled(enabled: bool) -> None:
+    """写入启动时自动检查开关。"""
+    _write_updates(update_check_enabled=bool(enabled))
+
+
+def mark_update_checked(timestamp: float) -> None:
+    """记下一次问到明确结果的时间。"""
+    _write_updates(update_check_last_ts=float(timestamp))
+
+
+def set_update_block_until(timestamp: float) -> None:
+    """记下失败退避的截止时间。"""
+    _write_updates(update_check_block_until=float(timestamp))
+
+
+def set_update_seen(tag: str, url: str, etag: str) -> None:
+    """记下一次 200 见到的正式版和 ETag。"""
+    _write_updates(
+        update_seen_tag=tag,
+        update_seen_url=url,
+        update_check_etag=etag,
+    )
+
+
+def clear_update_seen() -> None:
+    """清掉已见版本、链接和 ETag。不改忽略版本。"""
+    _write_updates(update_seen_tag="", update_seen_url="", update_check_etag="")
+
+
+def set_update_skip_tag(tag: str) -> None:
+    """忽略这个版本。已见版本和 ETag 保留。"""
+    _write_updates(update_check_skip_tag=tag)
 
 
 def clear_recent_files() -> None:

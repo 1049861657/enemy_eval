@@ -104,6 +104,18 @@ def _draw_skills_talents_table(
     )
 
 
+def _cooldown_lines(text: str) -> list[str]:
+    """偶数段对半。上行「首次：」，下行「回转：」。奇数段保持一行。"""
+    parts = text.split("/")
+    if len(parts) < 2 or len(parts) % 2 != 0:
+        return [text]
+    mid = len(parts) // 2
+    return [
+        f"首次：{'/'.join(parts[:mid])}",
+        f"回转：{'/'.join(parts[mid:])}",
+    ]
+
+
 def _draw_skills_title_header(
     gen: "EnemyCardGenerator",
     start_x: int,
@@ -249,12 +261,20 @@ def _draw_skills_section(
             )
             current_x += col_widths[0]
 
-            cooldown = skill.冷却时间 or "无"
-            cooldown_x = layout.center_text_x(
-                current_x, col_widths[1], font_content.measureText(cooldown)
-            )
-            cooldown_y = row_y + row_height / 2 + 5
-            gen.canvas.drawString(cooldown, cooldown_x, cooldown_y, font_content, content_paint)
+            cooldown_lines = _cooldown_lines(skill.冷却时间 or "无")
+            line_gap = 22
+            first_baseline = row_y + row_height / 2 + 5 - line_gap * (len(cooldown_lines) - 1) / 2
+            for line_index, line in enumerate(cooldown_lines):
+                line_x = layout.center_text_x(
+                    current_x, col_widths[1], font_content.measureText(line)
+                )
+                gen.canvas.drawString(
+                    line,
+                    line_x,
+                    first_baseline + line_index * line_gap,
+                    font_content,
+                    content_paint,
+                )
             current_x += col_widths[1]
 
             cost = skill.技力消耗 or "0"

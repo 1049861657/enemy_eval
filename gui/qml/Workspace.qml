@@ -99,6 +99,15 @@ Item {
         detailedDialog.openFor(title, value)
     }
 
+    function updateBannerText(tag) {
+        if (!tag)
+            return ""
+        var head = tag.charAt(0)
+        if (head === "v" || head === "V")
+            return "发现新版本 " + tag
+        return "发现新版本 v" + tag
+    }
+
     function saveDetailed(value) {
         if (detailedTarget === "skillEffect")
             root.controller.skills.updateField(detailedSkillIndex, "效果", value)
@@ -129,6 +138,9 @@ Item {
         function onDialogRequested(title, message, tone) {
             messageDialog.show(title, message, tone)
         }
+        function onAboutRequested() {
+            aboutDialog.open()
+        }
     }
 
     readonly property bool historyKeysEnabled: {
@@ -153,6 +165,44 @@ Item {
         CommandBar {
             Layout.fillWidth: true
             workspace: root
+        }
+
+        Rectangle {
+            id: updateBanner
+            Layout.fillWidth: true
+            visible: root.controller.updateBannerTag !== ""
+            implicitHeight: bannerRow.implicitHeight + Design.Theme.space3 * 2
+            color: Design.Theme.accentSubtle
+
+            RowLayout {
+                id: bannerRow
+                anchors.fill: parent
+                anchors.leftMargin: Design.Theme.space4
+                anchors.rightMargin: Design.Theme.space4
+                spacing: Design.Theme.space3
+
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    text: root.updateBannerText(root.controller.updateBannerTag)
+                    font.family: Design.Theme.fontFamily
+                    font.pixelSize: Design.Theme.bodyFontSize
+                    color: Design.Theme.textPrimary
+                }
+
+                AppButton {
+                    text: "查看"
+                    appearance: "secondary"
+                    enabled: root.controller.updateBannerUrl !== ""
+                    onClicked: Qt.openUrlExternally(root.controller.updateBannerUrl)
+                }
+
+                AppButton {
+                    text: "忽略此版本"
+                    appearance: "subtle"
+                    onClicked: root.controller.dismissUpdate(root.controller.updateBannerTag)
+                }
+            }
         }
 
         SplitView {
@@ -308,6 +358,11 @@ Item {
     DetailedTextDialog {
         id: detailedDialog
         onSaved: (value) => root.saveDetailed(value)
+    }
+
+    AboutDialog {
+        id: aboutDialog
+        controller: root.controller
     }
 
     AppMessageDialog {

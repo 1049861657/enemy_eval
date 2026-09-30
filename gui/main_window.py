@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, QUrl
@@ -14,12 +15,20 @@ from core.optimization import get_resource_manager
 from core.render.avatar_prefetch import is_avatar_cached
 from models.media import is_url
 from utils.app_settings_store import (
+    AppSettings,
     clear_recent_files,
+    clear_update_seen,
     current_render_options,
+    load_app_settings,
+    mark_update_checked,
     remember_recent_file,
     remove_recent_file,
+    set_update_block_until,
+    set_update_seen,
+    set_update_skip_tag,
 )
-from utils.app_version import get_app_build_time, get_app_version
+from utils.app_version import get_app_version
+from utils.update_checker import is_newer
 from utils.debouncer import AdaptiveDebouncer
 from utils.error_handler import (
     EnemyEvalException,
@@ -27,7 +36,11 @@ from utils.error_handler import (
     error_handler,
 )
 from utils.filenames import safe_filename
-from utils.thread_manager import NetworkAvatarPrefetchThread, PrtsFetchThread
+from utils.thread_manager import (
+    NetworkAvatarPrefetchThread,
+    PrtsFetchThread,
+    UpdateCheckThread,
+)
 
 from .card_model import CardModel
 from .constants import (
@@ -43,6 +56,9 @@ from .render_coordinator import RenderCoordinator
 
 logger = logging.getLogger(__name__)
 
+_UPDATE_CHECK_COOLDOWN_S = 24 * 60 * 60
+_UPDATE_CHECK_BACKOFF_S = 30 * 60
+
 
 class MainWindow(QMainWindow):
     """主窗口仅负责文件、PRTS、生命周期和渲染调度。"""
@@ -52,10 +68,11 @@ class MainWindow(QMainWindow):
         self.card_model = CardModel(self)
         self.prts_fetch_thread: PrtsFetchThread | None = None
         self.avatar_prefetch_thread: NetworkAvatarPrefetchThread | None = None
+        self.update_check_thread: UpdateCheckThread | None = None
+        self._update_check_manual = False
         self._render = RenderCoordinator(self)
         self._debouncer = AdaptiveDebouncer(min_delay=200, max_delay=520)
         self._app_version = get_app_version()
-        self._app_build_time = get_app_build_time()
         self.setWindowTitle(f"敌人评价卡片实时编辑器 v{self._app_version}")
         self.setGeometry(
             WINDOW_DEFAULT_X,
@@ -70,6 +87,7 @@ class MainWindow(QMainWindow):
         self._create_status_bar()
         self._connect_signals()
         self._generate_card()
+        QTimer.singleShot(3000, self, self._maybe_check_updates)
 
     def _create_central_widget(self) -> bool:
         self._image_provider = CardImageProvider()
@@ -121,7 +139,8 @@ class MainWindow(QMainWindow):
         self._bridge.refreshRequested.connect(self._generate_card)
         self._bridge.quitRequested.connect(self.close)
         self._bridge.prtsQueryRequested.connect(self._fetch_prts_data)
-        self._bridge.aboutRequested.connect(self._show_about)
+        self._bridge.checkUpdatesRequested.connect(self._check_updates_manually)
+        self._bridge.dismissUpdateRequested.connect(self._dismiss_update)
 
     def _connect_model_signals(self) -> None:
         self.card_model.dataChanged.connect(self._on_data_changed)
@@ -265,19 +284,91 @@ class MainWindow(QMainWindow):
             title, message = categorize_error_message(error)
             self._bridge.show_dialog(title, message, "error")
 
-    def _show_about(self) -> None:
-        build_time = (
-            f"\n构建日期：{self._app_build_time}" if self._app_build_time else ""
+    def _maybe_check_updates(self) -> None:
+        self._sync_update_banner()
+        settings = load_app_settings()
+        if self._update_check_due(settings, time.time()):
+            self._start_update_check(manual=False)
+
+    def _check_updates_manually(self) -> None:
+        self._start_update_check(manual=True)
+
+    def _update_check_due(self, settings: AppSettings, now: float) -> bool:
+        if not settings.update_check_enabled:
+            return False
+        if now < settings.update_check_block_until:
+            return False
+        last = settings.update_check_last_ts
+        if last > now:
+            return True
+        return last == 0 or now - last >= _UPDATE_CHECK_COOLDOWN_S
+
+    def _start_update_check(self, *, manual: bool) -> None:
+        running = self.update_check_thread
+        if running is not None and running.isRunning():
+            if manual:
+                self._update_check_manual = True
+                self._bridge.show_toast("正在检查更新", "info")
+            return
+        self._update_check_manual = manual
+        thread = UpdateCheckThread(load_app_settings().update_check_etag)
+        thread.checkFinished.connect(self._on_update_check_finished)
+        thread.finished.connect(
+            lambda thread_ref=thread: self._on_update_check_thread_finished(thread_ref)
         )
-        self._bridge.show_dialog(
-            "关于",
-            "敌人评价卡片实时编辑器\n\n"
-            f"版本：{self._app_version}"
-            f"{build_time}\n\n"
-            "一个明日方舟的敌人评价卡片生成工具\n"
-            "支持实时预览和属性编辑",
-            "info",
+        self.update_check_thread = thread
+        thread.start()
+
+    def _on_update_check_finished(
+        self, outcome: str, tag: str, url: str, etag: str, retry_at: float
+    ) -> None:
+        manual = self._update_check_manual
+        now = time.time()
+        if outcome in ("update", "current"):
+            set_update_seen(tag, url, etag)
+            mark_update_checked(now)
+        elif outcome == "unchanged":
+            settings = load_app_settings()
+            if settings.update_check_etag and not settings.update_seen_tag:
+                clear_update_seen()
+            mark_update_checked(now)
+        elif outcome == "none":
+            clear_update_seen()
+            mark_update_checked(now)
+        elif outcome == "error":
+            set_update_block_until(self._update_block_until(now, retry_at))
+        self._sync_update_banner()
+        if not manual:
+            return
+        if outcome == "error":
+            self._bridge.show_toast("暂时无法检查更新", "warning")
+            return
+        if not self._bridge.updateBannerTag:
+            self._bridge.show_toast("已是最新版本", "success")
+
+    def _update_block_until(self, now: float, retry_at: float) -> float:
+        until = retry_at if retry_at > now else now + _UPDATE_CHECK_BACKOFF_S
+        return min(until, now + _UPDATE_CHECK_COOLDOWN_S)
+
+    def _sync_update_banner(self) -> None:
+        settings = load_app_settings()
+        tag = settings.update_seen_tag
+        show = bool(tag) and tag != settings.update_check_skip_tag and is_newer(
+            self._app_version, tag
         )
+        self._bridge.set_update_banner(
+            tag if show else "",
+            settings.update_seen_url if show else "",
+        )
+
+    def _dismiss_update(self, tag: str) -> None:
+        set_update_skip_tag(tag)
+        self._sync_update_banner()
+
+    def _on_update_check_thread_finished(self, thread: UpdateCheckThread) -> None:
+        thread.deleteLater()
+        if self.update_check_thread is thread:
+            self.update_check_thread = None
 
     def _fetch_prts_data(self, enemy_name: str) -> None:
         if self.prts_fetch_thread is not None and self.prts_fetch_thread.isRunning():
@@ -331,6 +422,13 @@ class MainWindow(QMainWindow):
                     if not prefetch_thread.wait(3000):
                         logger.error(
                             "头像预取线程未能在 3 秒内停止，放弃等待且不 terminate"
+                        )
+                update_thread = self.update_check_thread
+                if update_thread is not None and update_thread.isRunning():
+                    update_thread.requestInterruption()
+                    if not update_thread.wait(3000):
+                        logger.error(
+                            "版本检查线程未能在 3 秒内停止，放弃等待且不 terminate"
                         )
                 self._debouncer.cleanup()
                 get_resource_manager().clear_caches()

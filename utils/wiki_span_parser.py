@@ -50,7 +50,8 @@ _LINK_TERM_RGBA = (0.14, 0.48, 0.74, 1.0)
 _POPUP_HINT_RGBA = _LINK_TERM_RGBA
 # 圆圈问号占位宽度相对正文字号；与 wiki_paragraph_renderer 绘制口径共用
 _HINT_MARK_ADVANCE_RATIO = 0.82
-_BR_TAG = re.compile(r"<br\s*/?>", re.IGNORECASE)
+# MediaWiki 把 <br>、<br/>、</br> 都渲成换行（parse HTML 里是 <br />）
+_BR_TAG = re.compile(r"</?br\s*/?>", re.IGNORECASE)
 
 # 模板:异常效果 名称别名（PRTS 页面现网）
 _STATUS_ALIASES: dict[str, str] = {
@@ -137,6 +138,35 @@ def _merge_spans(spans: list[TextSpan]) -> list[TextSpan]:
     return out
 
 
+def _top_level_eq(chunk: str) -> int:
+    """第一个不在嵌套 `{{ }}` / `[[ ]]` 里的 `=`。没有则 -1。"""
+    tpl = 0
+    link = 0
+    i = 0
+    n = len(chunk)
+    while i < n:
+        if chunk.startswith("{{", i):
+            tpl += 1
+            i += 2
+            continue
+        if chunk.startswith("}}", i) and tpl:
+            tpl -= 1
+            i += 2
+            continue
+        if chunk.startswith("[[", i):
+            link += 1
+            i += 2
+            continue
+        if chunk.startswith("]]", i) and link:
+            link -= 1
+            i += 2
+            continue
+        if chunk[i] == "=" and tpl == 0 and link == 0:
+            return i
+        i += 1
+    return -1
+
+
 def _split_top_level_pipes(s: str) -> list[str]:
     """按顶层 `|` 切开，嵌套的 `{{ }}` / `[[ ]]` 内部分隔符不算。"""
     parts: list[str] = []
@@ -188,7 +218,7 @@ def _parse_template_call(inner: str) -> _TemplateCall:
     for chunk in chunks[1:]:
         if not chunk:
             continue
-        eq = chunk.find("=")
+        eq = _top_level_eq(chunk)
         if eq > 0:
             key = chunk[:eq].strip()
             if key and " " not in key and "\n" not in key:
@@ -264,6 +294,11 @@ def _handle_popup(_call: _TemplateCall, _base: WikiStyle) -> list[TextSpan]:
     return [TextSpan("?", WikiStyle(color=_POPUP_HINT_RGBA, hint=True))]
 
 
+def _handle_popup_range(_call: _TemplateCall, _base: WikiStyle) -> list[TextSpan]:
+    """范围图是 Widget:Range/<代号> 的 SVG，只在悬停弹层里。卡片不展示代号。"""
+    return []
+
+
 def _handle_unknown(call: _TemplateCall, base: WikiStyle) -> list[TextSpan]:
     """未知模板：只展示末尾无名参数（常见「标识|可见名」），永不展开命名参数。"""
     if call.positionals:
@@ -283,6 +318,7 @@ _TEMPLATE_HANDLERS: dict[str, _TemplateHandler] = {
     "特殊机制": _handle_special,
     "变动数值": _handle_delta,
     "popup": _handle_popup,
+    "popup/range": _handle_popup_range,
 }
 
 
@@ -375,7 +411,7 @@ def _parse_inline_spans(s: str, base: WikiStyle) -> list[TextSpan]:
 def parse_wikitext_to_spans(text: str, base: WikiStyle = WikiStyle()) -> list[TextSpan]:
     """整段 wikitext → 扁平片段列表。
 
-    `<br>` 与裸换行在模板/链接外部才拆行；模板内部（含 `{{popup|内容=...}}`）
+    `<br>`、`<br/>`、`</br>` 与裸换行在模板/链接外部才拆行；模板内部（含 `{{popup|内容=...}}`）
     由对应处理器决定可见文本，不会把注释后半段漏到正文。
     """
     if not text:

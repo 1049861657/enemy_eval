@@ -27,7 +27,7 @@
 | 1 | `01-config-loading-and-avatar-path.md` | P0 | 已实现，待验收 |
 | 2 | `02-recent-files.md` | P1 | 已实现，待验收 |
 | 3 | `03-undo-redo.md` | P1 | 已实现，待验收 |
-| 4 | `04-update-check.md` | P2 | 未开始 |
+| 4 | `04-update-check.md` | P2 | 已实现，待验收 |
 | 5 | `05-portable-distribution.md` | P2 | 未开始 |
 
 ## 与其他计划目录的关系

@@ -16,10 +16,13 @@ from utils.app_settings_store import (
     current_render_options,
     get_rating_names,
     is_rating_radar,
+    load_app_settings,
     recent_files,
     save_rating_schema,
     set_rating_radar,
+    set_update_check_enabled,
 )
+from utils.app_version import get_app_build_time, get_app_version
 from utils.error_handler import FileOperationError
 
 from .card_model import CardModel
@@ -76,6 +79,10 @@ class QmlBridge(QObject):
     prtsQueryRequested = Signal(str)
     aboutRequested = Signal()
     undoStateChanged = Signal()
+    updateBannerChanged = Signal()
+    updateCheckEnabledChanged = Signal()
+    checkUpdatesRequested = Signal()
+    dismissUpdateRequested = Signal(str)
 
     def __init__(
         self,
@@ -92,6 +99,8 @@ class QmlBridge(QObject):
         self._busy = False
         self._prts_busy = False
         self._preview_revision = 0
+        self._update_banner_tag = ""
+        self._update_banner_url = ""
         self._connect_card_model()
         self._render.cardReady.connect(self._on_card_ready)
         self._render.busyChanged.connect(self._set_busy)
@@ -141,6 +150,34 @@ class QmlBridge(QObject):
     @Property(int, notify=previewChanged)
     def previewRevision(self) -> int:  # noqa: N802
         return self._preview_revision
+
+    @Property(str, constant=True)
+    def appVersion(self) -> str:  # noqa: N802
+        return get_app_version()
+
+    @Property(str, constant=True)
+    def appBuildTime(self) -> str:  # noqa: N802
+        return get_app_build_time() or ""
+
+    @Property(str, notify=updateBannerChanged)
+    def updateBannerTag(self) -> str:  # noqa: N802
+        return self._update_banner_tag
+
+    @Property(str, notify=updateBannerChanged)
+    def updateBannerUrl(self) -> str:  # noqa: N802
+        return self._update_banner_url
+
+    @Property(bool, notify=updateCheckEnabledChanged)
+    def updateCheckEnabled(self) -> bool:  # noqa: N802
+        return load_app_settings().update_check_enabled
+
+    def set_update_banner(self, tag: str, url: str) -> None:
+        """把是否显示横幅的结果交给界面。标签为空则不显示。"""
+        if tag == self._update_banner_tag and url == self._update_banner_url:
+            return
+        self._update_banner_tag = tag
+        self._update_banner_url = url
+        self.updateBannerChanged.emit()
 
     def set_card_model(self, card_model: CardModel) -> None:
         """在新建卡片后切换数据源，避免 QML 持有过期模型。"""
@@ -343,3 +380,16 @@ class QmlBridge(QObject):
     @Slot()
     def requestAbout(self) -> None:  # noqa: N802
         self.aboutRequested.emit()
+
+    @Slot()
+    def requestCheckUpdates(self) -> None:  # noqa: N802
+        self.checkUpdatesRequested.emit()
+
+    @Slot(str)
+    def dismissUpdate(self, tag: str) -> None:  # noqa: N802
+        self.dismissUpdateRequested.emit(tag)
+
+    @Slot(bool)
+    def setUpdateCheckEnabled(self, enabled: bool) -> None:  # noqa: N802
+        set_update_check_enabled(enabled)
+        self.updateCheckEnabledChanged.emit()

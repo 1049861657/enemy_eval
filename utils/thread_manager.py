@@ -14,6 +14,7 @@ from models import EnemyData, RenderOptions
 from . import prts_enemy_builder as builder
 from . import prts_mediawiki_pipeline as pipeline
 from .error_handler import RenderError
+from .update_checker import fetch_latest
 
 
 class CardGeneratorThread(QThread):
@@ -190,3 +191,23 @@ class NetworkAvatarPrefetchThread(QThread):
         if self.isInterruptionRequested():
             return
         self.prefetchFinished.emit(is_avatar_cached(self.avatar_url))
+
+
+class UpdateCheckThread(QThread):
+    """版本检查线程。只发一次 releases/latest，不写偏好。"""
+
+    checkFinished = Signal(str, str, str, str, float)
+
+    def __init__(self, etag: str) -> None:
+        super().__init__()
+        self._etag = etag
+
+    def run(self) -> None:
+        if self.isInterruptionRequested():
+            return
+        result = fetch_latest(self._etag)
+        if self.isInterruptionRequested():
+            return
+        self.checkFinished.emit(
+            result.outcome, result.tag, result.url, result.etag, result.retry_at
+        )
