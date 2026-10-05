@@ -3,15 +3,25 @@
 from __future__ import annotations
 
 import json
+import sys
 import tomllib
 from datetime import datetime
 from importlib import metadata
 from pathlib import Path
 
 
+def _build_info_path() -> Path:
+    """冻结制品读 `sys._MEIPASS/build_info.json`。源码树没有这份文件。"""
+    if getattr(sys, "frozen", False):
+        root = getattr(sys, "_MEIPASS", None)
+        if isinstance(root, str):
+            return Path(root) / "build_info.json"
+    return Path(__file__).resolve().parent.parent / "build_info.json"
+
+
 def _load_build_info() -> dict[str, object]:
     """读取 PyInstaller 在打包阶段写入的制品元数据。"""
-    path = Path(__file__).resolve().parent.parent / "build_info.json"
+    path = _build_info_path()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):

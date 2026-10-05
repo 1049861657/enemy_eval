@@ -2,6 +2,8 @@
 
 本目录是 2026-09-29 立项的改进计划：**5 项任务，按要求顺序执行**。计划总览、目标定义与关键决策见 [`00-overview.md`](./00-overview.md)。
 
+**整批状态：已全部完成（2026-10-05 收尾）。** 五项代码均已落地。任务 05 的打开配置、导出图片、关于窗口与手动检查更新未在本机点选；打包程序已确认能启动、读到构建时间并画出卡片。
+
 ## 文件地图
 
 | 文件 | 内容 |
@@ -24,11 +26,11 @@
 
 | 任务 | 文件 | 优先级 | 状态 |
 |---|---|---|---|
-| 1 | `01-config-loading-and-avatar-path.md` | P0 | 已实现，待验收 |
-| 2 | `02-recent-files.md` | P1 | 已实现，待验收 |
-| 3 | `03-undo-redo.md` | P1 | 已实现，待验收 |
-| 4 | `04-update-check.md` | P2 | 已实现，待验收 |
-| 5 | `05-portable-distribution.md` | P2 | 未开始 |
+| 1 | `01-config-loading-and-avatar-path.md` | P0 | 已完成 |
+| 2 | `02-recent-files.md` | P1 | 已完成 |
+| 3 | `03-undo-redo.md` | P1 | 已完成 |
+| 4 | `04-update-check.md` | P2 | 已完成 |
+| 5 | `05-portable-distribution.md` | P2 | 已完成 |
 
 ## 与其他计划目录的关系
 

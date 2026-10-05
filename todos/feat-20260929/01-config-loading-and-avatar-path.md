@@ -1,6 +1,6 @@
 # 任务 01：配置加载容错与头像路径可移植
 
-**优先级**：P0　**状态**：已实现，待用户本机验收　**依赖**：无
+**优先级**：P0　**状态**：已完成　**依赖**：无
 
 **影响文件**：`models/enemy_data.py`、新增 `utils/avatar_paths.py`、`gui/card_model.py`、`gui/main_window.py`、`gui/qml_bridge.py`、`gui/qml/Workspace.qml`、`tests/test_models.py`、`tests/test_prts_pipeline_refactor.py`
 

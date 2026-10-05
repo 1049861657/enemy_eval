@@ -42,7 +42,7 @@
 | D3 | 撤销采用**状态快照 + `QUndoStack` 容器**，不为每种变更写命令类 | `CardModel` 每次变更都整份重建 `EnemyData`。一条命令保存前后两份快照；`push()` 调用 `redo()` 完成写入。栈提供 `canUndo`/`canRedo` 与 `setUndoLimit`。评价标准名称在应用偏好中，保存标准后清空栈 |
 | D4 | 版本检查**默认开启、可关闭、24h 冷却、不自更新** | 官方限流按 IP 计且匿名 304 也消耗配额；自更新需签名与替换运行中进程，风险与工程量远超收益 |
 | D5 | 打包继续用 **PyInstaller onedir**，不换 Nuitka / `pyside6-deploy` | `pyside6-deploy` 是 Nuitka 包装，Qt 官方部署文档承认它同样可能拉入未使用的 Qt 大模块；库依赖多时 onedir 体积 PyInstaller 更优 |
-| D6 | 体积收敛走"**事后过滤 `analysis.binaries`/`datas` + QML 白名单**"，而非只加 `excludes` | 本机 hook 源码显示 `hook-PySide6.py` 只额外收集 ANGLE/`opengl32sw`/ICU；`Qt6WebEngineCore.dll` 是被收集的 `PySide6/qml` 全量树经二进制依赖分析连带进来的，`excludes`（模块级）无法拦住 |
+| D6 | 体积收敛只删除确认未使用的重模块；不维护 QML 或 DLL 白名单 | PyInstaller 无法跟踪 QML import，钩子会收整棵 `qml`，`excludes` 拦不住连带 DLL。`QtQuick/Controls` 整棵保留。`QtQuick` 里只删导入表或 `qmldir` 证明在引用已删模块的插件目录。`Qt6ShaderTools` 与 `opengl32sw` 不删。删完后若保留文件仍引用被删 DLL，构建失败 |
 
 ## 调研方法
 

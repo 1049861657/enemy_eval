@@ -1,6 +1,6 @@
 # 任务 03：撤销 / 重做
 
-**优先级**：P1　**状态**：已实现，待用户本机验收　**依赖**：建议在任务 02 之后（偏好改动先收敛）
+**优先级**：P1　**状态**：已完成　**依赖**：建议在任务 02 之后（偏好改动先收敛）
 
 **影响文件**：新增 `gui/undo_stack.py`、`gui/qml/icons/undo.svg`、`gui/qml/icons/redo.svg`；改 `gui/card_model.py`、`gui/qml_bridge.py`、`gui/qml/Workspace.qml`、`gui/qml/CommandBar.qml`；同步 `tests/test_card_model_error_handling.py`、`tests/test_gui_signals.py`
 

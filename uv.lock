@@ -71,8 +71,6 @@ dependencies = [
     { name = "platformdirs" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
-    { name = "pyinstaller" },
-    { name = "pyinstaller-hooks-contrib" },
     { name = "pyside6" },
     { name = "rich" },
     { name = "skia-python" },
@@ -80,6 +78,10 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+build = [
+    { name = "pyinstaller" },
+    { name = "pyinstaller-hooks-contrib" },
+]
 dev = [
     { name = "pyright" },
     { name = "pytest" },
@@ -93,8 +95,6 @@ requires-dist = [
     { name = "platformdirs", specifier = ">=4.12.1" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
-    { name = "pyinstaller", specifier = ">=6.22.3" },
-    { name = "pyinstaller-hooks-contrib", specifier = ">=2026.7" },
     { name = "pyside6", specifier = ">=6.11.2" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "skia-python", specifier = ">=144.0" },
@@ -102,6 +102,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+build = [
+    { name = "pyinstaller", specifier = ">=6.22.3" },
+    { name = "pyinstaller-hooks-contrib", specifier = ">=2026.7" },
+]
 dev = [
     { name = "pyright", specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.1.1" },

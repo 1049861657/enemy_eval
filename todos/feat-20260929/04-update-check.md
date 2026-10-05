@@ -1,6 +1,6 @@
 # 任务 04：启动时版本检查提示
 
-**优先级**：P2　**状态**：已实现，待验收　**依赖**：建议在任务 02 之后（同改 `AppSettings`）
+**优先级**：P2　**状态**：已完成　**依赖**：建议在任务 02 之后（同改 `AppSettings`）
 
 **影响文件**：新增 `utils/update_checker.py`、`gui/qml/AboutDialog.qml`；改 `utils/thread_manager.py`、`utils/app_settings_store.py`、`gui/main_window.py`、`gui/qml_bridge.py`、`gui/qml/Workspace.qml`、`gui/qml/CommandBar.qml`
 

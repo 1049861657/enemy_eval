@@ -6,19 +6,21 @@
 
 import importlib
 import sys
+import time
 from pathlib import Path
 
 import structlog
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtQuickControls2 import QQuickStyle
+from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
 
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent))
 
 from utils.app_logging import setup_logging
-from utils.app_version import get_app_version
+from utils.app_version import get_app_build_time, get_app_version
 from utils.resource_manager import resource_manager
 
 try:
@@ -90,6 +92,7 @@ def show_dependency_error(missing_deps):
 
 def main():
     """主函数"""
+    started = time.perf_counter()
     # 检查依赖项
     missing_deps = check_dependencies()
     if missing_deps:
@@ -112,7 +115,15 @@ def main():
     try:
         # 创建主窗口
         main_window = MainWindow()
-        
+        workspace = getattr(main_window, "workspace", None)
+        if workspace is not None and workspace.status() == QQuickWidget.Status.Ready:
+            structlog.get_logger(__name__).info(
+                "QML 就绪",
+                elapsed_ms=round((time.perf_counter() - started) * 1000),
+                version=get_app_version(),
+                built_at=get_app_build_time() or "",
+            )
+
         # 1.5秒后显示主窗口
         def show_main_window():
             splash.finish(main_window)

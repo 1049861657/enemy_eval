@@ -1,6 +1,6 @@
 # 任务 02：最近打开列表
 
-**优先级**：P1　**状态**：已实现，待用户本机验收　**依赖**：任务 01（已提交）
+**优先级**：P1　**状态**：已完成　**依赖**：任务 01（已提交）
 
 **影响文件**：`utils/app_settings_store.py`、`gui/main_window.py`、`gui/qml_bridge.py`、`gui/qml/AppButton.qml`、新增 `gui/qml/icons/chevron_down.svg`、新增 `gui/qml/AppMenu.qml`、`gui/qml/CommandBar.qml`、`gui/qml/Workspace.qml`、`tests/test_rating_schema.py`
 
