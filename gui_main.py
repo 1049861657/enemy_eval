@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-敌人评价卡片实时编辑器 - GUI入口程序
-使用PySide6构建的现代化桌面应用程序
-"""
+"""GUI 入口。"""
 
 import importlib
 import sys
@@ -10,8 +7,8 @@ import time
 from pathlib import Path
 
 import structlog
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
@@ -19,6 +16,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent))
 
+from utils.app_identity import APP_AUTHOR, APP_NAME
 from utils.app_logging import setup_logging
 from utils.app_version import get_app_build_time, get_app_version
 from utils.resource_manager import resource_manager
@@ -103,9 +101,11 @@ def main():
 
     # 创建应用程序
     app = QApplication(sys.argv)
-    app.setApplicationName("敌人评价卡片编辑器")
+    app.setWindowIcon(QIcon(resource_manager.get_resource_path("resource/icon.png")))
+    app.setApplicationName(APP_NAME)
+    app.setApplicationDisplayName(APP_NAME)
     app.setApplicationVersion(get_app_version())
-    app.setOrganizationName("Enemy Eval Team")
+    app.setOrganizationName(APP_AUTHOR)
     setup_logging()
     
     # 显示启动画面
@@ -124,13 +124,9 @@ def main():
                 built_at=get_app_build_time() or "",
             )
 
-        # 1.5秒后显示主窗口
-        def show_main_window():
-            splash.finish(main_window)
-            main_window.show()
-        
-        QTimer.singleShot(1500, show_main_window)
-        
+        main_window.show()
+        splash.finish(main_window)
+
         # 运行事件循环
         return app.exec()
         

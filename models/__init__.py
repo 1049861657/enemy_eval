@@ -5,9 +5,10 @@ from .rating_schema import (
     DEFAULT_RATING_NAMES,
     DEFAULT_RATING_SCORE,
     MAX_RATING_DIMENSIONS,
+    RatingEntry,
     RatingSchema,
-    align_rating_scores,
-    default_rating_scores,
+    default_ratings,
+    scores_for_rating_draft,
 )
 from .render_options import RenderOptions
 from .skill_entry import SkillEntry
@@ -15,11 +16,12 @@ from .skill_entry import SkillEntry
 __all__ = [
     "EnemyData",
     "SkillEntry",
+    "RatingEntry",
     "RatingSchema",
     "RenderOptions",
     "DEFAULT_RATING_NAMES",
     "DEFAULT_RATING_SCORE",
     "MAX_RATING_DIMENSIONS",
-    "align_rating_scores",
-    "default_rating_scores",
+    "default_ratings",
+    "scores_for_rating_draft",
 ]

@@ -98,7 +98,6 @@ class EnemyCardGenerator:
             self.config.height,
             self.font_manager,
             self._wrap_text,
-            rating_dimension_count=len(options.rating_names),
             rating_radar=options.rating_radar,
         )
 

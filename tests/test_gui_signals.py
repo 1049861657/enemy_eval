@@ -48,7 +48,7 @@ class TestQmlBridgeModelUpdates:
         controller.updateRatingScore(0, 5)
 
         assert model.enemy_data.abnormal_resistances["冻结"] == 1.0
-        assert model.enemy_data.rating_scores[0] == 5
+        assert model.enemy_data.ratings[0].score == 5
 
     def test_skill_slots_add_update_and_remove(self, bridge):
         controller, model, _ = bridge

@@ -1,4 +1,4 @@
-"""全局评价标准 RatingSchema 与分数对齐工具。"""
+"""评价维度名称规则与草稿分数投影。"""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from pydantic import ValidationError
 
 from models import (
     RatingSchema,
-    align_rating_scores,
-    default_rating_scores,
+    default_ratings,
+    scores_for_rating_draft,
 )
 from utils.app_settings_store import (
     is_rating_radar,
@@ -45,18 +45,23 @@ class TestRatingSchema:
         assert schema.names == ["对策度"]
 
 
-class TestAlignRatingScores:
-    def test_pads_with_default(self):
-        assert align_rating_scores([1], 3) == [1, 3, 3]
+class TestScoresForRatingDraft:
+    def test_keeps_score_for_original_index(self):
+        assert scores_for_rating_draft([5, 1, 2], ["0", "1"]) == [5, 1]
 
-    def test_truncates(self):
-        assert align_rating_scores([1, 2, 3, 4], 2) == [1, 2]
+    def test_new_row_uses_default(self):
+        assert scores_for_rating_draft([5, 1], ["0", "n1"]) == [5, 3]
 
-    def test_empty_dimensions(self):
-        assert align_rating_scores([1, 2], 0) == []
+    def test_reorder_follows_id(self):
+        assert scores_for_rating_draft([5, 1, 2], ["2", "0"]) == [2, 5]
 
-    def test_default_scores_helper(self):
-        assert default_rating_scores(2) == [3, 3]
+    def test_empty_draft(self):
+        assert scores_for_rating_draft([1, 2], []) == []
+
+    def test_default_ratings_helper(self):
+        ratings = default_ratings(["甲", "乙"])
+        assert [item.name for item in ratings] == ["甲", "乙"]
+        assert [item.score for item in ratings] == [3, 3]
 
 
 class TestAppSettingsStore:

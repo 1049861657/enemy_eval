@@ -1,12 +1,12 @@
 """敌人卡片编辑用的核心数据模型。"""
 
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .media import is_url
-from .rating_schema import MAX_RATING_DIMENSIONS
+from .rating_schema import DEFAULT_RATING_NAMES, MAX_RATING_DIMENSIONS, RatingEntry
 from .skill_entry import SkillEntry
 
 
@@ -42,10 +42,10 @@ class EnemyData(BaseModel):
         default_factory=dict, description="异常抗性映射"
     )
 
-    rating_scores: list[int] = Field(
+    ratings: list[RatingEntry] = Field(
         default_factory=list,
         max_length=MAX_RATING_DIMENSIONS,
-        description="各评价维度分数(1-5)，与全局评价标准顺序对应；名称不在此持久化",
+        description="本卡评价，每项含名称与分数；顺序即从上到下",
     )
 
     avatar_path: Optional[str] = Field(
@@ -56,23 +56,38 @@ class EnemyData(BaseModel):
     skills: list[SkillEntry] = Field(default_factory=list, description="技能列表")
     talents_abilities: str = Field(default="", description="天赋&能力描述文本")
 
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_legacy_ratings(cls, data: Any) -> Any:
+        """没有 ratings 时，用成对的名称与分数，或仅有的默认三维分数组装。"""
+        if not isinstance(data, dict) or "ratings" in data:
+            return data
+        scores = data.get("rating_scores", [])
+        names = data.get("rating_names")
+        if not isinstance(scores, list):
+            return data
+        if isinstance(names, list):
+            if len(names) != len(scores):
+                raise ValueError("评价维度与分数数量必须一致")
+            entries = [{"name": name, "score": score} for name, score in zip(names, scores)]
+        elif len(scores) == 0:
+            entries = []
+        elif len(scores) == len(DEFAULT_RATING_NAMES):
+            entries = [
+                {"name": name, "score": score}
+                for name, score in zip(DEFAULT_RATING_NAMES, scores)
+            ]
+        else:
+            raise ValueError(f"评分有 {len(scores)} 项但没有维度名称")
+        copied = dict(data)
+        copied["ratings"] = entries
+        return copied
+
     @field_validator("grade")
     @classmethod
     def validate_grade(cls, v):
         if v not in ["S", "A", "B", "C", "D"]:
             raise ValueError("等级必须是 S/A/B/C/D 中的一个")
-        return v
-
-    @field_validator("rating_scores")
-    @classmethod
-    def validate_rating_scores(cls, v: list[int]) -> list[int]:
-        if len(v) > MAX_RATING_DIMENSIONS:
-            raise ValueError(f"评分项最多 {MAX_RATING_DIMENSIONS} 个")
-        for score in v:
-            if not isinstance(score, int) or isinstance(score, bool):
-                raise ValueError("评分必须是整数")
-            if score < 1 or score > 5:
-                raise ValueError("评分必须在 1-5 之间")
         return v
 
     @field_validator("avatar_path")

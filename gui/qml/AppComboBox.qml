@@ -81,6 +81,13 @@ ColumnLayout {
     onValueChanged: syncCurrentIndex()
     onEffectiveOptionsChanged: syncCurrentIndex()
 
+    Connections {
+        target: Design.Theme
+        function onLightDismiss() {
+            comboPopup.close()
+        }
+    }
+
     ComboBox {
         id: combo
 

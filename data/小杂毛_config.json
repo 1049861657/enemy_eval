@@ -22,10 +22,10 @@
   "brief_description": "失衡后晕眩一段时间",
   "brief_comment": "杂毛略过",
   "abnormal_resistances": {},
-  "rating_scores": [
-    1,
-    1,
-    1
+  "ratings": [
+    {"name": "对策度", "score": 1},
+    {"name": "创新度", "score": 1},
+    {"name": "威胁度", "score": 1}
   ],
   "avatar_path": "E:/pythonProject/enemy_eval/enemy/墟/头像_敌人_资深的小弟.png",
   "skills": [],

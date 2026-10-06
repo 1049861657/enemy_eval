@@ -32,7 +32,11 @@ def _make_enemy(**overrides) -> EnemyData:
         brief_description="简要描述",
         brief_comment="简评内容",
         abnormal_resistances={},
-        rating_scores=[3, 3, 3],
+        ratings=[
+            {"name": "对策度", "score": 3},
+            {"name": "创新度", "score": 3},
+            {"name": "威胁度", "score": 3},
+        ],
         avatar_path=None,
         skills=[],
         talents_abilities="",

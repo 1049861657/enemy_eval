@@ -198,9 +198,9 @@ def measure_render_height(
     config_height: int,
     font_manager: FontManager,
     wrap_text: Callable[[str, int, int], list[str]],
-    rating_dimension_count: int = 0,
     rating_radar: bool = False,
 ) -> int:
+    rating_dimension_count = len(enemy.ratings)
     _, info_bottom = measure_info_section(enemy, font_manager)
     skills_bottom = measure_skills_talents_bottom(enemy, info_bottom, font_manager)
     rating_bottom = measure_rating_section_bottom(

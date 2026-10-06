@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import skia
 
-from models import EnemyData, RenderOptions, align_rating_scores
+from models import EnemyData, RenderOptions
 
 from core.fonts import FontManager
 from core.render import layout
@@ -265,10 +265,10 @@ def _draw_rating_panel(
 def draw_rating_section(
     gen: "EnemyCardGenerator", enemy: EnemyData, options: RenderOptions
 ) -> None:
-    names = options.rating_names
+    names = [item.name for item in enemy.ratings]
     if not names:
         return
-    scores = align_rating_scores(list(enemy.rating_scores), len(names))
+    scores = [item.score for item in enemy.ratings]
     if options.rating_radar:
         draw_rating_radar(gen.canvas, gen.font_manager, names, scores)
         return
@@ -284,7 +284,7 @@ def draw_grade_section(
     block_h = layout.measure_grade_block_height(enemy, gen._wrap_text)
     spacing = 28
     margin = 15
-    names = options.rating_names
+    names = [item.name for item in enemy.ratings]
     left_floor = float(skills_bottom_y)
     if names:
         left_floor = max(

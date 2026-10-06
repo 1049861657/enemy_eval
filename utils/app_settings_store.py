@@ -1,4 +1,4 @@
-"""应用偏好：评价维度与雷达开关，JSON 持久化。core 不得导入本模块。"""
+"""应用偏好：新建卡片的评价维度模板、雷达开关，JSON 持久化。core 不得导入本模块。"""
 
 from __future__ import annotations
 
@@ -18,14 +18,13 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-from models import DEFAULT_RATING_NAMES, RatingSchema, RenderOptions, default_rating_scores
+from models import DEFAULT_RATING_NAMES, RatingSchema, RenderOptions
 
+from .app_identity import APP_AUTHOR, APP_NAME
 from .error_handler import FileOperationError
 
 logger = structlog.get_logger(__name__)
 
-_APP_NAME = "敌人评价卡片编辑器"
-_APP_AUTHOR = "Enemy Eval Team"
 _SETTINGS_FILENAME = "app_settings.json"
 _MAX_RECENT_FILES = 8
 _lock = threading.RLock()
@@ -34,7 +33,7 @@ _cached: AppSettings | None = None
 
 def settings_file_path() -> Path:
     """用户级偏好 JSON；测试可 monkeypatch 本函数以注入临时目录。"""
-    return user_config_path(_APP_NAME, appauthor=_APP_AUTHOR) / _SETTINGS_FILENAME
+    return user_config_path(APP_NAME, appauthor=APP_AUTHOR) / _SETTINGS_FILENAME
 
 
 class _TolerantJsonConfigSettingsSource(JsonConfigSettingsSource):
@@ -61,7 +60,7 @@ class _TolerantJsonConfigSettingsSource(JsonConfigSettingsSource):
 
 
 class AppSettings(BaseSettings):
-    """评价偏好。维度合法性由 RatingSchema 校验，本模型只承载字段。"""
+    """应用偏好。rating_names 是新建卡片的维度模板，合法性由 RatingSchema 校验。"""
 
     model_config = SettingsConfigDict(extra="ignore", json_file_encoding="utf-8")
 
@@ -177,12 +176,12 @@ def load_app_settings(*, force_reload: bool = False) -> AppSettings:
 
 
 def load_rating_schema(*, force_reload: bool = False) -> RatingSchema:
-    """加载全局评价标准。"""
+    """加载新建卡片用的维度模板。"""
     return RatingSchema(names=load_app_settings(force_reload=force_reload).rating_names)
 
 
 def save_rating_schema(schema: RatingSchema) -> RatingSchema:
-    """校验维度并写入偏好 JSON，保留当前雷达开关。"""
+    """校验维度模板并写入偏好 JSON，保留其余字段。"""
     global _cached
     validated = RatingSchema.model_validate(schema)
     with _lock:
@@ -194,11 +193,8 @@ def save_rating_schema(schema: RatingSchema) -> RatingSchema:
 
 
 def get_rating_names() -> list[str]:
+    """新建卡片使用的维度名称。"""
     return list(load_app_settings().rating_names)
-
-
-def default_scores_for_current_schema() -> list[int]:
-    return default_rating_scores(len(load_app_settings().rating_names))
 
 
 def is_rating_radar(*, force_reload: bool = False) -> bool:
@@ -294,9 +290,5 @@ def clear_recent_files() -> None:
 
 
 def current_render_options() -> RenderOptions:
-    """从当前偏好组装一次绘制输入；core 不得自行调用。"""
-    settings = load_app_settings()
-    return RenderOptions(
-        rating_names=list(settings.rating_names),
-        rating_radar=settings.rating_radar,
-    )
+    """从当前偏好组装雷达开关；维度名称在敌人数据上。core 不得自行调用。"""
+    return RenderOptions(rating_radar=load_app_settings().rating_radar)

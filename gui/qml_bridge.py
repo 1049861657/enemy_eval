@@ -6,15 +6,15 @@ import json
 from pathlib import Path
 from threading import Lock
 
-from PySide6.QtCore import Property, QObject, Signal, Slot
+from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtWidgets import QFileDialog, QWidget
 
-from models import DEFAULT_RATING_SCORE, RatingSchema
+from models import DEFAULT_RATING_SCORE, RatingSchema, scores_for_rating_draft
+from utils.app_identity import APP_NAME, APP_SUMMARY
 from utils.app_settings_store import (
     current_render_options,
-    get_rating_names,
     is_rating_radar,
     load_app_settings,
     recent_files,
@@ -24,6 +24,7 @@ from utils.app_settings_store import (
 )
 from utils.app_version import get_app_build_time, get_app_version
 from utils.error_handler import FileOperationError
+from utils.resource_manager import resource_manager
 
 from .card_model import CardModel
 from .render_coordinator import RenderCoordinator
@@ -57,7 +58,6 @@ class QmlBridge(QObject):
     """暴露稳定、显式的 QML 属性、信号和槽，不泄露 Pydantic 对象。"""
 
     enemyDataChanged = Signal(str)
-    ratingNamesChanged = Signal(str)
     ratingRadarChanged = Signal(bool)
     previewChanged = Signal(int)
     busyChanged = Signal(bool)
@@ -78,6 +78,7 @@ class QmlBridge(QObject):
     quitRequested = Signal()
     prtsQueryRequested = Signal(str)
     aboutRequested = Signal()
+    lightDismissRequested = Signal()
     undoStateChanged = Signal()
     updateBannerChanged = Signal()
     updateCheckEnabledChanged = Signal()
@@ -115,10 +116,6 @@ class QmlBridge(QObject):
     def skills(self) -> SkillListModel:
         return self._skills
 
-    @Property(str, notify=ratingNamesChanged)
-    def ratingNamesJson(self) -> str:  # noqa: N802
-        return json.dumps(get_rating_names(), ensure_ascii=False)
-
     @Property(bool, notify=ratingRadarChanged)
     def ratingRadar(self) -> bool:  # noqa: N802
         return is_rating_radar()
@@ -150,6 +147,20 @@ class QmlBridge(QObject):
     @Property(int, notify=previewChanged)
     def previewRevision(self) -> int:  # noqa: N802
         return self._preview_revision
+
+    @Property(str, constant=True)
+    def appIconUrl(self) -> str:  # noqa: N802
+        return QUrl.fromLocalFile(
+            resource_manager.get_resource_path("resource/icon.png")
+        ).toString()
+
+    @Property(str, constant=True)
+    def appName(self) -> str:  # noqa: N802
+        return APP_NAME
+
+    @Property(str, constant=True)
+    def appSummary(self) -> str:  # noqa: N802
+        return APP_SUMMARY
 
     @Property(str, constant=True)
     def appVersion(self) -> str:  # noqa: N802
@@ -199,7 +210,6 @@ class QmlBridge(QObject):
     def _connect_card_model(self) -> None:
         self._card_model.snapshotChanged.connect(self._publish_model)
         self._card_model.validationFailed.connect(self.fieldError)
-        self._card_model.ratingSchemaChanged.connect(self._publish_rating_schema)
         stack = self._card_model.undo_stack()
         stack.canUndoChanged.connect(self._publish_undo_state)
         stack.canRedoChanged.connect(self._publish_undo_state)
@@ -209,7 +219,6 @@ class QmlBridge(QObject):
         for signal, slot in (
             (self._card_model.snapshotChanged, self._publish_model),
             (self._card_model.validationFailed, self.fieldError),
-            (self._card_model.ratingSchemaChanged, self._publish_rating_schema),
             (stack.canUndoChanged, self._publish_undo_state),
             (stack.canRedoChanged, self._publish_undo_state),
         ):
@@ -223,10 +232,6 @@ class QmlBridge(QObject):
 
     def _publish_undo_state(self, _available: bool) -> None:
         self.undoStateChanged.emit()
-
-    def _publish_rating_schema(self) -> None:
-        self.ratingNamesChanged.emit(self.ratingNamesJson)
-        self._publish_model()
 
     def _set_busy(self, busy: bool) -> None:
         if self._busy != busy:
@@ -304,19 +309,33 @@ class QmlBridge(QObject):
         self.ratingRadarChanged.emit(bool(enabled))
         self._render.request(self._card_model.enemy_data, current_render_options())
 
-    @Slot(str)
-    def updateRatingSchema(self, names_json: str) -> None:  # noqa: N802
+    @Slot(str, bool, result=bool)
+    def updateRatingSchema(self, draft_json: str, save_template: bool) -> bool:  # noqa: N802
+        """把草稿套到当前卡的内存。save_template 为真时同时写入新建模板。不写卡片配置。"""
         try:
-            names = [
-                str(name).strip()[:8] or "未命名"
-                for name in json.loads(names_json)
-            ]
+            raw = json.loads(draft_json)
+            if not isinstance(raw, list):
+                raise ValueError("评价标准格式无效")
+            draft_ids: list[str] = []
+            names: list[str] = []
+            for item in raw:
+                if not isinstance(item, dict):
+                    raise ValueError("评价标准格式无效")
+                draft_ids.append(str(item.get("id", "")))
+                names.append(str(item.get("name", "")).strip()[:8] or "未命名")
             schema = RatingSchema(names=names)
-            save_rating_schema(schema)
-            self._card_model.realign_rating_scores_to_schema()
+            scores = scores_for_rating_draft(
+                [item.score for item in self._card_model.enemy_data.ratings],
+                draft_ids,
+            )
+            next_enemy = self._card_model.enemy_with_ratings(list(schema.names), scores)
+            if save_template:
+                save_rating_schema(schema)
+            self._card_model.apply_rating_standard(next_enemy)
         except (FileOperationError, TypeError, ValueError, json.JSONDecodeError) as error:
             self.fieldError.emit("rating_schema", str(error))
-            self.ratingNamesChanged.emit(self.ratingNamesJson)
+            return False
+        return True
 
     @Slot()
     def chooseAvatar(self) -> None:  # noqa: N802

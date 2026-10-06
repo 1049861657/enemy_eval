@@ -5,6 +5,7 @@ import json
 import os
 import re
 import struct
+import sys
 import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +22,10 @@ from PyInstaller.utils.win32.versioninfo import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage
+
+sys.path.insert(0, str(Path(SPECPATH)))
+
+from utils.app_identity import APP_AUTHOR, APP_NAME  # noqa: E402
 
 
 project_root = Path(SPECPATH)
@@ -76,12 +81,12 @@ _version_info = VSVersionInfo(
                 StringTable(
                     "080404b0",
                     [
-                        StringStruct("CompanyName", "Enemy Eval Team"),
+                        StringStruct("CompanyName", APP_AUTHOR),
                         StringStruct("FileDescription", project_description),
                         StringStruct("FileVersion", project_version),
                         StringStruct("InternalName", "enemyEval"),
                         StringStruct("OriginalFilename", "enemyEval.exe"),
-                        StringStruct("ProductName", "敌人评价卡片编辑器"),
+                        StringStruct("ProductName", APP_NAME),
                         StringStruct("ProductVersion", project_version),
                     ],
                 )
@@ -94,34 +99,52 @@ version_info_path = build_dir / "file_version_info.txt"
 version_info_path.write_text(str(_version_info), encoding="utf-8")
 
 
-def _write_icon(png_path: Path, ico_path: Path) -> None:
-    """把正方形封面收成 256×256、32 位 ICO。宽高字节 0 表示 256。"""
-    image = QImage(str(png_path))
-    if image.isNull():
-        raise SystemExit(f"无法读取图标源：{png_path}")
+_ICON_SIZES = (16, 20, 24, 32, 40, 48, 64, 96, 256)
+
+
+def _scaled_icon(source: QImage, size: int) -> QImage:
+    """逐步减半再收到目标边长。按预乘 alpha 缩放。"""
+    image = source.convertToFormat(QImage.Format.Format_ARGB32_Premultiplied)
+    while min(image.width(), image.height()) >= size * 2:
+        image = image.scaled(
+            max(image.width() // 2, 1),
+            max(image.height() // 2, 1),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
     image = image.scaled(
-        256,
-        256,
+        size,
+        size,
         Qt.AspectRatioMode.IgnoreAspectRatio,
         Qt.TransformationMode.SmoothTransformation,
     )
+    return image.convertToFormat(QImage.Format.Format_ARGB32)
+
+
+def _icon_dib(image: QImage) -> bytes:
+    """32 位 DIB，自下而上。AND 掩码里 alpha < 128 的像素为透明。"""
     image = image.convertToFormat(QImage.Format.Format_ARGB32)
     width = image.width()
     height = image.height()
     xor = bytearray()
+    mask_row = ((width + 31) // 32) * 4
+    mask = bytearray(mask_row * height)
+    row_index = 0
     for y in range(height - 1, -1, -1):
         for x in range(width):
             color = image.pixel(x, y)
+            alpha = (color >> 24) & 0xFF
             xor.extend(
                 (
                     color & 0xFF,
                     (color >> 8) & 0xFF,
                     (color >> 16) & 0xFF,
-                    (color >> 24) & 0xFF,
+                    alpha,
                 )
             )
-    mask_row = ((width + 31) // 32) * 4
-    mask = bytes(mask_row * height)
+            if alpha < 128:
+                mask[row_index * mask_row + (x // 8)] |= 0x80 >> (x % 8)
+        row_index += 1
     dib = struct.pack(
         "<IIIHHIIIIII",
         40,
@@ -136,14 +159,31 @@ def _write_icon(png_path: Path, ico_path: Path) -> None:
         0,
         0,
     )
-    payload = dib + bytes(xor) + mask
-    header = struct.pack("<HHH", 0, 1, 1)
-    entry = struct.pack("<BBBBHHII", 0, 0, 0, 0, 1, 32, len(payload), 6 + 16)
-    ico_path.write_bytes(header + entry + payload)
+    return dib + bytes(xor) + bytes(mask)
+
+
+def _write_icon(png_path: Path, ico_path: Path) -> None:
+    """把 PNG 收成多尺寸 32 位 ICO。边长 256 的目录宽高字节为 0。"""
+    source = QImage(str(png_path))
+    if source.isNull():
+        raise SystemExit(f"无法读取图标源：{png_path}")
+    payloads = [_icon_dib(_scaled_icon(source, size)) for size in _ICON_SIZES]
+    header = struct.pack("<HHH", 0, 1, len(payloads))
+    directory = bytearray()
+    blob = bytearray()
+    offset = 6 + 16 * len(payloads)
+    for size, payload in zip(_ICON_SIZES, payloads, strict=True):
+        dim = 0 if size >= 256 else size
+        directory.extend(
+            struct.pack("<BBBBHHII", dim, dim, 0, 0, 1, 32, len(payload), offset)
+        )
+        offset += len(payload)
+        blob.extend(payload)
+    ico_path.write_bytes(header + bytes(directory) + bytes(blob))
 
 
 icon_path = build_dir / "enemyEval.ico"
-_write_icon(project_root / "resource" / "pic" / "封面.png", icon_path)
+_write_icon(project_root / "resource" / "icon.png", icon_path)
 
 project_data = [
     ("resource", "resource"),

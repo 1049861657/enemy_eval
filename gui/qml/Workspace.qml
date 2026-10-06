@@ -12,10 +12,11 @@ Item {
     required property var controller
 
     property var enemyData: ({})
-    property var ratingNames: []
     property var recentFiles: []
     property bool schemaEditMode: false
+    property bool schemaSaveAsTemplate: false
     property var schemaDraft: []
+    property int schemaNewSerial: 0
     property var fieldErrors: ({})
     property string toastText: ""
     property string toastTone: "info"
@@ -30,8 +31,15 @@ Item {
             fieldErrors = ({})
     }
 
-    function refreshRatingNames(serialized) {
-        ratingNames = JSON.parse(serialized)
+    function beginSchemaEdit() {
+        var ratings = root.enemyData.ratings || []
+        var draft = []
+        for (var i = 0; i < ratings.length; ++i)
+            draft.push({ id: String(i), name: ratings[i].name })
+        schemaNewSerial = 0
+        schemaSaveAsTemplate = false
+        schemaDraft = draft
+        schemaEditMode = true
     }
 
     function refreshRecentFiles(serialized) {
@@ -72,6 +80,11 @@ Item {
     function showToast(message, tone) {
         toastText = message
         toastTone = tone
+        var overlay = Overlay.overlay
+        if (overlay && toast.parent !== overlay) {
+            toast.parent = overlay
+            toast.z = 1
+        }
         toastTimer.restart()
     }
 
@@ -117,14 +130,12 @@ Item {
 
     Component.onCompleted: {
         refreshData(root.controller.enemyDataJson, true)
-        refreshRatingNames(root.controller.ratingNamesJson)
         refreshRecentFiles(root.controller.recentFilesJson)
     }
 
     Connections {
         target: root.controller
         function onEnemyDataChanged(serialized) { root.refreshData(serialized, true) }
-        function onRatingNamesChanged(serialized) { root.refreshRatingNames(serialized) }
         function onRecentFilesChanged(serialized) { root.refreshRecentFiles(serialized) }
         function onRemoveRecentConfirmRequested(path, name) { root.confirmRemoveRecent(path, name) }
         function onMessageChanged(message, tone) { root.showToast(message, tone) }
@@ -140,6 +151,10 @@ Item {
         }
         function onAboutRequested() {
             aboutDialog.open()
+        }
+        function onLightDismissRequested() {
+            commandBar.closeMenus()
+            Design.Theme.lightDismiss()
         }
     }
 
@@ -163,6 +178,7 @@ Item {
         spacing: 0
 
         CommandBar {
+            id: commandBar
             Layout.fillWidth: true
             workspace: root
         }
@@ -291,18 +307,18 @@ Item {
 
     Rectangle {
         id: toast
+        z: 1
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.topMargin: 64
         visible: opacity > 0
         opacity: toastTimer.running ? 1 : 0
-        width: Math.min(parent.width - 40, toastContent.implicitWidth + 32)
+        width: Math.min((parent ? parent.width : 400) - 40, toastContent.implicitWidth + 32)
         height: Math.max(44, toastContent.implicitHeight + 20)
         radius: Design.Theme.radiusMedium
         color: Design.Theme.surface
         border.width: 1
         border.color: Design.Theme.border
-        z: 20
 
         Behavior on opacity {
             NumberAnimation {
@@ -342,7 +358,7 @@ Item {
 
             Label {
                 id: toastLabel
-                width: Math.min(implicitWidth, root.width - 100)
+                width: Math.min(implicitWidth, (toast.parent ? toast.parent.width : 400) - 140)
                 wrapMode: Text.Wrap
                 text: root.toastText
                 color: Design.Theme.textPrimary

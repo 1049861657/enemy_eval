@@ -36,7 +36,11 @@ def _valid_enemy_kwargs(**overrides) -> dict:
         target_value=1,
         brief_description="简要描述",
         brief_comment="简评内容",
-        rating_scores=[3, 3, 3],
+        ratings=[
+            {"name": "对策度", "score": 3},
+            {"name": "创新度", "score": 3},
+            {"name": "威胁度", "score": 3},
+        ],
     )
     base.update(overrides)
     return base
@@ -68,24 +72,28 @@ class TestEnemyDataNumericRangeValidation:
 
     def test_rejects_rating_below_one(self):
         with pytest.raises(ValidationError):
-            EnemyData(**_valid_enemy_kwargs(rating_scores=[0, 3, 3]))
+            EnemyData(**_valid_enemy_kwargs(ratings=[{"name": "对策度", "score": 0}]))
 
     def test_rejects_rating_above_five(self):
         with pytest.raises(ValidationError):
-            EnemyData(**_valid_enemy_kwargs(rating_scores=[3, 3, 6]))
+            EnemyData(**_valid_enemy_kwargs(ratings=[{"name": "对策度", "score": 6}]))
 
     @pytest.mark.parametrize("rating", [1, 3, 5])
     def test_accepts_rating_within_one_to_five(self, rating):
-        enemy = EnemyData(**_valid_enemy_kwargs(rating_scores=[rating, rating, rating]))
-        assert enemy.rating_scores == [rating, rating, rating]
+        enemy = EnemyData(**_valid_enemy_kwargs(
+            ratings=[{"name": "对策度", "score": rating}]
+        ))
+        assert enemy.ratings[0].score == rating
 
-    def test_accepts_empty_rating_scores(self):
-        enemy = EnemyData(**_valid_enemy_kwargs(rating_scores=[]))
-        assert enemy.rating_scores == []
+    def test_accepts_empty_ratings(self):
+        enemy = EnemyData(**_valid_enemy_kwargs(ratings=[]))
+        assert enemy.ratings == []
 
-    def test_rejects_more_than_five_rating_scores(self):
+    def test_rejects_more_than_five_ratings(self):
         with pytest.raises(ValidationError):
-            EnemyData(**_valid_enemy_kwargs(rating_scores=[3, 3, 3, 3, 3, 3]))
+            EnemyData(**_valid_enemy_kwargs(ratings=[
+                {"name": f"维度{i}", "score": 3} for i in range(6)
+            ]))
 
 
 class TestEnemyDataAvatarPathValidation:

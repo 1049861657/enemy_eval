@@ -55,4 +55,6 @@ QtObject {
     readonly property int titleFontSize: 20
     readonly property int bodyFontSize: 14
     readonly property int captionFontSize: 12
+
+    signal lightDismiss()
 }

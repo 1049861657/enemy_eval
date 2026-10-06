@@ -9,7 +9,8 @@ from rich.console import Console
 from rich.progress import track
 
 from core import EnemyCardGenerator
-from models import EnemyData, SkillEntry
+from models import DEFAULT_RATING_NAMES, EnemyData, RatingEntry, SkillEntry
+from utils.app_identity import APP_NAME, APP_SUMMARY
 from utils.app_logging import setup_logging
 from utils.app_settings_store import current_render_options
 from utils.app_version import get_app_version
@@ -19,7 +20,8 @@ console = Console()
 def main():
     """主程序入口"""
     setup_logging()
-    console.print(f"[bold green]🎮 敌人评价卡片生成器 v{get_app_version()}[/bold green]")
+    console.print(f"[bold green]{APP_NAME} v{get_app_version()}[/bold green]")
+    console.print(f"[dim]{APP_SUMMARY}[/dim]")
     console.print("[dim]Powered by Skia-Python & 2025最新技术栈[/dim]\n")
     
     # 示例数据
@@ -56,7 +58,10 @@ def main():
             "麻痹": 0,
             "诱导": 1
         },  
-        rating_scores=[1, 2, 1],
+        ratings=[
+            RatingEntry(name=name, score=score)
+            for name, score in zip(DEFAULT_RATING_NAMES, (1, 2, 1))
+        ],
         grade="D",
         avatar_path="example/下载.jpg",
         skills=[

@@ -215,15 +215,27 @@ class TestUndoStack:
         assert card_model.enemy_data.skills == []
         snapshot.assert_not_called()
 
-    def test_realign_clears_stack_and_keeps_card(self, card_model):
+    def test_apply_rating_standard_is_one_undo_step(self, card_model):
         card_model.update_property("name", "改过")
+        original = card_model.enemy_data.ratings[0].name
 
-        card_model.realign_rating_scores_to_schema()
+        card_model.apply_rating_standard(card_model.enemy_data)
 
         assert card_model.enemy_data.name == "改过"
-        assert card_model.undo_stack().count() == 0
-        assert not card_model.undo_stack().canUndo()
-        assert not card_model.undo_stack().canRedo()
+        assert card_model.undo_stack().count() == 1
+
+        names = [item.name for item in card_model.enemy_data.ratings]
+        scores = [item.score for item in card_model.enemy_data.ratings]
+        names[0] = "难度"
+        card_model.apply_rating_standard(card_model.enemy_with_ratings(names, scores))
+
+        assert card_model.enemy_data.ratings[0].name == "难度"
+        assert card_model.undo_stack().count() == 2
+
+        card_model.undo_stack().undo()
+
+        assert card_model.enemy_data.ratings[0].name == original
+        assert card_model.enemy_data.name == "改过"
 
     def test_load_and_set_enemy_data_clear_stack(self, card_model, tmp_path):
         card_model.update_property("name", "甲")

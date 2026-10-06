@@ -38,67 +38,60 @@ ScrollView {
                     icon.height: 24
                     display: AbstractButton.IconOnly
                     toolTipText: "编辑标准"
-                    onClicked: {
-                        root.workspace.schemaDraft = root.workspace.ratingNames.slice()
-                        root.workspace.schemaEditMode = true
-                    }
+                    onClicked: root.workspace.beginSchemaEdit()
                 },
                 AppButton {
                     visible: root.workspace.schemaEditMode
-                    width: 40
-                    height: 40
-                    text: ""
-                    iconSource: "icons/save.svg"
-                    ToolTip.visible: hovered
-                    ToolTip.text: "保存标准"
+                    text: "完成"
                     onClicked: {
-                        root.workspace.controller.updateRatingSchema(
-                            JSON.stringify(root.workspace.schemaDraft))
-                        root.workspace.schemaEditMode = false
+                        if (root.workspace.controller.updateRatingSchema(
+                                JSON.stringify(root.workspace.schemaDraft),
+                                root.workspace.schemaSaveAsTemplate))
+                            root.workspace.schemaEditMode = false
                     }
                 },
                 AppButton {
                     visible: root.workspace.schemaEditMode
                     text: "取消"
                     appearance: "subtle"
-                    onClicked: {
-                        root.workspace.schemaDraft = root.workspace.ratingNames.slice()
-                        root.workspace.schemaEditMode = false
-                    }
+                    onClicked: root.workspace.schemaEditMode = false
                 }
             ]
             Repeater {
                 model: root.workspace.schemaEditMode
-                        ? root.workspace.schemaDraft : root.workspace.ratingNames
+                        ? root.workspace.schemaDraft
+                        : (root.workspace.enemyData.ratings || [])
                 delegate: RowLayout {
                     id: ratingRow
                     required property int index
-                    required property string modelData
+                    required property var modelData
+                    readonly property string rowName: String(ratingRow.modelData.name || "")
                     width: parent.width
                     spacing: Design.Theme.space2
                     AppTextField {
                         visible: root.workspace.schemaEditMode
                         Layout.fillWidth: root.workspace.schemaEditMode
-                        value: ratingRow.modelData
+                        value: ratingRow.rowName
                         maximumLength: 8
                         onEditingFinished: {
                             var values = root.workspace.schemaDraft.slice()
-                            values[ratingRow.index] = text.trim()
+                            var row = values[ratingRow.index]
+                            values[ratingRow.index] = { id: row.id, name: text.trim() }
                             root.workspace.schemaDraft = values
                         }
                     }
                     Label {
                         visible: !root.workspace.schemaEditMode
-                        text: ratingRow.modelData
+                        text: ratingRow.rowName
                         Layout.preferredWidth: 100
                     }
                     RatingStars {
                         visible: !root.workspace.schemaEditMode
-                        dimensionName: ratingRow.modelData
+                        dimensionName: ratingRow.rowName
                         score: {
-                            var scores = root.workspace.enemyData.rating_scores || []
-                            return scores[ratingRow.index] !== undefined
-                                   ? scores[ratingRow.index]
+                            var item = (root.workspace.enemyData.ratings || [])[ratingRow.index]
+                            return item && item.score !== undefined
+                                   ? item.score
                                    : root.workspace.controller.defaultRatingScore
                         }
                         onScoreSelected: (score) => root.workspace.controller.updateRatingScore(
@@ -133,10 +126,65 @@ ScrollView {
                 enabled: !atLimit
                 ToolTip.visible: atLimit && hovered
                 ToolTip.text: "已达上限（最多 5 项）"
-                onClicked: root.workspace.schemaDraft = root.workspace.schemaDraft.concat(["新维度"])
+                onClicked: {
+                    var serial = root.workspace.schemaNewSerial + 1
+                    root.workspace.schemaNewSerial = serial
+                    root.workspace.schemaDraft = root.workspace.schemaDraft.concat(
+                        [{ id: "n" + serial, name: "新维度" }])
+                }
+            }
+            Column {
+                visible: root.workspace.schemaEditMode
+                width: parent.width
+                spacing: Design.Theme.space1
+
+                ButtonGroup {
+                    id: scopeGroup
+                }
+
+                RadioButton {
+                    id: cardScope
+                    text: "仅此卡"
+                    checked: true
+                    ButtonGroup.group: scopeGroup
+                    font.family: Design.Theme.fontFamily
+                    font.pixelSize: Design.Theme.bodyFontSize
+                    palette.windowText: Design.Theme.textPrimary
+                    palette.highlight: Design.Theme.accent
+                    onClicked: root.workspace.schemaSaveAsTemplate = false
+                }
+                RadioButton {
+                    id: templateScope
+                    text: "设为全局模板"
+                    ButtonGroup.group: scopeGroup
+                    font.family: Design.Theme.fontFamily
+                    font.pixelSize: Design.Theme.bodyFontSize
+                    palette.windowText: Design.Theme.textPrimary
+                    palette.highlight: Design.Theme.accent
+                    onClicked: root.workspace.schemaSaveAsTemplate = true
+                }
+                Label {
+                    width: parent.width
+                    wrapMode: Text.Wrap
+                    text: root.workspace.schemaSaveAsTemplate
+                          ? "作用于此卡及未来的卡"
+                          : "保存此卡后写入"
+                    color: Design.Theme.textSecondary
+                    font.family: Design.Theme.fontFamily
+                    font.pixelSize: Design.Theme.captionFontSize
+                }
+
+                Connections {
+                    target: root.workspace
+                    function onSchemaEditModeChanged() {
+                        if (root.workspace.schemaEditMode)
+                            cardScope.checked = true
+                    }
+                }
             }
             Label {
-                visible: !root.workspace.schemaEditMode && root.workspace.ratingNames.length === 0
+                visible: !root.workspace.schemaEditMode
+                        && (root.workspace.enemyData.ratings || []).length === 0
                 width: parent.width
                 text: "暂无评价维度"
                 horizontalAlignment: Text.AlignHCenter

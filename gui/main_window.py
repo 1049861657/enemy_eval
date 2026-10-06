@@ -6,7 +6,7 @@ import logging
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtCore import QEvent, QTimer, QUrl
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QStatusBar
@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
         self._render = RenderCoordinator(self)
         self._debouncer = AdaptiveDebouncer(min_delay=200, max_delay=520)
         self._app_version = get_app_version()
-        self.setWindowTitle(f"敌人评价卡片实时编辑器 v{self._app_version}")
+        self.setWindowTitle(QApplication.applicationDisplayName())
         self.setGeometry(
             WINDOW_DEFAULT_X,
             WINDOW_DEFAULT_Y,
@@ -404,6 +404,12 @@ class MainWindow(QMainWindow):
         thread.deleteLater()
         if self.prts_fetch_thread is thread:
             self.prts_fetch_thread = None
+
+    def event(self, event: QEvent) -> bool:
+        """标题栏属于非客户区。按下时先收起轻量弹出层，再交给系统处理拖动和标题按钮。"""
+        if event.type() == QEvent.Type.NonClientAreaMouseButtonPress:
+            self._bridge.lightDismissRequested.emit()
+        return super().event(event)
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
         try:

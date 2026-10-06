@@ -10,6 +10,8 @@ Button {
     property url iconSource: ""
     property string appearance: "primary"
     property bool dropdown: false
+    property bool menu: false
+    property bool active: false
 
     signal dropdownClicked()
 
@@ -37,6 +39,10 @@ Button {
     background: Rectangle {
         radius: Design.Theme.radiusSmall
         color: !root.enabled ? Design.Theme.disabledSurface
+              : root.appearance === "command" ? (root.mainDown || root.active
+                                                 ? Design.Theme.controlPressed
+                                                 : root.mainHovered ? Design.Theme.controlHover
+                                                                    : "transparent")
               : root.appearance === "subtle" ? (root.mainDown || root.mainHovered
                                                  ? (root.destructive
                                                     ? Design.Theme.dangerSubtle
@@ -79,8 +85,9 @@ Button {
 
         Row {
             id: buttonContent
-            spacing: root.iconSource.toString().length > 0 && root.text.length > 0
-                     ? Design.Theme.space2 : 0
+            spacing: root.menu
+                     || (root.iconSource.toString().length > 0 && root.text.length > 0)
+                     ? Design.Theme.space1 : 0
             anchors.centerIn: parent
             anchors.horizontalCenterOffset: root.dropdown ? -root.dropdownZoneWidth / 2 : 0
 
@@ -98,6 +105,14 @@ Button {
                        : root.appearance === "primary" ? "white"
                        : root.destructive ? Design.Theme.danger : Design.Theme.textPrimary
                 font: root.font
+                verticalAlignment: Text.AlignVCenter
+            }
+            Text {
+                visible: root.menu
+                text: "▾"
+                color: Design.Theme.textSecondary
+                font.family: Design.Theme.fontFamily
+                font.pixelSize: 11
                 verticalAlignment: Text.AlignVCenter
             }
         }

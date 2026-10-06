@@ -5,22 +5,33 @@ from __future__ import annotations
 import logging
 import sys
 import threading
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from types import TracebackType
 from typing import cast
 
 import structlog
 from platformdirs import user_log_path
-from structlog.typing import BindableLogger
+from structlog.typing import BindableLogger, EventDict
 
-_APP_NAME = "敌人评价卡片编辑器"
-_APP_AUTHOR = "Enemy Eval Team"
+from .app_identity import APP_AUTHOR, APP_NAME
+
 _LOG_FILENAME = "enemy-eval.log"
 _LOG_MAX_BYTES = 1_000_000
 _LOG_BACKUP_COUNT = 3
 
 _configured = False
 _std_logger = logging.getLogger(__name__)
+
+
+def _add_local_timestamp(
+    _logger: object, _method: str, event_dict: EventDict
+) -> EventDict:
+    """本机时区，不含偏移。"""
+    event_dict["timestamp"] = datetime.now().astimezone().strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    return event_dict
 
 
 def _console_renderer(*, colors: bool) -> structlog.dev.ConsoleRenderer:
@@ -38,13 +49,12 @@ def setup_logging() -> None:
     if _configured:
         return
 
-    timestamper = structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S")
     shared_processors: list[structlog.typing.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.PositionalArgumentsFormatter(),
-        timestamper,
+        _add_local_timestamp,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.UnicodeDecoder(),
     ]
@@ -63,10 +73,10 @@ def setup_logging() -> None:
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.ExtraAdder(),
-        timestamper,
+        _add_local_timestamp,
     ]
 
-    log_dir = user_log_path(_APP_NAME, appauthor=_APP_AUTHOR, ensure_exists=True)
+    log_dir = user_log_path(APP_NAME, appauthor=APP_AUTHOR, ensure_exists=True)
     file_handler = RotatingFileHandler(
         log_dir / _LOG_FILENAME,
         maxBytes=_LOG_MAX_BYTES,
