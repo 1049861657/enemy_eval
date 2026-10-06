@@ -2,58 +2,56 @@
 
 ## 目标
 
-冻结杰斯顿基准（一份标准 `EnemyData` JSON），提供只读加载器，并确认打包产物能读到它。
+冻结杰斯顿·威廉姆斯的**级别0 数据**为一份手写 JSON（纯 AI 参考数据，不接编辑器、不走 `EnemyData` 校验），提供只读加载器，并确认打包产物能读到它。
 
 ## 现状与锚点
 
 | 事实 | 位置 |
 |---|---|
 | 打包只收集 `resource/`，按目录递归复制 | `enemyEval.spec:188-189`（`project_data = [("resource", "resource")]`） |
+| 打包期数据过滤只针对 Qt/QML 与 DLL 名单，不涉及 JSON | `enemyEval.spec:336-352` 的 `_should_drop` |
 | 开发/打包双路径解析 | `utils/resource_manager.py::resource_manager.get_resource_path`（打包时走 `sys._MEIPASS`） |
-| 敌人配置 JSON 的形状样例 | `data/小杂毛_config.json` |
-| PRTS 导入链路：grade / 简评 / 三星评价留空、不预下载头像 | `utils/prts_mediawiki_pipeline.py:214::fetch_enemy_data` |
-| 「天赋」字段的映射与落库 | `utils/prts_field_mapping.py:45` → `utils/prts_enemy_builder.py:52` |
-| 渲染侧消费 `talents_abilities` | `core/render/sections/skills_talents.py:45` |
+| **级别0 数据来源**（数值 / 描述 / 技能 / 天赋） | `data/prts_debug/杰斯顿·威廉姆斯/page.wikitext` 的 `==级别0==` 块（本地已缓存） |
+| 字段名与技能结构的参照（该文件是**级别1** 合并结果，只作参照） | `data/prts_debug/杰斯顿·威廉姆斯/extracted.json` |
+| 项目错误类型 | `utils/error_handler.py::FileOperationError` |
 
 ## 结论
 
 | 项 | 结论 |
 |---|---|
-| 路径 | `resource/baseline/jesselton_config.json`（独立子目录，不与 `resource/` 下既有图标混放） |
-| 打包 | **无需改 `enemyEval.spec`**：现有 `("resource", "resource")` 递归带上子目录；由本任务的打包实测确认没有被收集过滤连带剔除 |
-| 取数分工 | 由助手走既有 debug 链路（`scripts/smoke_mediawiki_api.py <敌人> --dump`，落 `data/prts_debug/`）拉取并**生成草稿文件**，**用户人工校正数值**；助手不代替用户定稿数值 |
-| 级别选择 | **取级别0**：`max_hp=25000`、`attack=700`；其余字段（防御 400、法抗 20、攻击半径 2.0、重量 6、移速 0.6、攻击间隔 4.0、目标价值 2）与级别1 相同。**前置已实施**：`todos/fix-20261006/` 提供级别切换（导入默认取最高级别，切换用 `build_enemy_raw(wikitext, 0)`）。**注意**：导入默认取到的是级别1（40000 / 800），草稿须切到级别0 |
-| 两形态单值字段 | 照通常数据字面值：`attack_type="近战 远程"`、`damage_type="物理"` |
-| `name` | `杰斯顿·威廉姆斯` |
-| 多阶段 | 写进 `talents_abilities`：用 PRTS 原文增量句式（「生命值首次降至 0 时进入杀手形态，攻击力 +700、防御力 +1000、攻击间隔 −1.5、移动速度 +0.3」），不做绝对值换算、不存第二套数值 |
-| `grade` / `brief_comment` / `ratings` | 仅为通过 `EnemyData` 校验而填（三者都不外发、不参与比对）：`grade` 取一个合法值、`brief_comment` 空串、`ratings` 空列表 |
-| 头像 | 留空或写 URL，不预下载 |
-| 读写 | 只读：加载器只读不写；不在运行期改写基准文件 |
-| 留档 | 不留来源 URL 与冻结日期（版本过时由人工判断） |
+| 路径 | `resource/baseline/jesselton_config.json` |
+| 形状 | **手写 JSON，22 个键**：键名与卡面字段同名（`max_hp` / `attack` / …），只含发给模型的内容——13 数值 + 5 枚举 + `name` / `brief_description` / `talents_abilities` / `skills`。**不含** `grade` / `brief_comment` / `ratings` / `avatar_path`，因此没有占位值，也不接 `EnemyData` 校验、不要求编辑器可读或可出图 |
+| 数值（级别0） | `max_hp=25000`、`attack=700`、`defense=400`、`magic_resistance=20`、`attack_range_radius=2.0`、`attack_interval=4.0`、`move_speed=0.6`、`hp_recovery_speed=0.0`、`weight_level=6`、`damage_resistance=0`、`element_resistance=0`、`base_taunt_level=0`、`target_value=2` |
+| 枚举 | `position="领袖"`、`category="其他"`、`attack_type="近战 远程"`、`damage_type="物理"`、`action_type="地面"` |
+| 文本 | `brief_description` 取级别0 描述；`talents_abilities` 取级别0 天赋原文（含「被击败后进行持续 4s 的重生，恢复 100% 生命值」与「攻击力+700、防御力+1000、攻击间隔-1.5、移动速度+0.3」）；`skills` 两条（钢铁风暴 / 装甲穿刺）。保留与卡面一致的 wiki 标记，比对口径相同 |
+| 级别 | **只用级别0**：级别1（`max_hp=40000` / `attack=800`）与级别1 天赋文本不得混入。不进运行时流程，不走 PRTS 重建 |
+| 加载器 | `utils/ai_baseline.py::load_baseline()`：`resource_manager.get_resource_path` 定位 → `json.loads` → 校验必填键齐全 → `lru_cache` 缓存 → 返回副本 |
+| 失败 | 文件缺失、非法 JSON、缺字段 → 抛 `FileOperationError`（不静默降级：AI 功能依赖它） |
+| 打包 | **无需改 `enemyEval.spec`**：现有 `("resource", "resource")` 递归带上子目录，过滤名单不含 JSON；由本任务的打包实测确认 |
+| 读写 | 只读：加载器只读不写；基准不经编辑器保存 |
 
 ## 步骤
 
-- [ ] 取得杰斯顿数据：走既有「参考 PRTS」链路导入，或从 PRTS 页面抄录后校对
-- [ ] 人工校正 18 个战斗字段、`brief_description`、`talents_abilities`、`skills`
-- [ ] 按级别0 校正 `max_hp` 与 `attack`（链路默认给的是级别1 的 40000 / 800）
-- [ ] 写 `resource/baseline/jesselton_config.json`，确认 `EnemyData(**json)` 校验通过
-- [ ] 新增 `utils/ai_baseline.py`：`resource_manager.get_resource_path(...)` 定位 → 校验 → 缓存 → 只读返回 `EnemyData`
-- [ ] 基准缺失或非法时抛 `FileOperationError`（不静默降级：AI 功能依赖它，错误文案由任务 05 收口）
+- [x] 从 `==级别0==` 块整理数值、描述、技能、天赋
+- [x] 写 `resource/baseline/jesselton_config.json`
+- [x] 新增 `utils/ai_baseline.py`（`load_baseline()`）
+- [ ] 本机确认：JSON 合法、`load_baseline()` 返回 22 个键、缺键或删文件时抛 `FileOperationError`（待本机）
 - [ ] `pyinstaller --noconfirm --clean enemyEval.spec` 后实测能读到基准
 
 ## 非目标
 
-- 不做基准刷新入口；不留档来源与日期；不建分档标尺；不为多阶段加结构化字段；不把基准暴露为可编辑配置。
+- 不做基准刷新入口；不留档来源与日期；不建分档标尺；不为多阶段加结构化字段；不把基准暴露为可编辑配置；**不接 `EnemyData`**、不要求编辑器可读或可出图。
 
 ## 风险与回滚
 
-- 风险：基准文件被打包过程中的数据过滤连带剔除 → 打包实测覆盖；加载器错误先于渲染失败暴露。
-- 风险：人工抄录数值出错 → 基准本身错、评价系统性偏差；校正时逐字段与 PRTS 页面对照。
+- 风险：手写数值与 PRTS 不一致 → 评价系统性偏差；逐项对照上文锚点值。
+- 风险：级别混用（级别1 的 40000 / 800 或级别1 天赋文本） → 只从 `==级别0==` 块取数。
+- 风险：基准文件未进包 → 打包实测覆盖；加载器报错先于评价失败暴露。
 - 回滚：删基准文件与 `utils/ai_baseline.py`。
 
 ## 验收
 
-1. `EnemyData(**json)` 校验通过，且用编辑器打开该文件能正常出图。
-2. 开发环境中 `load_baseline()` 返回 `EnemyData`，重复调用命中缓存。
-3. 打包产物内 `resource/baseline/jesselton_config.json` 存在，且应用能加载成功。
-4. 删除基准文件后调用加载器，报错信息可读且不崩溃（文案由任务 05 分类展示）。
+1. `resource/baseline/jesselton_config.json` 是合法 JSON，键集合为上述 22 个，且 `max_hp=25000`、`attack=700`。
+2. 开发环境中 `load_baseline()` 返回该 dict，重复调用命中缓存；改返回对象不影响后续调用结果。
+3. 打包产物内该文件存在且能加载成功。
+4. 删除基准文件、或删掉任一必填键后调用，抛 `FileOperationError` 且信息可读（文案由任务 05 分类展示）。

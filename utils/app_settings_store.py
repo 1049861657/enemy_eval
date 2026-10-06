@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -60,7 +61,7 @@ class _TolerantJsonConfigSettingsSource(JsonConfigSettingsSource):
 
 
 class AppSettings(BaseSettings):
-    """应用偏好。rating_names 是新建卡片的维度模板，合法性由 RatingSchema 校验。"""
+    """应用偏好。rating_names 是新建卡片的维度模板，合法性由 RatingSchema 校验；ai_* 三项为空即未配置。"""
 
     model_config = SettingsConfigDict(extra="ignore", json_file_encoding="utf-8")
 
@@ -74,6 +75,9 @@ class AppSettings(BaseSettings):
     update_seen_tag: str = ""
     update_seen_url: str = ""
     update_check_skip_tag: str = ""
+    ai_base_url: str = ""
+    ai_model: str = ""
+    ai_api_key: str = ""
 
     @classmethod
     def settings_customise_sources(
@@ -287,6 +291,33 @@ def clear_recent_files() -> None:
         current = load_app_settings()
         if current.recent_files:
             _replace_recent_files(current, [])
+
+
+@dataclass(frozen=True)
+class AiRequestConfig:
+    """AI 评价调用配置；三项均非空才有效。"""
+
+    base_url: str
+    model: str
+    api_key: str
+
+
+def ai_request_config() -> AiRequestConfig | None:
+    """AI 调用配置；三项去空白后缺任一即视为未配置。"""
+    settings = load_app_settings()
+    config = AiRequestConfig(
+        base_url=settings.ai_base_url.strip(),
+        model=settings.ai_model.strip(),
+        api_key=settings.ai_api_key.strip(),
+    )
+    if not all((config.base_url, config.model, config.api_key)):
+        return None
+    return config
+
+
+def save_ai_settings(base_url: str, model: str, api_key: str) -> None:
+    """写入 AI 调用配置，其余偏好字段保留。"""
+    _write_updates(ai_base_url=base_url, ai_model=model, ai_api_key=api_key)
 
 
 def current_render_options() -> RenderOptions:

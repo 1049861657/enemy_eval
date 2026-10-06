@@ -1,0 +1,37 @@
+{
+  "name": "杰斯顿·威廉姆斯",
+  "position": "领袖",
+  "category": "其他",
+  "attack_type": "近战 远程",
+  "damage_type": "物理",
+  "action_type": "地面",
+  "max_hp": 25000,
+  "attack": 700,
+  "defense": 400,
+  "magic_resistance": 20,
+  "attack_range_radius": 2.0,
+  "attack_interval": 4.0,
+  "move_speed": 0.6,
+  "hp_recovery_speed": 0.0,
+  "weight_level": 6,
+  "damage_resistance": 0,
+  "element_resistance": 0,
+  "base_taunt_level": 0,
+  "target_value": 2,
+  "brief_description": "狱警形态{{color|#00FFFF|法术抗性提升}}，攻击造成{{color|#00FFFF|法术伤害}}，不攻击禁锢装置；杀手形态{{color|#00FFFF|防御提升}}，攻击造成{{color|#00FFFF|物理伤害}}；进入杀手形态时{{color|#00FFFF|解放全场敌人}}",
+  "talents_abilities": "'''{{color|#FF4F0B|狱警形态<初始形态>}}'''<br>法术抗性+50<br>进行远程攻击，造成法术伤害，不选择[[禁锢装置]]和飞行单位为攻击目标<br>'''{{color|#FF4F0B|狱警形态}}'''下被击败后进行持续4s的重生，恢复100%生命值，重生结束后切换至'''{{color|red|杀手形态}}'''<br><br>\n'''{{color|red|杀手形态}}'''<br>进入{{color|red|杀手形态}}时，清空自身SP，立即令在场所有【囚犯】敌人切换至'''解放状态'''<br>攻击力+700，防御力+1000，攻击间隔-1.5，移动速度+0.3<br>进行近战攻击，造成物理伤害",
+  "skills": [
+    {
+      "名称": "钢铁风暴<br>[狱警形态]",
+      "冷却时间": "///",
+      "技力消耗": "3",
+      "效果": "对攻击范围内的2名[[禁锢装置]]/飞行单位以外的我方单位造成攻击力100%的法术普通伤害，并施加3s{{异常效果|晕眩}}"
+    },
+    {
+      "名称": "装甲穿刺<br>[杀手形态]",
+      "冷却时间": "///",
+      "技力消耗": "3",
+      "效果": "对目标造成2次攻击力100%且无视60%防御力的物理普通伤害<br>※仅处于接敌状态时可触发"
+    }
+  ]
+}
