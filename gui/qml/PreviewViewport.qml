@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -14,7 +16,26 @@ ColumnLayout {
     property int imageWidth: cardImage.implicitWidth
     property int imageHeight: cardImage.implicitHeight
     property bool hasAutoFitted: false
+    property int prtsLevelIndex: -1
+    property string prtsLevelsJson: ""
     signal exportRequested()
+    signal prtsLevelChangeRequested(int levelIndex)
+
+    readonly property var prtsLevels: {
+        try {
+            return JSON.parse(prtsLevelsJson)
+        } catch (error) {
+            return []
+        }
+    }
+
+    function currentPrtsLevelLabel() {
+        for (var i = 0; i < prtsLevels.length; ++i) {
+            if (prtsLevels[i].index === prtsLevelIndex)
+                return prtsLevels[i].label
+        }
+        return ""
+    }
 
     function fitToView() {
         if (imageWidth <= 0 || imageHeight <= 0 || viewport.width <= 0 || viewport.height <= 0)
@@ -49,6 +70,32 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.minimumWidth: 96
             elide: Text.ElideRight
+        }
+        AppButton {
+            id: levelButton
+            visible: root.prtsLevels.length >= 2
+            text: root.currentPrtsLevelLabel()
+            appearance: "secondary"
+            menu: true
+            active: levelMenu.visible
+            onClicked: levelMenu.toggle()
+
+            AppMenu {
+                id: levelMenu
+                y: levelButton.height
+
+                Repeater {
+                    model: root.prtsLevels
+
+                    MenuItem {
+                        required property var modelData
+                        text: modelData.label
+                        checkable: true
+                        checked: modelData.index === root.prtsLevelIndex
+                        onTriggered: root.prtsLevelChangeRequested(modelData.index)
+                    }
+                }
+            }
         }
         AppButton {
             text: "导出"

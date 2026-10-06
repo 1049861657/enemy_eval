@@ -44,7 +44,7 @@ Dialog {
 
         Label {
             Layout.fillWidth: true
-            text: "输入敌人名称，自动填入相关字段。"
+            text: "输入PRTS的敌人准确名称，自动填入相关字段"
             color: Design.Theme.textSecondary
             font.family: Design.Theme.fontFamily
             font.pixelSize: Design.Theme.bodyFontSize

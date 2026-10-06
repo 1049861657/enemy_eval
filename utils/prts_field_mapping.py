@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from models import SkillEntry
@@ -21,6 +22,14 @@ logger = logging.getLogger(__name__)
 
 LEVEL_TEMPLATE = "敌人信息/levelcontent"
 COMMON_TEMPLATE = "敌人信息/common2"
+
+
+@dataclass(frozen=True)
+class EnemyLevel:
+    """页面上的一个级别。index 为 levelcontent 的 index 参数；label 取自页面标题。"""
+
+    index: int
+    label: str
 
 LEVEL_KEY_MAP: dict[str, str] = {
     "名称": "name",
@@ -211,19 +220,10 @@ def _map_common_block(zh: dict[str, str]) -> dict[str, Any]:
     return out
 
 
-def merge_wikitext_enemy(wikitext: str) -> dict[str, Any] | None:
-    """从 wikitext 合并 common2 + 全部 levelcontent（按 index 升序覆盖）。"""
-    common_body = _extract_template_body(wikitext, COMMON_TEMPLATE)
-    level_bodies = _extract_all_template_bodies(wikitext, LEVEL_TEMPLATE)
-    if not common_body and not level_bodies:
-        return None
-
-    merged: dict[str, Any] = {}
-    if common_body:
-        merged.update(_map_common_block(_parse_template_params(common_body)))
-
-    level_dicts: list[tuple[int, dict[str, str]]] = []
-    for body in level_bodies:
+def _level_blocks(wikitext: str) -> list[tuple[int, dict[str, str]]]:
+    """按 index 升序返回各级别 levelcontent 的参数表；同 index 多块按出现顺序合并。"""
+    blocks: dict[int, dict[str, str]] = {}
+    for body in _extract_all_template_bodies(wikitext, LEVEL_TEMPLATE):
         p = _parse_template_params(body)
         raw_index = (p.get("index") or "0").strip() or "0"
         try:
@@ -234,12 +234,20 @@ def merge_wikitext_enemy(wikitext: str) -> dict[str, Any] | None:
                 raw_index,
             )
             idx = 0
-        level_dicts.append((idx, p))
-    level_dicts.sort(key=lambda x: x[0])
+        blocks.setdefault(idx, {}).update(p)
+    return sorted(blocks.items())
 
-    ab_acc: dict[str, float] = dict(merged.get("abnormal_resistances") or {})
+
+def _merge_levels(
+    blocks: list[tuple[int, dict[str, str]]], max_index: int | None
+) -> dict[str, Any]:
+    """把级别块按 index 升序覆盖合并（每级只是上一级的增量）；max_index 给定时只覆盖到该级别。"""
+    merged: dict[str, Any] = {}
+    ab_acc: dict[str, float] = {}
     skill_slots: dict[int, dict[str, str]] = {}
-    for _, zh in level_dicts:
+    for idx, zh in blocks:
+        if max_index is not None and idx > max_index:
+            break
         _merge_skill_slots(skill_slots, _skill_slots_from_level_zh(zh))
         part = _map_level_block(zh)
         ab = part.pop("abnormal_resistances", None)
@@ -252,13 +260,50 @@ def merge_wikitext_enemy(wikitext: str) -> dict[str, Any] | None:
         s.model_dump() for s in _skill_slots_to_card_skills(skill_slots)
     ]
 
+    return merged
+
+
+_LEVEL_HEADING = re.compile(r"^==\s*(级别\s*\d+)\s*==\s*$", re.MULTILINE)
+
+
+def _level_labels(wikitext: str) -> dict[int, str]:
+    """标题里的级别名（``==级别1==``）→ {index: 文本}；标题缺失时由调用方自造。"""
+    labels: dict[int, str] = {}
+    for text in _LEVEL_HEADING.findall(wikitext):
+        digits = re.search(r"\d+", text)
+        if digits:
+            labels[int(digits.group(0))] = re.sub(r"\s+", "", text)
+    return labels
+
+
+def parse_enemy_levels(wikitext: str) -> list[EnemyLevel]:
+    """列出页面上的级别（按 index 升序）；没有 levelcontent 时返回空表。"""
+    blocks = _level_blocks(wikitext)
+    labels = _level_labels(wikitext)
+    return [
+        EnemyLevel(index=idx, label=labels.get(idx, f"级别{idx}"))
+        for idx, _ in blocks
+    ]
+
+
+def build_enemy_raw(wikitext: str, level_index: int | None = None) -> dict[str, Any] | None:
+    """合并 common2 与 levelcontent。level_index 为 None 时覆盖到最高级别（导入默认）。"""
+    common_body = _extract_template_body(wikitext, COMMON_TEMPLATE)
+    blocks = _level_blocks(wikitext)
+    if not common_body and not blocks:
+        return None
+
+    merged: dict[str, Any] = {}
+    if common_body:
+        merged.update(_map_common_block(_parse_template_params(common_body)))
+    merged.update(_merge_levels(blocks, level_index))
+
     if merged.get("brief_description_common") and not merged.get("brief_description"):
         merged["brief_description"] = merged.pop("brief_description_common")
     elif merged.get("brief_description_common"):
         merged.pop("brief_description_common")
 
-    if "talents_abilities" not in merged:
-        merged["talents_abilities"] = ""
+    merged.setdefault("talents_abilities", "")
 
     if isinstance(merged.get("brief_description"), str):
         merged["brief_description"] = _strip_wiki_html_comments(

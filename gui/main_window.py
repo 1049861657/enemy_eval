@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import QEvent, QTimer, QUrl
 from PySide6.QtGui import QCloseEvent
@@ -36,13 +37,15 @@ from utils.error_handler import (
     error_handler,
 )
 from utils.filenames import safe_filename
+from utils.prts_enemy_builder import rebuild_enemy_data
+from utils.prts_field_mapping import build_enemy_raw
 from utils.thread_manager import (
     NetworkAvatarPrefetchThread,
     PrtsFetchThread,
     UpdateCheckThread,
 )
 
-from .card_model import CardModel
+from .card_model import NO_PRTS_LEVEL, CardModel
 from .constants import (
     WINDOW_DEFAULT_HEIGHT,
     WINDOW_DEFAULT_WIDTH,
@@ -70,6 +73,7 @@ class MainWindow(QMainWindow):
         self.avatar_prefetch_thread: NetworkAvatarPrefetchThread | None = None
         self.update_check_thread: UpdateCheckThread | None = None
         self._update_check_manual = False
+        self._prts_context: dict[str, Any] | None = None
         self._render = RenderCoordinator(self)
         self._debouncer = AdaptiveDebouncer(min_delay=200, max_delay=520)
         self._app_version = get_app_version()
@@ -139,6 +143,7 @@ class MainWindow(QMainWindow):
         self._bridge.refreshRequested.connect(self._generate_card)
         self._bridge.quitRequested.connect(self.close)
         self._bridge.prtsQueryRequested.connect(self._fetch_prts_data)
+        self._bridge.prtsLevelChangeRequested.connect(self._change_prts_level)
         self._bridge.checkUpdatesRequested.connect(self._check_updates_manually)
         self._bridge.dismissUpdateRequested.connect(self._dismiss_update)
 
@@ -209,6 +214,7 @@ class MainWindow(QMainWindow):
         self._bridge.set_card_model(self.card_model)
         self._connect_model_signals()
         previous_model.deleteLater()
+        self._clear_prts_context()
         self._generate_card()
 
     def _open_file(self, path: str | None = None) -> None:
@@ -225,6 +231,7 @@ class MainWindow(QMainWindow):
             with error_handler("加载配置文件"):
                 self.card_model.load_from_file(file_path)
                 self._warn_missing_avatar()
+                self._clear_prts_context()
                 self.status_bar.showMessage(f"已加载：{Path(file_path).name}")
                 self._generate_card()
                 remember_recent_file(file_path)
@@ -378,18 +385,21 @@ class MainWindow(QMainWindow):
         self._bridge.set_prts_busy(True)
         thread = PrtsFetchThread(enemy_name)
         thread.fetchFinished.connect(
-            lambda enemy_data, error_msg, name=enemy_name: self._on_prts_fetch_finished(
-                name, enemy_data, error_msg
+            lambda enemy_data, error_msg, context, name=enemy_name: self._on_prts_fetch_finished(
+                name, enemy_data, error_msg, context
             )
         )
         thread.finished.connect(lambda thread_ref=thread: self._on_prts_thread_finished(thread_ref))
         self.prts_fetch_thread = thread
         thread.start()
 
-    def _on_prts_fetch_finished(self, enemy_name: str, enemy_data, error_msg) -> None:
+    def _on_prts_fetch_finished(
+        self, enemy_name: str, enemy_data, error_msg, context: dict[str, Any] | None
+    ) -> None:
         self._bridge.set_prts_busy(False)
         if enemy_data is not None:
             self.card_model.set_enemy_data(enemy_data)
+            self._apply_prts_context(context)
             self.status_bar.showMessage(f"已成功导入「{enemy_name}」的 PRTS 数据")
             self._generate_card()
             return
@@ -404,6 +414,54 @@ class MainWindow(QMainWindow):
         thread.deleteLater()
         if self.prts_fetch_thread is thread:
             self.prts_fetch_thread = None
+
+    def _apply_prts_context(self, context: dict[str, Any] | None) -> None:
+        """记住本次导入的页面上下文，并把级别来源交给卡片模型（随撤销栈快照回放）。"""
+        source = context if isinstance(context, dict) else None
+        if source is None:
+            self._clear_prts_context()
+            return
+        levels = list(source.get("levels") or [])
+        self._prts_context = {
+            "name": str(source.get("name") or ""),
+            "wikitext": str(source.get("wikitext") or ""),
+            "levels": levels,
+        }
+        self._bridge.set_prts_levels(levels)
+        self.card_model.set_prts_level_index(
+            int(source.get("level_index", NO_PRTS_LEVEL)) if levels else NO_PRTS_LEVEL
+        )
+
+    def _clear_prts_context(self) -> None:
+        """换卡后本次导入的级别上下文失效，级别切换入口随之消失。"""
+        self._prts_context = None
+        self._bridge.set_prts_levels([])
+
+    def _change_prts_level(self, level_index: int) -> None:
+        """把当前卡切换到所选级别：只覆盖 PRTS 来源字段，保留作者填写的简评 / 评分 / 等级 / 头像。"""
+        context = self._prts_context
+        if not context or level_index == self.card_model.prts_level_index:
+            return
+        levels = list(context.get("levels") or [])
+        label = next(
+            (str(item.get("label")) for item in levels if item.get("index") == level_index),
+            f"级别{level_index}",
+        )
+        current = self.card_model.enemy_data
+        raw = build_enemy_raw(str(context.get("wikitext") or ""), level_index)
+        rebuilt = (
+            None
+            if raw is None
+            else rebuild_enemy_data(raw, str(context.get("name") or current.name), current)
+        )
+        if rebuilt is None:
+            self._bridge.show_dialog(
+                "切换级别失败", "未能从页面数据中解析出该级别的数值。", "error"
+            )
+            return
+        self.card_model.apply_enemy_data(rebuilt, level_index)
+        self.status_bar.showMessage(f"已切换到{label}")
+        self._generate_card()
 
     def event(self, event: QEvent) -> bool:
         """标题栏属于非客户区。按下时先收起轻量弹出层，再交给系统处理拖动和标题按钮。"""

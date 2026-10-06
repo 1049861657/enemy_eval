@@ -56,6 +56,25 @@ def to_enemy_data(raw: dict[str, Any], fallback_name: str) -> Optional[EnemyData
         return None
 
 
+_PRESERVED_AUTHOR_FIELDS = ("brief_comment", "ratings", "grade", "avatar_path")
+
+
+def rebuild_enemy_data(
+    raw: dict[str, Any], fallback_name: str, current: EnemyData
+) -> Optional[EnemyData]:
+    """按新的合并字典重建敌人数据，保留当前卡上的作者字段（简评 / 评分 / 等级 / 头像）。
+
+    切换 PRTS 级别只应改变 PRTS 来源的字段；``to_enemy_data`` 会把缺省字段回退成卡片默认值，
+    直接套用会抹掉作者已填写的内容。
+    """
+    rebuilt = to_enemy_data(raw, fallback_name)
+    if rebuilt is None:
+        return None
+    return rebuilt.model_copy(
+        update={field: getattr(current, field) for field in _PRESERVED_AUTHOR_FIELDS}
+    )
+
+
 def _normalize_skills_payload(raw: Any) -> list[SkillEntry]:
     """保证 skills 为 list[SkillEntry]。"""
     if not isinstance(raw, list):

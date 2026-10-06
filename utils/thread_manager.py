@@ -3,7 +3,7 @@
 """
 import array
 import asyncio
-from typing import Optional
+from typing import Any, Optional
 
 import skia
 from PySide6.QtCore import QThread, Signal
@@ -83,9 +83,10 @@ class CardGeneratorThread(QThread):
 
 
 class PrtsFetchThread(QThread):
-    """PRTS 数据拉取线程：避免 fetch 的 HTTP 请求 + 头像下载/解码阻塞主线程。"""
+    """PRTS 数据拉取线程：HTTP 请求 + 头像下载/解码不进主线程，同时带回级别切换所需的页面上下文。"""
 
-    fetchFinished = Signal(object, object)  # (Optional[EnemyData], Optional[str] error_msg)
+    # (Optional[EnemyData], Optional[str] error_msg, Optional[dict] 页面上下文)
+    fetchFinished = Signal(object, object, object)
 
     def __init__(self, enemy_name: str):
         super().__init__()
@@ -97,7 +98,7 @@ class PrtsFetchThread(QThread):
             asyncio.run(self._fetch())
         except Exception as e:
             if not self.isInterruptionRequested():
-                self.fetchFinished.emit(None, f"获取PRTS数据时发生错误：{str(e)}")
+                self.fetchFinished.emit(None, f"获取PRTS数据时发生错误：{str(e)}", None)
 
     async def _fetch(self) -> None:
         task = asyncio.create_task(self._pull())
@@ -118,7 +119,7 @@ class PrtsFetchThread(QThread):
             if self.isInterruptionRequested():
                 return
 
-            raw = await pipeline.fetch_enemy_from_prts_mediawiki(
+            raw, page_bundle = await pipeline.fetch_enemy_from_prts_mediawiki_with_debug(
                 self.enemy_name, client=client
             )
             if self.isInterruptionRequested():
@@ -126,7 +127,9 @@ class PrtsFetchThread(QThread):
 
             if "error" in raw:
                 self.fetchFinished.emit(
-                    None, pipeline.error_message_for_raw(raw, self.enemy_name)
+                    None,
+                    pipeline.error_message_for_raw(raw, self.enemy_name),
+                    None,
                 )
                 return
 
@@ -138,10 +141,25 @@ class PrtsFetchThread(QThread):
                 return
 
             enemy_data = builder.to_enemy_data(clean, self.enemy_name)
-            if enemy_data:
-                self.fetchFinished.emit(enemy_data, None)
-            else:
-                self.fetchFinished.emit(None, "PRTS数据格式不兼容，无法导入。")
+            if enemy_data is None:
+                self.fetchFinished.emit(None, "PRTS数据格式不兼容，无法导入。", None)
+                return
+
+            self.fetchFinished.emit(
+                enemy_data, None, self._page_context(clean, page_bundle)
+            )
+
+    @staticmethod
+    def _page_context(clean: dict[str, Any], page_bundle: dict[str, Any]) -> dict[str, Any]:
+        """级别切换所需的页面上下文：级别列表与整页 wikitext。只随本次导入存在，不落盘。"""
+        wikitext = str(page_bundle.get("wikitext") or "")
+        levels = pipeline.parse_enemy_levels(wikitext)
+        return {
+            "name": str(clean.get("name") or ""),
+            "wikitext": wikitext,
+            "levels": [{"index": level.index, "label": level.label} for level in levels],
+            "level_index": levels[-1].index if levels else -1,
+        }
 
 
 class NetworkAvatarPrefetchThread(QThread):

@@ -77,6 +77,8 @@ class QmlBridge(QObject):
     refreshRequested = Signal()
     quitRequested = Signal()
     prtsQueryRequested = Signal(str)
+    prtsLevelsChanged = Signal()
+    prtsLevelChangeRequested = Signal(int)
     aboutRequested = Signal()
     lightDismissRequested = Signal()
     undoStateChanged = Signal()
@@ -99,6 +101,7 @@ class QmlBridge(QObject):
         self._skills = SkillListModel(card_model, parent=self)
         self._busy = False
         self._prts_busy = False
+        self._prts_levels: list[dict] = []
         self._preview_revision = 0
         self._update_banner_tag = ""
         self._update_banner_url = ""
@@ -132,6 +135,16 @@ class QmlBridge(QObject):
     @Property(bool, notify=prtsBusyChanged)
     def prtsBusy(self) -> bool:  # noqa: N802
         return self._prts_busy
+
+    @Property(str, notify=prtsLevelsChanged)
+    def prtsLevelsJson(self) -> str:  # noqa: N802
+        """本次导入上下文里的级别列表（JSON 数组）；未导入或已换卡时为空数组。"""
+        return json.dumps(self._prts_levels, ensure_ascii=False)
+
+    @Property(int, notify=prtsLevelsChanged)
+    def prtsLevelIndex(self) -> int:  # noqa: N802
+        """当前卡数据取自哪一级别；由卡片模型持有，随撤销栈快照回放。"""
+        return self._card_model.prts_level_index
 
     @Property(str, notify=recentFilesChanged)
     def recentFilesJson(self) -> str:  # noqa: N802
@@ -210,6 +223,7 @@ class QmlBridge(QObject):
     def _connect_card_model(self) -> None:
         self._card_model.snapshotChanged.connect(self._publish_model)
         self._card_model.validationFailed.connect(self.fieldError)
+        self._card_model.prtsLevelChanged.connect(self._publish_prts_levels)
         stack = self._card_model.undo_stack()
         stack.canUndoChanged.connect(self._publish_undo_state)
         stack.canRedoChanged.connect(self._publish_undo_state)
@@ -219,6 +233,7 @@ class QmlBridge(QObject):
         for signal, slot in (
             (self._card_model.snapshotChanged, self._publish_model),
             (self._card_model.validationFailed, self.fieldError),
+            (self._card_model.prtsLevelChanged, self._publish_prts_levels),
             (stack.canUndoChanged, self._publish_undo_state),
             (stack.canRedoChanged, self._publish_undo_state),
         ):
@@ -233,6 +248,10 @@ class QmlBridge(QObject):
     def _publish_undo_state(self, _available: bool) -> None:
         self.undoStateChanged.emit()
 
+    def _publish_prts_levels(self, _level_index: int) -> None:
+        """级别来源变化（导入、切换、撤销回放）后刷新界面；列表与编号由 QML 各自读取。"""
+        self.prtsLevelsChanged.emit()
+
     def _set_busy(self, busy: bool) -> None:
         if self._busy != busy:
             self._busy = busy
@@ -242,6 +261,11 @@ class QmlBridge(QObject):
         if self._prts_busy != busy:
             self._prts_busy = busy
             self.prtsBusyChanged.emit(busy)
+
+    def set_prts_levels(self, levels: list[dict]) -> None:
+        """主窗口在导入成功后同步级别列表；传空表即清除（当前级别由卡片模型提供）。"""
+        self._prts_levels = [dict(item) for item in levels]
+        self.prtsLevelsChanged.emit()
 
     def show_dialog(self, title: str, message: str, tone: str = "info") -> None:
         """请求 QML 使用统一的应用内弹窗展示消息。"""
@@ -331,7 +355,7 @@ class QmlBridge(QObject):
             next_enemy = self._card_model.enemy_with_ratings(list(schema.names), scores)
             if save_template:
                 save_rating_schema(schema)
-            self._card_model.apply_rating_standard(next_enemy)
+            self._card_model.apply_enemy_data(next_enemy)
         except (FileOperationError, TypeError, ValueError, json.JSONDecodeError) as error:
             self.fieldError.emit("rating_schema", str(error))
             return False
@@ -395,6 +419,15 @@ class QmlBridge(QObject):
     def requestPrtsQuery(self, enemy_name: str) -> None:  # noqa: N802
         if enemy_name.strip():
             self.prtsQueryRequested.emit(enemy_name.strip())
+
+    @Slot(int)
+    def requestPrtsLevelChange(self, level_index: int) -> None:  # noqa: N802
+        """请求把当前卡切换到该级别；没有导入上下文或级别不在表内时忽略。"""
+        if not self._prts_levels:
+            return
+        if all(item.get("index") != level_index for item in self._prts_levels):
+            return
+        self.prtsLevelChangeRequested.emit(int(level_index))
 
     @Slot()
     def requestAbout(self) -> None:  # noqa: N802

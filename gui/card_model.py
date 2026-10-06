@@ -15,9 +15,12 @@ from utils.app_settings_store import get_rating_names
 from utils.avatar_paths import resolve_stored_path, to_stored_path
 from utils.error_handler import FileOperationError
 
-from .undo_stack import _StateCommand
+from .undo_stack import _CardSnapshot, _StateCommand
 
 logger = logging.getLogger(__name__)
+
+# 当前卡数据没有 PRTS 级别来源：没从 PRTS 导入过，或导入后已换卡。
+NO_PRTS_LEVEL = -1
 
 
 class CardModel(QObject):
@@ -28,10 +31,12 @@ class CardModel(QObject):
     snapshotChanged = Signal()  # 标量表单快照（不含技能列表）需要刷新
     validationFailed = Signal(str, str)  # (property_name, error_message)：属性校验失败时发出，供 UI 恢复为模型当前真实值
     avatarPathChanged = Signal(str)  # 头像路径变更（可能是网络 URL），GUI 据此补预缓存
+    prtsLevelChanged = Signal(int)  # PRTS 级别来源变更（导入、切换级别、撤销回放）
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self._enemy_data = self._create_default_enemy_data()
+        self._prts_level_index: int = NO_PRTS_LEVEL
         self._undo_stack = QUndoStack(self)
         self._undo_stack.setUndoLimit(100)
 
@@ -76,6 +81,21 @@ class CardModel(QObject):
     def enemy_data(self) -> EnemyData:
         """获取敌人数据"""
         return self._enemy_data
+
+    @property
+    def prts_level_index(self) -> int:
+        """当前卡数据取自 PRTS 的哪一级别；``NO_PRTS_LEVEL`` 表示无来源。随撤销栈快照回放。"""
+        return self._prts_level_index
+
+    def set_prts_level_index(self, level_index: int = NO_PRTS_LEVEL) -> None:
+        """记录当前卡数据取自 PRTS 的哪一级别；不进撤销栈（导入路径调用，撤销栈随即清空）。"""
+        self._apply_prts_level(level_index)
+
+    def _apply_prts_level(self, level_index: int) -> None:
+        if self._prts_level_index == level_index:
+            return
+        self._prts_level_index = level_index
+        self.prtsLevelChanged.emit(level_index)
     
     def update_property(self, property_name: str, value: Any) -> None:
         """更新一个字段。校验通过后入栈一步。"""
@@ -97,7 +117,7 @@ class CardModel(QObject):
             logger.error("属性 %s 校验失败: %s", field, error, exc_info=True)
             self.validationFailed.emit(field, str(error))
             return
-        self._commit(self._enemy_data, next_data, True)
+        self._commit(self._snapshot(), _CardSnapshot(next_data, self._prts_level_index), True)
     
     def update_skill(self, index: int, skill_data: Dict[str, str] | SkillEntry):
         """更新技能数据"""
@@ -122,7 +142,7 @@ class CardModel(QObject):
             logger.error("技能列表校验失败: %s", error, exc_info=True)
             self.validationFailed.emit("skills", str(error))
             return False
-        self._commit(self._enemy_data, next_data, False)
+        self._commit(self._snapshot(), _CardSnapshot(next_data, self._prts_level_index), False)
         return True
     
     def update_abnormal_resistance(self, resistance_name: str, value: float):
@@ -147,11 +167,17 @@ class CardModel(QObject):
         ]
         return EnemyData(**payload)
 
-    def apply_rating_standard(self, enemy: EnemyData) -> None:
-        """把评价写入当前卡并记入撤销。与当前相同则不动。不写配置文件。"""
-        if enemy == self._enemy_data:
+    def apply_enemy_data(self, enemy: EnemyData, level_index: int | None = None) -> None:
+        """把整份敌人数据写入当前卡并记入撤销。
+
+        ``level_index`` 是这份数据的 PRTS 级别来源；省略（``None``）表示沿用当前来源，
+        用于改动作者字段后的整份替换（如评价标准）。与当前状态完全相同则不动。不写配置文件。
+        """
+        if level_index is None:
+            level_index = self._prts_level_index
+        if enemy == self._enemy_data and level_index == self._prts_level_index:
             return
-        self._commit(self._enemy_data, enemy, True)
+        self._commit(self._snapshot(), _CardSnapshot(enemy, level_index), True)
     
     def load_from_file(self, file_path: str) -> None:
         """从文件加载数据；相对头像路径按配置文件所在目录解析。失败时抛出 FileOperationError，不吞异常。"""
@@ -163,6 +189,7 @@ class CardModel(QObject):
             if resolved_avatar != (enemy.avatar_path or ""):
                 enemy = enemy.model_copy(update={"avatar_path": resolved_avatar})
             self._enemy_data = enemy
+            self._apply_prts_level(NO_PRTS_LEVEL)
         except Exception as e:
             logger.error("加载文件失败: %s", e, exc_info=True)
             raise FileOperationError(f"加载文件失败: {e}") from e
@@ -185,24 +212,30 @@ class CardModel(QObject):
             raise FileOperationError(f"保存文件失败: {e}") from e
     
     def set_enemy_data(self, enemy_data: EnemyData):
-        """设置完整的敌人数据。评价维度以这份数据自带的名称为准。"""
+        """设置完整的敌人数据。评价维度以这份数据自带的名称为准。级别来源由调用方随后打标。"""
         self._enemy_data = enemy_data
+        self._apply_prts_level(NO_PRTS_LEVEL)
         self.dataChanged.emit()
         self.snapshotChanged.emit()
         self.avatarPathChanged.emit(self._enemy_data.avatar_path or "")
         self._undo_stack.clear()
 
-    def restore_state(self, enemy: EnemyData, refresh_snapshot: bool) -> None:
-        """装回一份快照并发信号。由撤销命令的 redo/undo 调用，不入栈。"""
+    def restore_state(self, snapshot: _CardSnapshot, refresh_snapshot: bool) -> None:
+        """装回一份快照（数据 + PRTS 级别来源）并发信号。由撤销命令的 redo/undo 调用，不入栈。"""
         previous_avatar = self._enemy_data.avatar_path or ""
-        self._enemy_data = enemy
+        self._enemy_data = snapshot.enemy
+        self._apply_prts_level(snapshot.prts_level_index)
         self.dataChanged.emit()
         if refresh_snapshot:
             self.snapshotChanged.emit()
-        if (enemy.avatar_path or "") != previous_avatar:
-            self.avatarPathChanged.emit(enemy.avatar_path or "")
+        if (snapshot.enemy.avatar_path or "") != previous_avatar:
+            self.avatarPathChanged.emit(snapshot.enemy.avatar_path or "")
 
-    def _commit(self, previous: EnemyData, next_: EnemyData, refresh_snapshot: bool) -> None:
+    def _snapshot(self) -> _CardSnapshot:
+        """当前卡片状态：数据 + PRTS 级别来源。"""
+        return _CardSnapshot(self._enemy_data, self._prts_level_index)
+
+    def _commit(self, previous: _CardSnapshot, next_: _CardSnapshot, refresh_snapshot: bool) -> None:
         """入栈。push 调用 redo，由 redo 写模型。"""
         self._undo_stack.push(_StateCommand(self, previous, next_, refresh_snapshot))
     

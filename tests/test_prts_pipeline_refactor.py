@@ -20,6 +20,7 @@ import httpx
 import pytest
 
 from models import EnemyData
+from utils.prts_field_mapping import EnemyLevel
 
 
 def _run(coro):
@@ -173,7 +174,9 @@ class TestPrtsMediawikiPipelineFacade:
 
         assert facade.to_enemy_data is builder.to_enemy_data
         assert facade.strip_debug_keys is builder.strip_debug_keys
-        assert facade.merge_wikitext_enemy is mapping.merge_wikitext_enemy
+        assert facade.build_enemy_raw is mapping.build_enemy_raw
+        assert facade.parse_enemy_levels is mapping.parse_enemy_levels
+        assert facade.EnemyLevel is mapping.EnemyLevel
         assert facade.LEVEL_TEMPLATE is mapping.LEVEL_TEMPLATE
         assert facade.COMMON_TEMPLATE is mapping.COMMON_TEMPLATE
         assert facade.LEVEL_KEY_MAP is mapping.LEVEL_KEY_MAP
@@ -243,8 +246,13 @@ class TestPrtsFetchThread:
 
         monkeypatch.setattr(
             pipeline,
-            "fetch_enemy_from_prts_mediawiki",
-            AsyncMock(return_value={"name": "测试敌人"}),
+            "fetch_enemy_from_prts_mediawiki_with_debug",
+            AsyncMock(return_value=({"name": "测试敌人"}, {"wikitext": "页面 wikitext"})),
+        )
+        monkeypatch.setattr(
+            pipeline,
+            "parse_enemy_levels",
+            Mock(return_value=[EnemyLevel(index=0, label="级别0")]),
         )
         monkeypatch.setattr(
             builder, "strip_debug_keys", Mock(return_value={"name": "测试敌人"})
@@ -258,7 +266,16 @@ class TestPrtsFetchThread:
 
         thread.run()
 
-        spy.assert_called_once_with(enemy_data, None)
+        spy.assert_called_once_with(
+            enemy_data,
+            None,
+            {
+                "name": "测试敌人",
+                "wikitext": "页面 wikitext",
+                "levels": [{"index": 0, "label": "级别0"}],
+                "level_index": 0,
+            },
+        )
 
     def test_run_error_dict_emits_mapped_message(self, qapp, monkeypatch):
         import utils.prts_mediawiki_pipeline as pipeline
@@ -266,8 +283,8 @@ class TestPrtsFetchThread:
 
         monkeypatch.setattr(
             pipeline,
-            "fetch_enemy_from_prts_mediawiki",
-            AsyncMock(return_value={"error": "boom", "error_type": "network"}),
+            "fetch_enemy_from_prts_mediawiki_with_debug",
+            AsyncMock(return_value=({"error": "boom", "error_type": "network"}, {})),
         )
         monkeypatch.setattr(
             pipeline, "error_message_for_raw", Mock(return_value="网络错误：boom")
@@ -279,7 +296,7 @@ class TestPrtsFetchThread:
 
         thread.run()
 
-        spy.assert_called_once_with(None, "网络错误：boom")
+        spy.assert_called_once_with(None, "网络错误：boom", None)
 
     def test_run_exception_emits_message_with_exception_text(self, qapp, monkeypatch):
         import utils.prts_mediawiki_pipeline as pipeline
@@ -287,7 +304,7 @@ class TestPrtsFetchThread:
 
         monkeypatch.setattr(
             pipeline,
-            "fetch_enemy_from_prts_mediawiki",
+            "fetch_enemy_from_prts_mediawiki_with_debug",
             AsyncMock(side_effect=ValueError("模拟异常")),
         )
 
@@ -300,6 +317,7 @@ class TestPrtsFetchThread:
         args, _ = spy.call_args
         assert args[0] is None
         assert "模拟异常" in args[1]
+        assert args[2] is None
 
 
 class TestGlobalImageCacheLock:

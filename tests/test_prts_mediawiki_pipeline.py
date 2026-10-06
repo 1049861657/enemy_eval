@@ -7,7 +7,7 @@ prts_field_mapping（字段映射）、prts_enemy_builder（EnemyData 组装）�
 from __future__ import annotations
 
 from utils.prts_enemy_builder import to_enemy_data
-from utils.prts_field_mapping import _map_common_block, _map_level_block, merge_wikitext_enemy
+from utils.prts_field_mapping import _map_common_block, _map_level_block, build_enemy_raw
 from utils.wiki_template_parser import (
     _extract_all_template_bodies,
     _extract_template_body,
@@ -115,16 +115,16 @@ class TestParseTemplateParams:
         assert out == {"name": "测试敌人", "damage_type": "法术"}
 
 
-class TestMergeWikitextEnemy:
+class TestBuildEnemyRaw:
     def test_returns_none_when_no_templates_present(self):
-        assert merge_wikitext_enemy("没有任何模板的普通文本") is None
+        assert build_enemy_raw("没有任何模板的普通文本") is None
 
     def test_merges_common_and_level_templates(self):
         wikitext = (
             "{{敌人信息/common2|名称=测试敌人|伤害类型=法术}}"
             "{{敌人信息/levelcontent|index=0|最大生命值=1000|攻击力=100}}"
         )
-        merged = merge_wikitext_enemy(wikitext)
+        merged = build_enemy_raw(wikitext)
         assert merged is not None
         assert merged["name"] == "测试敌人"
         assert merged["damage_type"] == "法术"
@@ -137,13 +137,13 @@ class TestMergeWikitextEnemy:
             "{{敌人信息/levelcontent|index=1|最大生命值=2000}}"
             "{{敌人信息/levelcontent|index=0|最大生命值=1000}}"
         )
-        merged = merge_wikitext_enemy(wikitext)
+        merged = build_enemy_raw(wikitext)
         assert merged is not None
         assert merged["max_hp"] == 2000
 
     def test_missing_index_defaults_to_zero_without_raising(self):
         wikitext = "{{敌人信息/levelcontent|最大生命值=500}}"
-        merged = merge_wikitext_enemy(wikitext)
+        merged = build_enemy_raw(wikitext)
         assert merged is not None
         assert merged["max_hp"] == 500
 
@@ -152,7 +152,7 @@ class TestMergeWikitextEnemy:
             "{{敌人信息/levelcontent|index=0"
             "|技能0=迅捷攻击|技能0效果=造成150%伤害|技能0技力消耗=10}}"
         )
-        merged = merge_wikitext_enemy(wikitext)
+        merged = build_enemy_raw(wikitext)
         assert merged is not None
         assert len(merged["skills"]) == 1
         assert merged["skills"][0]["名称"] == "迅捷攻击"
@@ -161,7 +161,7 @@ class TestMergeWikitextEnemy:
 
     def test_empty_category_defaults_to_qita(self):
         wikitext = "{{敌人信息/levelcontent|index=0|最大生命值=100|种类=}}"
-        merged = merge_wikitext_enemy(wikitext)
+        merged = build_enemy_raw(wikitext)
         assert merged is not None
         assert merged["category"] == "其他"
 
@@ -170,7 +170,7 @@ class TestMergeWikitextEnemy:
             "{{敌人信息/levelcontent|index=0"
             "|描述=正文<!-- 内部注释 -->结尾|天赋=能力说明<!-- 备注 -->}}"
         )
-        merged = merge_wikitext_enemy(wikitext)
+        merged = build_enemy_raw(wikitext)
         assert merged is not None
         assert merged["brief_description"] == "正文结尾"
         assert merged["talents_abilities"] == "能力说明"

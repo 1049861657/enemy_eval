@@ -299,6 +299,9 @@ Item {
                     source: "image://enemy-card/current?revision="
                             + root.controller.previewRevision
                     busy: root.controller.busy
+                    prtsLevelsJson: root.controller.prtsLevelsJson
+                    prtsLevelIndex: root.controller.prtsLevelIndex
+                    onPrtsLevelChangeRequested: (levelIndex) => root.controller.requestPrtsLevelChange(levelIndex)
                     onExportRequested: root.controller.requestExport()
                 }
             }

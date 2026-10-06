@@ -47,7 +47,9 @@ from utils.prts_field_mapping import (
     COMMON_TEMPLATE,
     LEVEL_KEY_MAP,
     LEVEL_TEMPLATE,
-    merge_wikitext_enemy,
+    EnemyLevel,
+    build_enemy_raw,
+    parse_enemy_levels,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,7 +62,9 @@ __all__ = [
     "LEVEL_KEY_MAP",
     "COMMON_KEY_MAP",
     "ABNORMAL_MAP",
-    "merge_wikitext_enemy",
+    "EnemyLevel",
+    "build_enemy_raw",
+    "parse_enemy_levels",
     "to_enemy_data",
     "strip_debug_keys",
     "build_async_client",
@@ -95,7 +99,7 @@ async def _enemy_from_parse_response(
     bundle["html"] = html
     bundle["wikitext"] = wikitext
 
-    wiki_merged = merge_wikitext_enemy(wikitext)
+    wiki_merged = build_enemy_raw(wikitext)
     if wiki_merged is None:
         return {
             "error": "未找到敌人 wikitext 模板（common2 / levelcontent）",
@@ -194,7 +198,11 @@ async def fetch_enemy_from_prts_mediawiki_with_debug(
     *,
     client: httpx.AsyncClient | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """同 fetch_enemy_from_prts_mediawiki，附带 {parse_json, html, wikitext, imageinfo_json} 供调试导出。"""
+    """同 fetch_enemy_from_prts_mediawiki，附带 {parse_json, html, wikitext, imageinfo_json}。
+
+    wikitext 是级别切换的唯一数据源：调用方据此用 parse_enemy_levels 列出级别、用
+    build_enemy_raw 按所选级别重新构造，无需二次联网。
+    """
     return await _fetch_enemy_resolved(page_title, timeout, client=client)
 
 
