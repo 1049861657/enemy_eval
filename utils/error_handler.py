@@ -24,6 +24,22 @@ class FileOperationError(EnemyEvalException):
     pass
 
 
+class AiCredentialError(EnemyEvalException):
+    """AI 调用凭证缺失或无效（未配置 / HTTP 401）。"""
+
+
+class AiRateLimitError(EnemyEvalException):
+    """AI 服务限流（HTTP 429）。"""
+
+
+class AiServiceError(EnemyEvalException):
+    """AI 服务端异常（5xx / 其他错误状态码）或响应无法解析。"""
+
+
+class AiNetworkError(EnemyEvalException):
+    """AI 服务连接失败或读超时。"""
+
+
 @contextmanager
 def error_handler(operation: str, silent: bool = False) -> Generator[None, None, None]:
     """统一错误处理上下文管理器
@@ -45,15 +61,31 @@ def error_handler(operation: str, silent: bool = False) -> Generator[None, None,
         logger.warning("静默失败: %s", error_msg)
 
 
-def categorize_error_message(error_message: str) -> tuple[str, str]:
-    """根据错误信息分类返回标题和用户友好的消息
+def categorize_error_message(error_message: Exception | str) -> tuple[str, str]:
+    """根据错误分类返回标题和用户友好的消息
     
     Args:
-        error_message: 原始错误信息
+        error_message: 异常对象或原始错误信息
         
     Returns:
         tuple: (错误标题, 用户友好的错误消息)
     """
+    if isinstance(error_message, AiCredentialError):
+        return (
+            "AI 配置错误",
+            f"AI 评价无法使用：\n\n{error_message}\n\n请在「更多 → AI 设置」中检查 Base URL、模型与密钥。",
+        )
+    if isinstance(error_message, AiRateLimitError):
+        return "AI 请求受限", f"{error_message}\n\n请稍后重试。"
+    if isinstance(error_message, AiServiceError):
+        return (
+            "AI 服务异常",
+            f"{error_message}\n\n请稍后重试；若持续失败，请检查 Base URL 与模型名。",
+        )
+    if isinstance(error_message, AiNetworkError):
+        return "AI 网络不可达", f"{error_message}\n\n请检查网络连接后重试。"
+
+    error_message = str(error_message)
     if "图像转换失败" in error_message:
         return "图像处理错误", "卡片图像转换失败，请检查图像资源文件。"
     elif "无法读取" in error_message:

@@ -8,7 +8,7 @@
 
 | 事实 | 位置 |
 |---|---|
-| HTTP 约定（headers、四参数超时、重试传输） | `utils/prts_api_client.py` |
+| HTTP 约定（headers、四参数超时） | `utils/prts_api_client.py`（该客户端的重试传输本任务**不沿用**） |
 | 项目异常基类 | `utils/error_handler.py::EnemyEvalException` |
 | 异常穿线程的既有范式（传异常对象，非字符串） | `utils/thread_manager.py::PrtsFetchThread.fetchFinished = Signal(object, object, object)` |
 | `categorize_error_message` 现有调用点全传字符串（签名须兼容字符串） | `gui/main_window.py:195,244,263,291`、`tests/test_error_handler.py` |
@@ -29,18 +29,18 @@
 | 结果模型 | `AiEvaluationResult.comment: str`：拒绝空串与纯空白；**不校验、不裁剪长度**（≤50 字是提示词约束，不做代码级截断） |
 | 端点 | `POST {ai_base_url.rstrip("/")}/chat/completions`（去尾斜杠，避免拼出 `//`），认证头 `Authorization: Bearer <ai_api_key>` |
 | 请求体 | 只带 `model` 与 `messages`：不带 `response_format` 等可选参数，避免兼容端点直接 400 |
-| 客户端 | `evaluate(config: AiRequestConfig, baseline: dict, current: EnemyData) -> AiEvaluationResult`；每次调用 `with httpx.Client(...)` 新建，不跨线程复用、不注册全局关闭；**不挂重试传输**（网络类失败不重试，与结论一致） |
+| 客户端 | `evaluate(config: AiRequestConfig, baseline: dict, current: EnemyData) -> AiEvaluationResult`；每次调用 `with httpx.Client(...)` 新建，不跨线程复用、不注册全局关闭；**不挂重试传输**（失败一律不自动重试，与结论一致） |
 | 超时 | 固定 `httpx.Timeout(connect=5.0, read=60.0, write=10.0, pool=5.0)`（四参数写全），模块常量，不进偏好 |
 | 输出约定 | 期望 JSON `{"comment": "..."}`；解析容错：剥离 ```json 围栏与首尾空白后，正则取**首个括号平衡**的 JSON 对象（容忍「好的，简评如下：」前缀与尾随文字）；只取 `comment`，多余键忽略不报错 |
-| 重试 | **仅解析失败重试一次**（同一请求重发一次），仍失败则抛错；网络与状态码失败不重试 |
-| 错误载体 | `utils/error_handler.py` 新增 4 个子类（均继承 `EnemyEvalException`）：`AiCredentialError`（未配置 / 401）、`AiRateLimitError`（429）、`AiServiceError`（5xx / 解析重试后仍非法，两者以消息区分）、`AiNetworkError`（连接失败 / 读超时）；异常消息**不含密钥、请求头与请求体**；`categorize_error_message` 签名放宽为 `Exception | str` 并增类型分支——现有调用点与 `tests/test_error_handler.py` 全传字符串，行为不变 |
+| 重试 | **不自动重试**：解析失败与网络、状态码失败一律直接抛错；再试由用户重新触发（弹窗「重新生成」） |
+| 错误载体 | `utils/error_handler.py` 新增 4 个子类（均继承 `EnemyEvalException`）：`AiCredentialError`（未配置 / 401）、`AiRateLimitError`（429）、`AiServiceError`（5xx / 响应无法解析，两者以消息区分）、`AiNetworkError`（连接失败 / 读超时）；异常消息**不含密钥、请求头与请求体**；`categorize_error_message` 签名放宽为 `Exception | str` 并增类型分支——现有调用点与 `tests/test_error_handler.py` 全传字符串，行为不变 |
 | 错误穿线程 | 线程信号传**异常对象**（`Signal(object, int)`），分类与文案在 GUI 层做（任务 05）；本层不拼展示文案 |
 | 超长输出 | 不裁剪、不拒绝：原样返回给界面（长度上限是提示词约束，取舍在人工） |
 | 当前卡取数源 | `CardModel.enemy_data`（权威数据，含 `skills`）；**不用**桥接的 `enemyDataJson` 投影（那是界面回显用，`exclude={"skills"}`） |
 | payload 组装 | **白名单式**逐字段构造，不用 `model_dump()` 全量后删键——避免将来新增字段自动外泄。基准（任务 02）本身就是外发字段形状，直接嵌入；当前卡侧逐字段构造；`skills` 每项只取 `名称` / `冷却时间` / `技力消耗` / `效果` 四键，空列表写 `[]` |
 | 数据传递 | 线程入参由调用方在起线程前 `model_copy(deep=True)` 深拷贝快照（任务 05）；本层不再复制，也不对内部明确类型做防御性断言 |
 | 外发字段 | 13 个数值 + 5 个枚举 + `name` / `brief_description` / `talents_abilities` / `skills`；剔除 `avatar_path`、当前卡旧 `brief_comment`、`ratings`、`grade` |
-| 日志 | 每次调用记 耗时 / 成败 / 模型名 / 是否重试；**不记密钥、不记请求与响应全文** |
+| 日志 | 每次调用记 耗时 / 成败 / 模型名；**不记密钥、不记请求与响应全文** |
 | 未配置 | 判定点只在任务 05（桥接拦截并打开设置框，不发请求）；本层只保留参数契约：`config` 为 `None` 时抛 `AiCredentialError`（供冒烟脚本路径） |
 | 基准缺失 | 不特判：`load_baseline()`（任务 02）缺失 / 非法 JSON / 缺键时抛 `FileOperationError`，由 GUI 既有错误路径展示；打包已保证 `resource/baseline/` 进包 |
 
@@ -60,13 +60,13 @@
 
 ## 步骤
 
-- [ ] `models/ai_evaluation.py`，并加进 `models/__init__.py` 的 `__all__`
-- [ ] `utils/error_handler.py`：4 个 AI 异常子类 + `categorize_error_message` 增类型分支（签名 `Exception | str`）
-- [ ] 人设采集与起草（执行时做，不必提前）：按上表来源抓剧情台词（`<关卡名>/NBT`）→ 按四栏归纳 → 出人设常量草案 + 逐条出处表（标 `<页面>#<段落>`）→ 交用户审改定稿
-- [ ] `utils/ai_prompt.py`：人设常量 + `build_messages(baseline, current)` + 易搞反字段说明表
-- [ ] `utils/ai_client.py`：白名单 payload、`evaluate(config, baseline, current)`、请求、解析、解析失败重试一次、状态码与网络异常转 4 个子类、调用日志
-- [ ] `scripts/smoke_ai_review.py`：读基准 + 指定敌人配置 → 打印请求摘要与解析结果（不接入 pytest）
-- [ ] 冒烟覆盖可造的三条失败路径：断网、错误密钥、非 JSON 响应；**429 / 5xx 无法离线制造，如实记为未实测**
+- [x] `models/ai_evaluation.py`，并加进 `models/__init__.py` 的 `__all__`
+- [x] `utils/error_handler.py`：4 个 AI 异常子类 + `categorize_error_message` 增类型分支（签名 `Exception | str`）
+- [x] 人设采集与起草：PRTS 剧情页 222 行杰斯顿台词 → 四栏归纳 + 逐句原文见 [`03-persona-draft.md`](./03-persona-draft.md)；**待用户审改定稿**（改语气即改 `ai_prompt.py` 的两段文案）
+- [x] `utils/ai_prompt.py`：人设常量 + `build_messages(baseline, current)` + 易搞反字段说明表
+- [x] `utils/ai_client.py`：白名单 payload、`evaluate(config, baseline, current)`、请求、解析、状态码与网络异常转 4 个子类、调用日志
+- [x] `scripts/smoke_ai_review.py`：读基准 + 指定敌人配置 → 打印请求摘要与解析结果（不接入 pytest）
+- [ ] 冒烟覆盖可造的三条失败路径：断网、错误密钥、非 JSON 响应；**429 / 5xx 无法离线制造，如实记为未实测**（待本机）
 
 ## 非目标
 
@@ -74,7 +74,7 @@
 
 ## 风险与回滚
 
-- 风险：模型返回带说明文字的响应 → 解析容错（剥围栏 + 正则取首个括号平衡对象）+ 重试一次；仍失败则明确报错，不猜测内容。
+- 风险：模型返回带说明文字的响应 → 解析容错（剥围栏 + 正则取首个括号平衡对象）；仍失败则明确报错，不猜测内容。
 - 风险：错误类型在跨线程时丢失 → 信号传异常对象（`Signal(object, int)`）+ `categorize_error_message` 接受 `Exception | str`。
 - 风险：端点不接受某些字段 → 请求体保持最小公共子集。
 - 风险：后台线程与主线程共享同一份卡数据 → 起线程前深拷贝快照。

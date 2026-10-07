@@ -1,5 +1,6 @@
 """Pydantic 数据模型包；对外接口为 `from models import X`。"""
 
+from .ai_evaluation import AiEvaluationResult
 from .enemy_data import EnemyData
 from .rating_schema import (
     DEFAULT_RATING_NAMES,
@@ -14,6 +15,7 @@ from .render_options import RenderOptions
 from .skill_entry import SkillEntry
 
 __all__ = [
+    "AiEvaluationResult",
     "EnemyData",
     "SkillEntry",
     "RatingEntry",

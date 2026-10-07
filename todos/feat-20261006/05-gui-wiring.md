@@ -35,7 +35,7 @@
 | 重新生成 | 同参数再请求一次，覆盖当前预览（同样递增 `revision`） |
 | 过时结果 | 结果 `revision` 与当前不符（切卡 / 新建卡 / 关窗）→ 丢弃并记日志，不弹窗、不写入 |
 | 关窗 | 只 `requestInterruption()` + `task.cancel()`，**绝不 `terminate`**；同步请求无法中断，最长 60 秒自行结束，结果按 `revision` 丢弃 |
-| 错误文案 | `categorize_error_message` 按 4 个 AI 子类分支：`AiCredentialError` → 未配置引导打开设置框 / 密钥无效；`AiRateLimitError` → 稍后重试；`AiServiceError` → 服务端异常（带状态码）或响应无法解析（含重试后仍非法）；`AiNetworkError` → 网络不可达 |
+| 错误文案 | `categorize_error_message` 按 4 个 AI 子类分支：`AiCredentialError` → 未配置引导打开设置框 / 密钥无效；`AiRateLimitError` → 稍后重试；`AiServiceError` → 服务端异常（带状态码）或响应无法解析（不自动重试）；`AiNetworkError` → 网络不可达 |
 | 冒烟 | 按验收总纲 6 条逐条手动实测；打包后重跑第 6 条 |
 
 ## 步骤
