@@ -23,7 +23,7 @@ if str(ROOT) not in sys.path:
 from models import AiEvaluationResult, EnemyData  # noqa: E402
 from utils.ai_baseline import load_baseline  # noqa: E402
 from utils.ai_client import build_current_payload, evaluate, parse_comment  # noqa: E402
-from utils.ai_prompt import build_messages  # noqa: E402
+from utils.ai_prompt import build_messages, effective_prompt  # noqa: E402
 from utils.app_settings_store import AiRequestConfig, ai_request_config  # noqa: E402
 from utils.error_handler import (  # noqa: E402
     AiCredentialError,
@@ -62,9 +62,10 @@ def audit_payload(current: EnemyData) -> tuple[dict[str, Any], list[dict[str, st
     """构造外发 payload 并核对白名单；返回 payload 与 messages。"""
     baseline = load_baseline()
     payload = build_current_payload(current)
-    messages = build_messages(baseline, payload)
+    messages = build_messages(effective_prompt(), baseline, payload)
 
     print("--- 外发字段审计 ---")
+    print(f"提示词：{len(messages[0]['content'])} 字符（偏好自定义优先，否则内置默认）")
     print(f"基准键（{len(baseline)}）：{', '.join(baseline)}")
     print(f"当前卡键（{len(payload)}）：{', '.join(payload)}")
     leaked = [key for key in FORBIDDEN_KEYS if key in payload]
@@ -106,7 +107,7 @@ def run_offline_checks(baseline: dict[str, Any], enemy: EnemyData) -> None:
 
     config = AiRequestConfig(base_url=UNREACHABLE_BASE_URL, model="smoke", api_key="sk-smoke")
     try:
-        evaluate(config, baseline, enemy)
+        evaluate(config, effective_prompt(), baseline, enemy)
         check("连接失败抛 AiNetworkError", False, "未抛异常")
     except AiNetworkError as error:
         check("连接失败抛 AiNetworkError", True, str(error))
@@ -128,7 +129,9 @@ def run_live_call(
     print(f"端点：{config.base_url.rstrip('/')}/chat/completions")
     print(f"模型：{config.model}（密钥不打印）")
     try:
-        result: AiEvaluationResult = evaluate(config, baseline, enemy)
+        result: AiEvaluationResult = evaluate(
+            config, effective_prompt(), baseline, enemy
+        )
     except AiCredentialError as error:
         print(f"凭证类失败（AiCredentialError）：{error}")
         raise SystemExit(1)

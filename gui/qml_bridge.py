@@ -5,13 +5,27 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from threading import Lock
+from typing import Any
 
 from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtQuick import QQuickImageProvider
 from PySide6.QtWidgets import QFileDialog, QWidget
 
-from models import DEFAULT_RATING_SCORE, RatingSchema, scores_for_rating_draft
+from models import (
+    DEFAULT_RATING_SCORE,
+    AiEvaluationResult,
+    RatingSchema,
+    scores_for_rating_draft,
+)
+from utils.ai_baseline import load_baseline
+from utils.ai_client import build_current_payload, endpoint_url
+from utils.ai_prompt import (
+    DEFAULT_PROMPT,
+    effective_prompt,
+    prompt_for_storage,
+    render_preview,
+)
 from utils.app_identity import APP_NAME, APP_SUMMARY
 from utils.app_settings_store import (
     ai_base_url_preview,
@@ -20,13 +34,14 @@ from utils.app_settings_store import (
     is_rating_radar,
     load_app_settings,
     recent_files,
+    save_ai_prompt,
     save_ai_settings,
     save_rating_schema,
     set_rating_radar,
     set_update_check_enabled,
 )
 from utils.app_version import get_app_build_time, get_app_version
-from utils.error_handler import FileOperationError
+from utils.error_handler import FileOperationError, categorize_error_message
 from utils.resource_manager import resource_manager
 
 from .card_model import CardModel
@@ -91,6 +106,11 @@ class QmlBridge(QObject):
     dismissUpdateRequested = Signal(str)
     aiSettingsChanged = Signal()
     aiSettingsRequested = Signal()
+    aiBusyChanged = Signal()
+    aiReviewRequested = Signal(object, object, object, object, int)
+    aiCommentReady = Signal()
+    aiCommentConfirmRequested = Signal(str)
+    aiAbandonRequested = Signal()
 
     def __init__(
         self,
@@ -106,6 +126,10 @@ class QmlBridge(QObject):
         self._skills = SkillListModel(card_model, parent=self)
         self._busy = False
         self._prts_busy = False
+        self._ai_busy = False
+        self._ai_revision = 0
+        self._ai_comment = ""
+        self._ai_current: dict[str, Any] = {}
         self._prts_levels: list[dict] = []
         self._preview_revision = 0
         self._update_banner_tag = ""
@@ -220,6 +244,16 @@ class QmlBridge(QObject):
         """Base URL / 模型 / 密钥是否齐备；判定与调用层同源。"""
         return ai_request_config() is not None
 
+    @Property(bool, notify=aiBusyChanged)
+    def aiBusy(self) -> bool:  # noqa: N802
+        """评价请求在飞；顶栏按钮与弹窗按钮据此禁用。"""
+        return self._ai_busy
+
+    @Property(str, notify=aiCommentReady)
+    def aiComment(self) -> str:  # noqa: N802
+        """最近一次成功的简评正文；超长不裁剪。"""
+        return self._ai_comment
+
     def set_update_banner(self, tag: str, url: str) -> None:
         """把是否显示横幅的结果交给界面。标签为空则不显示。"""
         if tag == self._update_banner_tag and url == self._update_banner_url:
@@ -234,6 +268,7 @@ class QmlBridge(QObject):
         self._card_model = card_model
         self._connect_card_model()
         self._skills.set_card_model(card_model)
+        self.invalidate_ai_review()
         self._publish_model()
         self.undoStateChanged.emit()
 
@@ -491,3 +526,128 @@ class QmlBridge(QObject):
         self.aiSettingsChanged.emit()
         self.show_toast("AI 配置已保存", "success")
         return True
+
+    def invalidate_ai_review(self) -> None:
+        """换卡或换数据后调用：在飞评价按世代号作废，已展示的预览一并失效。"""
+        self._ai_revision += 1
+        self._ai_comment = ""
+        self._ai_current = {}
+
+    def set_ai_busy(self, busy: bool) -> None:
+        """由主窗口在起线程与线程结束时调用。"""
+        if busy == self._ai_busy:
+            return
+        self._ai_busy = busy
+        self.aiBusyChanged.emit()
+
+    @Slot(result=str)
+    def aiPromptText(self) -> str:  # noqa: N802
+        """面板打开时预填的提示词：偏好里的自定义值，未自定义则为内置默认。"""
+        return effective_prompt()
+
+    @Slot(result=str)
+    def aiDefaultPrompt(self) -> str:  # noqa: N802
+        """内置默认提示词，供面板「恢复默认」使用。"""
+        return DEFAULT_PROMPT
+
+    @Slot(str, result=bool)
+    def saveAiPrompt(self, prompt: str) -> bool:  # noqa: N802
+        """提示词落盘（与内置默认相同则存空串）；失败 toast 并返回 False。"""
+        try:
+            save_ai_prompt(prompt_for_storage(prompt))
+        except FileOperationError as error:
+            self.show_toast(f"提示词保存失败：{error}", "error")
+            return False
+        return True
+
+    @Slot(str, result=str)
+    def aiRequestPreview(self, prompt: str) -> str:  # noqa: N802
+        """预览组装后实际会发出的内容（端点、模型名、system、user）；与发请求同源。"""
+        config = ai_request_config()
+        try:
+            baseline = load_baseline()
+        except FileOperationError as error:
+            return f"基准数据不可用：{error}"
+        return render_preview(
+            endpoint=endpoint_url(config) if config is not None else "（尚未配置 Base URL）",
+            model=config.model if config is not None else "（尚未配置模型名）",
+            prompt=prompt,
+            baseline=baseline,
+            current=build_current_payload(self._card_model.enemy_data),
+        )
+
+    @Slot(str)
+    def requestAiReview(self, prompt: str) -> None:  # noqa: N802
+        """按面板里的提示词发起一次评价：未配置则打开设置框、忙则忽略、基准缺失则报错。
+
+        提示词由面板自行保存（`saveAiPrompt`），此处只用于本次请求。
+        """
+        if self._ai_busy:
+            self.show_toast("正在生成评价，请稍候", "info")
+            return
+        config = ai_request_config()
+        if config is None:
+            self.aiSettingsRequested.emit()
+            return
+        text = prompt.strip() or DEFAULT_PROMPT
+        try:
+            baseline = load_baseline()
+        except FileOperationError as error:
+            self.show_dialog(
+                "基准数据不可用",
+                f"无法读取杰斯顿基准数据：\n\n{error}\n\n请确认安装完整（resource/baseline/）。",
+                "error",
+            )
+            return
+        snapshot = self._card_model.enemy_data.model_copy(deep=True)
+        current = build_current_payload(snapshot)
+        self._ai_revision += 1
+        self._ai_current = current
+        self.aiReviewRequested.emit(
+            config, text, snapshot, baseline, self._ai_revision
+        )
+
+    def ai_evaluation_finished(self, result: AiEvaluationResult, revision: int) -> None:
+        """线程结果回主线程：世代号不符即作废并提示，不弹窗、不写入。"""
+        if revision != self._ai_revision:
+            self.show_toast("本次评价结果已作废", "warning")
+            return
+        self._ai_comment = result.comment
+        self.aiCommentReady.emit()
+
+    def ai_evaluation_failed(self, error: Exception, revision: int) -> None:
+        """线程异常回主线程：按异常子类出文案；过时失败静默丢弃。"""
+        if revision != self._ai_revision:
+            return
+        title, message = categorize_error_message(error)
+        self.show_dialog(title, message, "error")
+
+    @Slot(str, result=bool)
+    def applyAiComment(self, text: str) -> bool:  # noqa: N802
+        """采纳简评：数据自请求以来未变则直接写入并返回 True；已变则请求二次确认。"""
+        comment = text.strip()
+        if not comment:
+            return False
+        if build_current_payload(self._card_model.enemy_data) != self._ai_current:
+            self.aiCommentConfirmRequested.emit(comment)
+            return False
+        self._write_ai_comment(comment)
+        return True
+
+    @Slot(str)
+    def applyAiCommentConfirmed(self, text: str) -> None:  # noqa: N802
+        """二次确认后写入（请求之后卡片数据已被改动）。"""
+        comment = text.strip()
+        if comment:
+            self._write_ai_comment(comment)
+
+    @Slot()
+    def abandonAiReview(self) -> None:  # noqa: N802
+        """请求途中关闭弹窗：本次结果作废，并请主窗口取消在飞请求。"""
+        self.invalidate_ai_review()
+        self.aiAbandonRequested.emit()
+
+    def _write_ai_comment(self, comment: str) -> None:
+        """写入当前卡简评：一步入撤销栈，不额外写文件。"""
+        self._card_model.update_properties({"brief_comment": comment})
+        self.show_toast("已写入简评，可 Ctrl+Z 撤销", "success")

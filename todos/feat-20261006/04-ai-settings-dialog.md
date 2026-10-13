@@ -26,7 +26,7 @@
 | 新增文件 | `gui/qml/AiSettingsDialog.qml` |
 | 字段 | Base URL、模型名、密钥三项，均为**普通文本输入（明文可见，不做密码框）**；无总开关、无超时项 |
 | 视觉基准 | 照 `PrtsQueryDialog.qml`：`padding: Theme.space5`、宽 `Math.min(parent.width - 48, 440)`、圆角 `Theme.radiusLarge`；保存按钮默认 `primary`、取消 `secondary` |
-| 入口 | ①「AI 评价」未配置时直接打开本框（任务 05）；②「更多」菜单加「AI 设置」项，随时可改 |
+| 入口 | ①「AI 评价」面板点「生成」时若未配置 → 打开本框（任务 05，面板保持打开）；②「更多」菜单加「AI 设置」项，随时可改 |
 | 规范化（Python 侧） | `save_ai_settings` 内先 `normalize_ai_base_url`：非空、http(s) 且带主机（**不复用** `models/media.py::is_url`，它不校验 host 非空）；path 为空补 `/v1`、命中 `/chat/completions` 或 `/completions` 去掉该段、末尾斜杠去掉，自定义版本段（如 `/v1beta/openai`）原样保留；模型名非空、密钥可空；形状非法抛 `ValueError`，写盘失败抛 `FileOperationError` |
 | 保存槽 | `@Slot(str, str, str, result=bool) saveAiSettings(...)`：成功 → 发变更信号 + `show_toast("AI 配置已保存", "success")` + 返回 `True`（对话框关闭）；失败 → `fieldError.emit("ai_settings", msg)` + 返回 `False`（对话框保持打开） |
 | 保存失败语义 | `utils/app_settings_store.py::save_ai_settings` 改为与 `save_rating_schema` 同形：先 `_persist` 后更新 `_cached`，写盘失败抛 `FileOperationError`——**不再走只记日志的 `_write_updates`** |

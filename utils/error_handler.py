@@ -3,7 +3,7 @@
 """
 import logging
 from contextlib import contextmanager
-from typing import Generator, Any
+from typing import Generator
 
 # 设置日志
 logger = logging.getLogger(__name__)
@@ -80,10 +80,13 @@ def categorize_error_message(error_message: Exception | str) -> tuple[str, str]:
     if isinstance(error_message, AiServiceError):
         return (
             "AI 服务异常",
-            f"{error_message}\n\n请稍后重试；若持续失败，请检查 Base URL 与模型名。",
+            f"{error_message}\n\n若持续失败，请核对 Base URL、模型名与账户余额。",
         )
     if isinstance(error_message, AiNetworkError):
-        return "AI 网络不可达", f"{error_message}\n\n请检查网络连接后重试。"
+        return (
+            "AI 网络异常",
+            f"{error_message}\n\n请检查网络连接；若为响应超时，可换用响应更快的模型重试。",
+        )
 
     error_message = str(error_message)
     if "图像转换失败" in error_message:

@@ -13,6 +13,8 @@ from models import EnemyData, RenderOptions
 
 from . import prts_enemy_builder as builder
 from . import prts_mediawiki_pipeline as pipeline
+from .ai_client import aevaluate
+from .app_settings_store import AiRequestConfig
 from .error_handler import RenderError
 from .update_checker import fetch_latest
 
@@ -229,3 +231,53 @@ class UpdateCheckThread(QThread):
         self.checkFinished.emit(
             result.outcome, result.tag, result.url, result.etag, result.retry_at
         )
+
+
+class AiEvaluateThread(QThread):
+    """AI 评价线程：在事件循环里跑一次异步请求，结果与异常都经信号回主线程。
+
+    中断轮询落在 50ms 粒度上，关窗即可取消在飞请求；入参为调用方准备的快照，线程不读模型。
+    """
+
+    # (AiEvaluationResult, revision) / (Exception, revision)
+    evaluationFinished = Signal(object, int)
+    evaluationFailed = Signal(object, int)
+
+    def __init__(
+        self,
+        config: AiRequestConfig,
+        prompt: str,
+        baseline: dict[str, Any],
+        current: EnemyData,
+        revision: int,
+    ) -> None:
+        super().__init__()
+        self._config = config
+        self._prompt = prompt
+        self._baseline = baseline
+        self._current = current
+        self._revision = revision
+
+    def run(self) -> None:
+        if self.isInterruptionRequested():
+            return
+        try:
+            asyncio.run(self._evaluate())
+        except Exception as error:
+            if not self.isInterruptionRequested():
+                self.evaluationFailed.emit(error, self._revision)
+
+    async def _evaluate(self) -> None:
+        task = asyncio.create_task(
+            aevaluate(self._config, self._prompt, self._baseline, self._current)
+        )
+        try:
+            while not task.done():
+                if self.isInterruptionRequested():
+                    task.cancel()
+                    break
+                await asyncio.sleep(0.05)
+            result = await task
+        except asyncio.CancelledError:
+            return
+        self.evaluationFinished.emit(result, self._revision)

@@ -200,6 +200,12 @@ ToolBar {
             onClicked: root.workspace.openPrtsDialog()
         }
         AppButton {
+            text: "AI 评价"
+            appearance: "command"
+            enabled: !root.workspace.controller.aiBusy
+            onClicked: root.workspace.openAiReviewDialog()
+        }
+        AppButton {
             id: moreButton
             text: "更多"
             appearance: "command"

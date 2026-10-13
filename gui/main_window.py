@@ -14,8 +14,10 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBo
 
 from core.optimization import get_resource_manager
 from core.render.avatar_prefetch import is_avatar_cached
+from models import EnemyData
 from models.media import is_url
 from utils.app_settings_store import (
+    AiRequestConfig,
     AppSettings,
     clear_recent_files,
     clear_update_seen,
@@ -40,6 +42,7 @@ from utils.filenames import safe_filename
 from utils.prts_enemy_builder import rebuild_enemy_data
 from utils.prts_field_mapping import build_enemy_raw
 from utils.thread_manager import (
+    AiEvaluateThread,
     NetworkAvatarPrefetchThread,
     PrtsFetchThread,
     UpdateCheckThread,
@@ -72,6 +75,7 @@ class MainWindow(QMainWindow):
         self.prts_fetch_thread: PrtsFetchThread | None = None
         self.avatar_prefetch_thread: NetworkAvatarPrefetchThread | None = None
         self.update_check_thread: UpdateCheckThread | None = None
+        self.ai_evaluate_thread: AiEvaluateThread | None = None
         self._update_check_manual = False
         self._prts_context: dict[str, Any] | None = None
         self._render = RenderCoordinator(self)
@@ -146,6 +150,8 @@ class MainWindow(QMainWindow):
         self._bridge.prtsLevelChangeRequested.connect(self._change_prts_level)
         self._bridge.checkUpdatesRequested.connect(self._check_updates_manually)
         self._bridge.dismissUpdateRequested.connect(self._dismiss_update)
+        self._bridge.aiReviewRequested.connect(self._start_ai_review)
+        self._bridge.aiAbandonRequested.connect(self._abandon_ai_review)
 
     def _connect_model_signals(self) -> None:
         self.card_model.dataChanged.connect(self._on_data_changed)
@@ -230,6 +236,7 @@ class MainWindow(QMainWindow):
         try:
             with error_handler("加载配置文件"):
                 self.card_model.load_from_file(file_path)
+                self._bridge.invalidate_ai_review()
                 self._warn_missing_avatar()
                 self._clear_prts_context()
                 self.status_bar.showMessage(f"已加载：{Path(file_path).name}")
@@ -399,6 +406,7 @@ class MainWindow(QMainWindow):
         self._bridge.set_prts_busy(False)
         if enemy_data is not None:
             self.card_model.set_enemy_data(enemy_data)
+            self._bridge.invalidate_ai_review()
             self._apply_prts_context(context)
             self.status_bar.showMessage(f"已成功导入「{enemy_name}」的 PRTS 数据")
             self._generate_card()
@@ -414,6 +422,41 @@ class MainWindow(QMainWindow):
         thread.deleteLater()
         if self.prts_fetch_thread is thread:
             self.prts_fetch_thread = None
+
+    def _start_ai_review(
+        self,
+        config: AiRequestConfig,
+        prompt: str,
+        snapshot: EnemyData,
+        baseline: dict[str, Any],
+        revision: int,
+    ) -> None:
+        """起一次评价请求；忙态与状态栏文案同 PRTS 路径，结果按世代号收口。"""
+        running = self.ai_evaluate_thread
+        if running is not None and running.isRunning():
+            self._bridge.show_toast("正在生成评价，请稍候", "info")
+            return
+        self._bridge.set_ai_busy(True)
+        self.status_bar.showMessage(f"正在生成 AI 评价（{config.model}）…")
+        thread = AiEvaluateThread(config, prompt, baseline, snapshot, revision)
+        thread.evaluationFinished.connect(self._bridge.ai_evaluation_finished)
+        thread.evaluationFailed.connect(self._bridge.ai_evaluation_failed)
+        thread.finished.connect(lambda ref=thread: self._on_ai_thread_finished(ref))
+        self.ai_evaluate_thread = thread
+        thread.start()
+
+    def _on_ai_thread_finished(self, thread: AiEvaluateThread) -> None:
+        thread.deleteLater()
+        if self.ai_evaluate_thread is thread:
+            self.ai_evaluate_thread = None
+            self._bridge.set_ai_busy(False)
+            self.status_bar.showMessage("就绪")
+
+    def _abandon_ai_review(self) -> None:
+        """取消在飞的评价请求；线程在轮询点结束，忙态由 finished 收尾。"""
+        thread = self.ai_evaluate_thread
+        if thread is not None and thread.isRunning():
+            thread.requestInterruption()
 
     def _apply_prts_context(self, context: dict[str, Any] | None) -> None:
         """记住本次导入的页面上下文，并把级别来源交给卡片模型（随撤销栈快照回放）。"""
@@ -460,6 +503,7 @@ class MainWindow(QMainWindow):
             )
             return
         self.card_model.apply_enemy_data(rebuilt, level_index)
+        self._bridge.invalidate_ai_review()
         self.status_bar.showMessage(f"已切换到{label}")
         self._generate_card()
 
@@ -493,6 +537,13 @@ class MainWindow(QMainWindow):
                     if not update_thread.wait(3000):
                         logger.error(
                             "版本检查线程未能在 3 秒内停止，放弃等待且不 terminate"
+                        )
+                ai_thread = self.ai_evaluate_thread
+                if ai_thread is not None and ai_thread.isRunning():
+                    ai_thread.requestInterruption()
+                    if not ai_thread.wait(3000):
+                        logger.error(
+                            "AI 评价线程未能在 3 秒内停止，放弃等待且不 terminate"
                         )
                 self._debouncer.cleanup()
                 get_resource_manager().clear_caches()

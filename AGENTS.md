@@ -22,7 +22,7 @@ Python 3.13 · uv（**勿手改 `uv.lock`**，改依赖后在本机 `uv lock` / 
 | 4 | 直接替换：不留兼容层、不留旧名别名、不写迁移说明 |
 | 5 | 不做回退式凑合实现 |
 | 6 | import 一律写在文件顶部，禁止函数体中部 import。例外只有两类：`utils/thread_manager.py` 的 `CardGeneratorThread.run`、`PrtsFetchThread._pull`、`NetworkAvatarPrefetchThread._pull` 延迟导入 `core`（防循环）；`scripts/` 下独立脚本在 `sys.path` 注入后导入本项目模块，用 `# noqa: E402` 标注 |
-| 7 | 配置一律 JSON、形状符合 Pydantic。敌人配置 `data/{敌人名称}_config.json`；应用偏好 `platformdirs.user_config_path("敌人评价卡片编辑器", appauthor="Enemy Eval Team")/app_settings.json`（`utils/app_settings_store.py`） |
+| 7 | 配置一律 JSON、形状符合 Pydantic。敌人配置 `data/{敌人名称}_config.json`；应用偏好 `platformdirs.user_config_path("牢杰的物种奇遇", appauthor="双老蜂")/app_settings.json`（`utils/app_settings_store.py`） |
 | 8 | GUI 职责分离：界面在 `gui/qml/`、主题 `Theme.qml`；启动期的固定连接集中在 `__init__`（可经其调用的一次性 helper，如 `_connect_signals`），随对象生命周期产生的连接（线程实例、换模型）在其创建处完成，且不得落在可重复路径上 |
 | 9 | 私有成员 `_` 前缀；完整类型注解（GUI 尤甚）；导入顺序 标准库 → 第三方 → 本项目 |
 | 10 | 长任务走线程；关窗只 `requestInterruption` + `task.cancel()`，**绝不 `terminate`** |

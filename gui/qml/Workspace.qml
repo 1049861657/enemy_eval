@@ -72,6 +72,10 @@ Item {
         prtsDialog.open()
     }
 
+    function openAiReviewDialog() {
+        aiEvaluationDialog.open()
+    }
+
     function toastStyleFor(tone) {
         switch (tone) {
         case "success":
@@ -162,6 +166,10 @@ Item {
         }
         function onAiSettingsRequested() {
             aiSettingsDialog.open()
+        }
+        function onAiCommentConfirmRequested(text) {
+            aiStaleCommentDialog.pendingComment = text
+            aiStaleCommentDialog.show("数据已变化", "请求评价之后，当前卡片的数据已被修改。\n\n仍然采纳这条简评吗？", "question")
         }
         function onLightDismissRequested() {
             commandBar.closeMenus()
@@ -399,6 +407,23 @@ Item {
         id: aiSettingsDialog
         controller: root.controller
         workspace: root
+    }
+
+    AiEvaluationDialog {
+        id: aiEvaluationDialog
+        controller: root.controller
+    }
+
+    AppMessageDialog {
+        id: aiStaleCommentDialog
+        property string pendingComment: ""
+        tone: "question"
+        confirmText: "仍然采纳"
+        showCancel: true
+        onConfirmed: {
+            root.controller.applyAiCommentConfirmed(pendingComment)
+            aiEvaluationDialog.close()
+        }
     }
 
     AppMessageDialog {
