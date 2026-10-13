@@ -28,6 +28,7 @@ QtObject {
     readonly property color textOnAccent: "#FFFFFF"
     readonly property color textPrimary: "#1B1B1F"
     readonly property color textSecondary: "#5F6368"
+    readonly property color textPlaceholder: "#9AA0A6"
     readonly property color surface: "#FFFFFF"
     readonly property color surfaceSubtle: "#F5F5F5"
     readonly property color fieldSurface: "#FBFBFB"

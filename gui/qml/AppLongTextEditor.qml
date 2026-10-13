@@ -139,7 +139,7 @@ Pane {
                     text: root.value
                     placeholderText: root.placeholderText
                     color: Design.Theme.textPrimary
-                    placeholderTextColor: Design.Theme.textSecondary
+                    placeholderTextColor: Design.Theme.textPlaceholder
                     font.family: Design.Theme.fontFamily
                     font.pixelSize: Design.Theme.bodyFontSize
                     selectByMouse: true

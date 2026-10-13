@@ -124,6 +124,13 @@ def _extract_content(response: httpx.Response) -> str:
     return content
 
 
+def _status_message(status: int) -> str:
+    """错误状态码文案；404 单独指出最常见的成因（Base URL 的版本段）。"""
+    if status == 404:
+        return "AI 服务返回错误（HTTP 404）：该地址不存在，常见原因是 Base URL 多了或少了版本段（如 /v1）"
+    return f"AI 服务返回错误（HTTP {status}）"
+
+
 def _log_failure(model: str, started: float, reason: str) -> None:
     logger.warning(
         "AI 评价失败：模型=%s 耗时=%.2fs 原因=%s", model, time.perf_counter() - started, reason
@@ -165,7 +172,7 @@ def evaluate(
         raise AiRateLimitError("请求过于频繁（HTTP 429）")
     if status >= 400:
         _log_failure(config.model, started, f"HTTP {status}")
-        raise AiServiceError(f"AI 服务返回错误（HTTP {status}）")
+        raise AiServiceError(_status_message(status))
 
     try:
         comment = parse_comment(_extract_content(response))

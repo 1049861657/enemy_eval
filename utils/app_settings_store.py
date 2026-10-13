@@ -8,6 +8,7 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 import structlog
 from platformdirs import user_config_path
@@ -315,9 +316,62 @@ def ai_request_config() -> AiRequestConfig | None:
     return config
 
 
+# 用户可能把完整操作地址粘进来；这些尾段属于调用层拼接的部分。
+_CHAT_PATH_SUFFIXES = ("/chat/completions", "/completions")
+
+
+def normalize_ai_base_url(base_url: str) -> str:
+    """把用户填的地址规范成「到版本段为止」的 Base URL。
+
+    接受根地址、根地址 + 版本段、乃至完整的 chat 地址；path 为空时补默认版本段 `/v1`，
+    path 命中操作端点时去掉该段，末尾斜杠一律去掉。自定义版本段（如 `/v1beta/openai`）
+    与查询串以外的前缀原样保留——查询串与片段不属于 Base URL，丢弃。
+    """
+    text = base_url.strip()
+    if not text:
+        raise ValueError("Base URL 不能为空")
+    parsed = urlparse(text)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("Base URL 需要形如 https://主机，例如 https://api.deepseek.com")
+    path = parsed.path.rstrip("/")
+    for suffix in _CHAT_PATH_SUFFIXES:
+        if path.endswith(suffix):
+            path = path[: -len(suffix)].rstrip("/")
+            break
+    if not path:
+        path = "/v1"
+    return urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
+
+
+def ai_base_url_preview(base_url: str) -> str:
+    """该地址最终会请求到的完整 URL；无法解析时返回空串（供界面显示）。"""
+    try:
+        normalized = normalize_ai_base_url(base_url)
+    except ValueError:
+        return ""
+    return f"{normalized}/chat/completions"
+
+
 def save_ai_settings(base_url: str, model: str, api_key: str) -> None:
-    """写入 AI 调用配置，其余偏好字段保留。"""
-    _write_updates(ai_base_url=base_url, ai_model=model, ai_api_key=api_key)
+    """写入 AI 调用配置（Base URL 规范化后落盘），其余偏好字段保留。
+
+    形状不合法抛 ValueError，写盘失败抛 FileOperationError（不静默降级，界面据此区分成败）。
+    """
+    global _cached
+    valid_base_url = normalize_ai_base_url(base_url)
+    valid_model = model.strip()
+    if not valid_model:
+        raise ValueError("模型名不能为空")
+    with _lock:
+        current = _cached if _cached is not None else _read_settings()
+        settings = _cloned(
+            current,
+            ai_base_url=valid_base_url,
+            ai_model=valid_model,
+            ai_api_key=api_key.strip(),
+        )
+        _persist(settings)
+        _cached = settings
 
 
 def current_render_options() -> RenderOptions:

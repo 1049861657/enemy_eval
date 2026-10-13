@@ -46,6 +46,14 @@ Item {
         recentFiles = JSON.parse(serialized)
     }
 
+    function clearFieldError(field) {
+        if (root.fieldErrors[field] === undefined)
+            return
+        var errors = Object.assign({}, root.fieldErrors)
+        delete errors[field]
+        root.fieldErrors = errors
+    }
+
     function commit(field, value) {
         root.controller.updateProperty(field, JSON.stringify(value))
     }
@@ -151,6 +159,9 @@ Item {
         }
         function onAboutRequested() {
             aboutDialog.open()
+        }
+        function onAiSettingsRequested() {
+            aiSettingsDialog.open()
         }
         function onLightDismissRequested() {
             commandBar.closeMenus()
@@ -382,6 +393,12 @@ Item {
     AboutDialog {
         id: aboutDialog
         controller: root.controller
+    }
+
+    AiSettingsDialog {
+        id: aiSettingsDialog
+        controller: root.controller
+        workspace: root
     }
 
     AppMessageDialog {

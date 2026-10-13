@@ -33,7 +33,7 @@
 | 超时 | 固定 `httpx.Timeout(connect=5.0, read=60.0, write=10.0, pool=5.0)`（四参数写全），模块常量，不进偏好 |
 | 输出约定 | 期望 JSON `{"comment": "..."}`；解析容错：剥离 ```json 围栏与首尾空白后，正则取**首个括号平衡**的 JSON 对象（容忍「好的，简评如下：」前缀与尾随文字）；只取 `comment`，多余键忽略不报错 |
 | 重试 | **不自动重试**：解析失败与网络、状态码失败一律直接抛错；再试由用户重新触发（弹窗「重新生成」） |
-| 错误载体 | `utils/error_handler.py` 新增 4 个子类（均继承 `EnemyEvalException`）：`AiCredentialError`（未配置 / 401）、`AiRateLimitError`（429）、`AiServiceError`（5xx / 响应无法解析，两者以消息区分）、`AiNetworkError`（连接失败 / 读超时）；异常消息**不含密钥、请求头与请求体**；`categorize_error_message` 签名放宽为 `Exception | str` 并增类型分支——现有调用点与 `tests/test_error_handler.py` 全传字符串，行为不变 |
+| 错误载体 | `utils/error_handler.py` 新增 4 个子类（均继承 `EnemyEvalException`）：`AiCredentialError`（未配置 / 401）、`AiRateLimitError`（429）、`AiServiceError`（5xx / 响应无法解析，两者以消息区分；404 单独指出 Base URL 的版本段）、`AiNetworkError`（连接失败 / 读超时）；异常消息**不含密钥、请求头与请求体**；`categorize_error_message` 签名放宽为 `Exception | str` 并增类型分支——现有调用点与 `tests/test_error_handler.py` 全传字符串，行为不变 |
 | 错误穿线程 | 线程信号传**异常对象**（`Signal(object, int)`），分类与文案在 GUI 层做（任务 05）；本层不拼展示文案 |
 | 超长输出 | 不裁剪、不拒绝：原样返回给界面（长度上限是提示词约束，取舍在人工） |
 | 当前卡取数源 | `CardModel.enemy_data`（权威数据，含 `skills`）；**不用**桥接的 `enemyDataJson` 投影（那是界面回显用，`exclude={"skills"}`） |

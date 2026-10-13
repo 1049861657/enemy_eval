@@ -14,10 +14,13 @@ from PySide6.QtWidgets import QFileDialog, QWidget
 from models import DEFAULT_RATING_SCORE, RatingSchema, scores_for_rating_draft
 from utils.app_identity import APP_NAME, APP_SUMMARY
 from utils.app_settings_store import (
+    ai_base_url_preview,
+    ai_request_config,
     current_render_options,
     is_rating_radar,
     load_app_settings,
     recent_files,
+    save_ai_settings,
     save_rating_schema,
     set_rating_radar,
     set_update_check_enabled,
@@ -86,6 +89,8 @@ class QmlBridge(QObject):
     updateCheckEnabledChanged = Signal()
     checkUpdatesRequested = Signal()
     dismissUpdateRequested = Signal(str)
+    aiSettingsChanged = Signal()
+    aiSettingsRequested = Signal()
 
     def __init__(
         self,
@@ -194,6 +199,26 @@ class QmlBridge(QObject):
     @Property(bool, notify=updateCheckEnabledChanged)
     def updateCheckEnabled(self) -> bool:  # noqa: N802
         return load_app_settings().update_check_enabled
+
+    @Property(str, notify=aiSettingsChanged)
+    def aiBaseUrl(self) -> str:  # noqa: N802
+        """AI 设置框的预填值；随保存变更信号刷新。"""
+        return load_app_settings().ai_base_url
+
+    @Property(str, notify=aiSettingsChanged)
+    def aiModel(self) -> str:  # noqa: N802
+        """AI 设置框的预填值；随保存变更信号刷新。"""
+        return load_app_settings().ai_model
+
+    @Property(str, notify=aiSettingsChanged)
+    def aiApiKey(self) -> str:  # noqa: N802
+        """AI 设置框的预填值；随保存变更信号刷新。"""
+        return load_app_settings().ai_api_key
+
+    @Property(bool, notify=aiSettingsChanged)
+    def aiConfigured(self) -> bool:  # noqa: N802
+        """Base URL / 模型 / 密钥是否齐备；判定与调用层同源。"""
+        return ai_request_config() is not None
 
     def set_update_banner(self, tag: str, url: str) -> None:
         """把是否显示横幅的结果交给界面。标签为空则不显示。"""
@@ -434,6 +459,10 @@ class QmlBridge(QObject):
         self.aboutRequested.emit()
 
     @Slot()
+    def requestAiSettings(self) -> None:  # noqa: N802
+        self.aiSettingsRequested.emit()
+
+    @Slot()
     def requestCheckUpdates(self) -> None:  # noqa: N802
         self.checkUpdatesRequested.emit()
 
@@ -445,3 +474,20 @@ class QmlBridge(QObject):
     def setUpdateCheckEnabled(self, enabled: bool) -> None:  # noqa: N802
         set_update_check_enabled(enabled)
         self.updateCheckEnabledChanged.emit()
+
+    @Slot(str, result=str)
+    def aiBaseUrlPreview(self, base_url: str) -> str:  # noqa: N802
+        """该地址最终请求到的完整 URL；只用于显示，不阻止保存。"""
+        return ai_base_url_preview(base_url)
+
+    @Slot(str, str, str, result=bool)
+    def saveAiSettings(self, base_url: str, model: str, api_key: str) -> bool:  # noqa: N802
+        """写入 AI 配置。形状非法或写盘失败时发字段错误并返回 False，界面据此保持打开。"""
+        try:
+            save_ai_settings(base_url, model, api_key)
+        except (ValueError, FileOperationError) as error:
+            self.fieldError.emit("ai_settings", str(error))
+            return False
+        self.aiSettingsChanged.emit()
+        self.show_toast("AI 配置已保存", "success")
+        return True

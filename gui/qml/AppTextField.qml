@@ -68,7 +68,7 @@ ColumnLayout {
         font.family: Design.Theme.fontFamily
         font.pixelSize: Design.Theme.bodyFontSize
         color: root.enabled ? Design.Theme.textPrimary : Design.Theme.disabledText
-        placeholderTextColor: Design.Theme.textSecondary
+        placeholderTextColor: Design.Theme.textPlaceholder
         leftPadding: Design.Theme.space3
         rightPadding: clearButton.visible ? Design.Theme.controlHeight : Design.Theme.space3
 
