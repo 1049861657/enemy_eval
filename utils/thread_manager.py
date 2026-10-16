@@ -246,14 +246,14 @@ class AiEvaluateThread(QThread):
     def __init__(
         self,
         config: AiRequestConfig,
-        prompt: str,
+        persona: str,
         baseline: dict[str, Any],
         current: EnemyData,
         revision: int,
     ) -> None:
         super().__init__()
         self._config = config
-        self._prompt = prompt
+        self._persona = persona
         self._baseline = baseline
         self._current = current
         self._revision = revision
@@ -269,7 +269,7 @@ class AiEvaluateThread(QThread):
 
     async def _evaluate(self) -> None:
         task = asyncio.create_task(
-            aevaluate(self._config, self._prompt, self._baseline, self._current)
+            aevaluate(self._config, self._persona, self._baseline, self._current)
         )
         try:
             while not task.done():

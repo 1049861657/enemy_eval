@@ -19,11 +19,12 @@ from models import (
     scores_for_rating_draft,
 )
 from utils.ai_baseline import load_baseline
-from utils.ai_client import build_current_payload, endpoint_url
+from utils.ai_client import build_current_payload
 from utils.ai_prompt import (
-    DEFAULT_PROMPT,
-    effective_prompt,
-    prompt_for_storage,
+    CONTRACT,
+    DEFAULT_PERSONA,
+    effective_persona,
+    persona_for_storage,
     render_preview,
 )
 from utils.app_identity import APP_NAME, APP_SUMMARY
@@ -34,7 +35,7 @@ from utils.app_settings_store import (
     is_rating_radar,
     load_app_settings,
     recent_files,
-    save_ai_prompt,
+    save_ai_persona,
     save_ai_settings,
     save_rating_schema,
     set_rating_radar,
@@ -541,46 +542,48 @@ class QmlBridge(QObject):
         self.aiBusyChanged.emit()
 
     @Slot(result=str)
-    def aiPromptText(self) -> str:  # noqa: N802
-        """面板打开时预填的提示词：偏好里的自定义值，未自定义则为内置默认。"""
-        return effective_prompt()
+    def aiPersonaText(self) -> str:  # noqa: N802
+        """面板打开时预填的人设：偏好里的自定义值，未自定义则为内置默认。"""
+        return effective_persona()
 
     @Slot(result=str)
-    def aiDefaultPrompt(self) -> str:  # noqa: N802
-        """内置默认提示词，供面板「恢复默认」使用。"""
-        return DEFAULT_PROMPT
+    def aiDefaultPersona(self) -> str:  # noqa: N802
+        """内置默认人设，供面板「恢复默认」使用。"""
+        return DEFAULT_PERSONA
+
+    @Slot(result=str)
+    def aiContractText(self) -> str:  # noqa: N802
+        """输出契约全文，供面板只读展示；由应用固定生成，界面不提供编辑入口。"""
+        return CONTRACT
 
     @Slot(str, result=bool)
-    def saveAiPrompt(self, prompt: str) -> bool:  # noqa: N802
-        """提示词落盘（与内置默认相同则存空串）；失败 toast 并返回 False。"""
+    def saveAiPersona(self, persona: str) -> bool:  # noqa: N802
+        """人设落盘（与内置默认相同则存空串）；失败 toast 并返回 False。"""
         try:
-            save_ai_prompt(prompt_for_storage(prompt))
+            save_ai_persona(persona_for_storage(persona))
         except FileOperationError as error:
-            self.show_toast(f"提示词保存失败：{error}", "error")
+            self.show_toast(f"人设保存失败：{error}", "error")
             return False
         return True
 
     @Slot(str, result=str)
-    def aiRequestPreview(self, prompt: str) -> str:  # noqa: N802
-        """预览组装后实际会发出的内容（端点、模型名、system、user）；与发请求同源。"""
-        config = ai_request_config()
+    def aiRequestPreview(self, persona: str) -> str:  # noqa: N802
+        """预览组装后实际会发出的两条 message（system、user）；与发请求同源。"""
         try:
             baseline = load_baseline()
         except FileOperationError as error:
             return f"基准数据不可用：{error}"
         return render_preview(
-            endpoint=endpoint_url(config) if config is not None else "（尚未配置 Base URL）",
-            model=config.model if config is not None else "（尚未配置模型名）",
-            prompt=prompt,
+            persona=persona,
             baseline=baseline,
             current=build_current_payload(self._card_model.enemy_data),
         )
 
     @Slot(str)
-    def requestAiReview(self, prompt: str) -> None:  # noqa: N802
-        """按面板里的提示词发起一次评价：未配置则打开设置框、忙则忽略、基准缺失则报错。
+    def requestAiReview(self, persona: str) -> None:  # noqa: N802
+        """按面板里的人设发起一次评价：未配置则打开设置框、忙则忽略、基准缺失则报错。
 
-        提示词由面板自行保存（`saveAiPrompt`），此处只用于本次请求。
+        人设由面板自行保存（`saveAiPersona`），此处只用于本次请求。
         """
         if self._ai_busy:
             self.show_toast("正在生成评价，请稍候", "info")
@@ -589,7 +592,7 @@ class QmlBridge(QObject):
         if config is None:
             self.aiSettingsRequested.emit()
             return
-        text = prompt.strip() or DEFAULT_PROMPT
+        text = persona.strip() or DEFAULT_PERSONA
         try:
             baseline = load_baseline()
         except FileOperationError as error:

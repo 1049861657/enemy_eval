@@ -426,7 +426,7 @@ class MainWindow(QMainWindow):
     def _start_ai_review(
         self,
         config: AiRequestConfig,
-        prompt: str,
+        persona: str,
         snapshot: EnemyData,
         baseline: dict[str, Any],
         revision: int,
@@ -438,7 +438,7 @@ class MainWindow(QMainWindow):
             return
         self._bridge.set_ai_busy(True)
         self.status_bar.showMessage(f"正在生成 AI 评价（{config.model}）…")
-        thread = AiEvaluateThread(config, prompt, baseline, snapshot, revision)
+        thread = AiEvaluateThread(config, persona, baseline, snapshot, revision)
         thread.evaluationFinished.connect(self._bridge.ai_evaluation_finished)
         thread.evaluationFailed.connect(self._bridge.ai_evaluation_failed)
         thread.finished.connect(lambda ref=thread: self._on_ai_thread_finished(ref))

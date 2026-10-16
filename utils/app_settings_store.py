@@ -79,7 +79,7 @@ class AppSettings(BaseSettings):
     ai_base_url: str = ""
     ai_model: str = ""
     ai_api_key: str = ""
-    ai_prompt: str = ""
+    ai_persona: str = ""
 
     @classmethod
     def settings_customise_sources(
@@ -375,12 +375,12 @@ def save_ai_settings(base_url: str, model: str, api_key: str) -> None:
         _cached = settings
 
 
-def save_ai_prompt(prompt: str) -> None:
-    """写入自定义提示词；空串表示沿用内置默认。写盘失败抛 FileOperationError。"""
+def save_ai_persona(persona: str) -> None:
+    """写入自定义人设；空串表示沿用内置默认。写盘失败抛 FileOperationError。"""
     global _cached
     with _lock:
         current = _cached if _cached is not None else _read_settings()
-        settings = _cloned(current, ai_prompt=prompt.strip())
+        settings = _cloned(current, ai_persona=persona.strip())
         _persist(settings)
         _cached = settings
 

@@ -22,8 +22,8 @@ if str(ROOT) not in sys.path:
 
 from models import AiEvaluationResult, EnemyData  # noqa: E402
 from utils.ai_baseline import load_baseline  # noqa: E402
-from utils.ai_client import build_current_payload, evaluate, parse_comment  # noqa: E402
-from utils.ai_prompt import build_messages, effective_prompt  # noqa: E402
+from utils.ai_client import build_current_payload, evaluate, extract_comment  # noqa: E402
+from utils.ai_prompt import CONTRACT, build_messages, effective_persona  # noqa: E402
 from utils.app_settings_store import AiRequestConfig, ai_request_config  # noqa: E402
 from utils.error_handler import (  # noqa: E402
     AiCredentialError,
@@ -62,10 +62,10 @@ def audit_payload(current: EnemyData) -> tuple[dict[str, Any], list[dict[str, st
     """构造外发 payload 并核对白名单；返回 payload 与 messages。"""
     baseline = load_baseline()
     payload = build_current_payload(current)
-    messages = build_messages(effective_prompt(), baseline, payload)
+    messages = build_messages(effective_persona(), baseline, payload)
 
     print("--- 外发字段审计 ---")
-    print(f"提示词：{len(messages[0]['content'])} 字符（偏好自定义优先，否则内置默认）")
+    print(f"人设：{len(effective_persona())} 字符（偏好自定义优先，否则内置默认）")
     print(f"基准键（{len(baseline)}）：{', '.join(baseline)}")
     print(f"当前卡键（{len(payload)}）：{', '.join(payload)}")
     leaked = [key for key in FORBIDDEN_KEYS if key in payload]
@@ -86,28 +86,35 @@ def audit_payload(current: EnemyData) -> tuple[dict[str, Any], list[dict[str, st
     )
     print(f"messages：{len(messages)} 条，system {len(messages[0]['content'])} 字符，"
           f"user {len(messages[1]['content'])} 字符")
+    check("system 段即固定契约", messages[0]["content"] == CONTRACT)
+    check("人设不进 system 段", effective_persona() not in messages[0]["content"])
+    body = messages[1]["content"]
+    check(
+        "user 段数据顺序：参照在前、点评对象在后",
+        body.index("【参照数据") < body.index("【点评对象的数据】"),
+    )
     return payload, messages
 
 
 def run_offline_checks(baseline: dict[str, Any], enemy: EnemyData) -> None:
     print("\n--- 离线失败路径 ---")
     try:
-        comment = parse_comment('好的，简评如下：{"comment": "血量偏低，防御也不够看"} 以上。')
-        check("解析容错：前缀+尾随文字仍取到 comment", comment == "血量偏低，防御也不够看", comment)
+        comment = extract_comment('{"comment":"血量偏低"}')
+        check("不解包 JSON：响应正文原样成为简评", comment == '{"comment":"血量偏低"}', comment)
     except Exception as error:  # noqa: BLE001 - 冒烟脚本，如实记录任何异常
-        check("解析容错：前缀+尾随文字仍取到 comment", False, f"{type(error).__name__}: {error}")
+        check("不解包 JSON：响应正文原样成为简评", False, f"{type(error).__name__}: {error}")
 
     try:
-        parse_comment("这不是 JSON，也没有对象")
-        check("解析失败抛 AiServiceError", False, "未抛异常")
+        extract_comment("   \n\t ")
+        check("空响应抛 AiServiceError", False, "未抛异常")
     except AiServiceError as error:
-        check("解析失败抛 AiServiceError", True, str(error))
+        check("空响应抛 AiServiceError", True, str(error))
     except Exception as error:  # noqa: BLE001
-        check("解析失败抛 AiServiceError", False, f"{type(error).__name__}: {error}")
+        check("空响应抛 AiServiceError", False, f"{type(error).__name__}: {error}")
 
     config = AiRequestConfig(base_url=UNREACHABLE_BASE_URL, model="smoke", api_key="sk-smoke")
     try:
-        evaluate(config, effective_prompt(), baseline, enemy)
+        evaluate(config, effective_persona(), baseline, enemy)
         check("连接失败抛 AiNetworkError", False, "未抛异常")
     except AiNetworkError as error:
         check("连接失败抛 AiNetworkError", True, str(error))
@@ -130,7 +137,7 @@ def run_live_call(
     print(f"模型：{config.model}（密钥不打印）")
     try:
         result: AiEvaluationResult = evaluate(
-            config, effective_prompt(), baseline, enemy
+            config, effective_persona(), baseline, enemy
         )
     except AiCredentialError as error:
         print(f"凭证类失败（AiCredentialError）：{error}")

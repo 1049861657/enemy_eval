@@ -1,7 +1,8 @@
-"""CardModel error-handling contract tests.
+"""CardModel 的错误处理与撤销栈契约测试。
 
-Covers the error-handling consistency changes from
-``todos/fix-20260706/04-error-handling-consistency.md``.
+字段写入非法值时发 validationFailed 且保留旧值；配置读写失败时抛 FileOperationError 且内存数据不变；
+未变化或失败的写入不发 dataChanged。撤销栈按编辑步进：攻击方式与攻击范围合并为一步、技能替换不单独
+入栈、整卡应用为一步，载入与整卡设置清空栈。
 """
 
 from __future__ import annotations
