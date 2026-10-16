@@ -1,4 +1,4 @@
-"""AI 评价调用层：外发字段白名单、请求、解析与错误归类。
+"""AI 评价调用层：外发字段白名单、请求、正文折算与错误归类。
 
 不拼展示文案（由 GUI 层按异常子类决定），不读偏好（配置由调用方传入），不挂重试传输。
 """
@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import logging
 import time
-from collections.abc import Iterator
 from typing import Any
 
 import httpx
@@ -59,88 +58,32 @@ def build_current_payload(current: EnemyData) -> dict[str, Any]:
     return payload
 
 
-def _iter_json_objects(text: str) -> Iterator[str]:
-    """按出现顺序产出每个括号平衡的 JSON 对象文本；字符串内的花括号不计入深度。"""
-    depth = 0
-    start = -1
-    in_string = False
-    escaped = False
-    for index, char in enumerate(text):
-        if in_string:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == '"':
-                in_string = False
-            continue
-        if char == '"':
-            in_string = True
-        elif char == "{":
-            if depth == 0:
-                start = index
-            depth += 1
-        elif char == "}" and depth > 0:
-            depth -= 1
-            if depth == 0 and start >= 0:
-                yield text[start : index + 1]
-                start = -1
+def extract_comment(content: str) -> str:
+    """把模型响应正文折算成简评：只去首尾空白，其余原样保留。
 
-
-def _strip_fence(text: str) -> str:
-    """剥掉 ```json 围栏与首尾空白。"""
-    stripped = text.strip()
-    if stripped.startswith("```"):
-        stripped = stripped.split("\n", 1)[1] if "\n" in stripped else ""
-        stripped = stripped.rstrip()
-        if stripped.endswith("```"):
-            stripped = stripped[:-3]
-    return stripped
-
-
-def parse_comment(content: str) -> str:
-    """从模型输出取出简评正文：剥围栏后逐个检查 JSON 对象，取第一个带非空 comment 的。
-
-    模型偶尔会把输入数据、思考过程或半截对象一并输出，故不只看首个对象；都不带 comment
-    时按「没有对象 / 对象不可解析 / 都没有 comment」分别报错，便于定位。
+    产物形态由提示词契约约束（纯正文、无包装）；本层不做清洗，也不改写正文。
     """
-    text = _strip_fence(content)
-    found = 0
-    parsed = 0
-    for raw in _iter_json_objects(text):
-        found += 1
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            continue
-        parsed += 1
-        if not isinstance(data, dict):
-            continue
-        comment = data.get("comment")
-        if isinstance(comment, str) and comment.strip():
-            return comment
-    if found == 0:
-        raise AiServiceError("AI 服务响应中没有可解析的 JSON 对象")
-    if parsed == 0:
-        raise AiServiceError("AI 服务响应的 JSON 无法解析")
-    raise AiServiceError(
-        f"AI 服务响应的 {parsed} 个 JSON 对象里都没有 comment 字段或内容为空"
-    )
+    comment = content.strip()
+    if not comment:
+        raise AiServiceError("AI 服务响应为空，未产出简评")
+    return comment
 
 
-def _extract_content(response: httpx.Response) -> str:
-    """从 chat/completions 响应体取出 assistant 正文文本。"""
+def _extract_content(response: httpx.Response) -> tuple[str, str]:
+    """从 chat/completions 响应体取出 assistant 正文文本与结束原因（缺该键时为空白串）。"""
     try:
         body = response.json()
     except json.JSONDecodeError as error:
         raise AiServiceError(f"AI 服务响应不是合法 JSON（HTTP {response.status_code}）") from error
     try:
-        content = body["choices"][0]["message"]["content"]
+        choice = body["choices"][0]
+        content = choice["message"]["content"]
     except (KeyError, IndexError, TypeError) as error:
         raise AiServiceError(f"AI 服务响应缺少简评内容（HTTP {response.status_code}）") from error
     if not isinstance(content, str):
         raise AiServiceError("AI 服务响应的简评内容不是文本")
-    return content
+    finish_reason = choice.get("finish_reason")
+    return content, finish_reason if isinstance(finish_reason, str) else ""
 
 
 def _status_message(status: int) -> str:
@@ -191,14 +134,14 @@ def _require_config(config: AiRequestConfig | None) -> AiRequestConfig:
 
 def _build_request(
     config: AiRequestConfig,
-    prompt: str,
+    persona: str,
     baseline: dict[str, Any],
     current: EnemyData,
 ) -> tuple[str, dict[str, str], dict[str, Any]]:
     """组包：端点 URL、认证头与请求体；请求体只带最小公共字段。"""
     payload = {
         "model": config.model,
-        "messages": build_messages(prompt, baseline, build_current_payload(current)),
+        "messages": build_messages(persona, baseline, build_current_payload(current)),
     }
     return endpoint_url(config), {"Authorization": f"Bearer {config.api_key}"}, payload
 
@@ -229,9 +172,12 @@ def _interpret_response(
     if status >= 400:
         _log_failure(model, started, f"HTTP {status}")
         raise AiServiceError(_status_message(status))
-    content = _extract_content(response)
+    content, finish_reason = _extract_content(response)
+    if finish_reason == "length":
+        _log_failure(model, started, "finish_reason=length")
+        raise AiServiceError("AI 服务响应因长度上限被截断，未产出完整简评，请重试或更换模型")
     try:
-        comment = parse_comment(content)
+        comment = extract_comment(content)
     except AiServiceError as error:
         _log_failure(model, started, f"{type(error).__name__} 响应={_excerpt(content)}")
         raise
@@ -246,19 +192,19 @@ def _interpret_response(
 
 def evaluate(
     config: AiRequestConfig | None,
-    prompt: str,
+    persona: str,
     baseline: dict[str, Any],
     current: EnemyData,
 ) -> AiEvaluationResult:
     """同步评价调用：组包、请求、解析。供冒烟脚本与非 GUI 调用。
 
-    ``prompt`` 为提示词正文（空则用内置默认）；``config`` 为 None、HTTP 401、HTTP 429、
+    ``persona`` 为人设正文（空则用内置默认）；``config`` 为 None、HTTP 401、HTTP 429、
     其他错误状态码、连接失败或响应超时、响应无法解析，分别抛
     AiCredentialError / AiRateLimitError / AiServiceError / AiNetworkError。
     密钥不进日志、不进异常消息。
     """
     ready = _require_config(config)
-    url, headers, payload = _build_request(ready, prompt, baseline, current)
+    url, headers, payload = _build_request(ready, persona, baseline, current)
     started = time.perf_counter()
     try:
         with httpx.Client(timeout=AI_TIMEOUT) as client:
@@ -270,7 +216,7 @@ def evaluate(
 
 async def aevaluate(
     config: AiRequestConfig | None,
-    prompt: str,
+    persona: str,
     baseline: dict[str, Any],
     current: EnemyData,
 ) -> AiEvaluationResult:
@@ -279,7 +225,7 @@ async def aevaluate(
     组包、解析与异常映射与 ``evaluate`` 同源，两者行为一致。
     """
     ready = _require_config(config)
-    url, headers, payload = _build_request(ready, prompt, baseline, current)
+    url, headers, payload = _build_request(ready, persona, baseline, current)
     started = time.perf_counter()
     try:
         async with httpx.AsyncClient(timeout=AI_TIMEOUT) as client:

@@ -14,10 +14,11 @@ Dialog {
     readonly property bool busy: root.controller.aiBusy
     readonly property bool configured: root.controller.aiConfigured
     readonly property var cardData: JSON.parse(root.controller.enemyDataJson)
-    readonly property string defaultPrompt: root.controller.aiDefaultPrompt()
-    readonly property bool promptCustom: promptArea.text.trim().length > 0
-                                         && promptArea.text !== root.defaultPrompt
-    readonly property bool promptDirty: promptArea.text !== root.savedPrompt
+    readonly property string defaultPersona: root.controller.aiDefaultPersona()
+    readonly property string contractText: root.controller.aiContractText()
+    readonly property bool personaCustom: personaArea.text.trim().length > 0
+                                          && personaArea.text !== root.defaultPersona
+    readonly property bool personaDirty: personaArea.text !== root.savedPersona
     readonly property bool hasResult: root.suggestion.length > 0
     readonly property bool generating: root.busy && !root.hasResult
     readonly property bool edited: root.hasResult && suggestionArea.text !== root.suggestion
@@ -26,18 +27,18 @@ Dialog {
 
     /** 最近一次成功结果的副本；编辑框可改，「还原」回到此值。 */
     property string suggestion: ""
-    property bool promptExpanded: false
-    /** 抽屉页：0 = 提示词，1 = 实际请求。 */
+    property bool drawerExpanded: false
+    /** 抽屉页：0 = 人设，1 = 输出契约，2 = 实际请求。 */
     property int drawerTab: 0
     /** 本次请求已等待的秒数。 */
     property int elapsed: 0
-    /** 偏好里已落盘的提示词文本；编辑框与之不同即有未保存改动。未保存的改动仍用于本次生成。 */
-    property string savedPrompt: ""
+    /** 偏好里已落盘的人设文本；编辑框与之不同即有未保存改动。未保存的改动仍用于本次生成。 */
+    property string savedPersona: ""
 
-    function savePrompt() {
-        if (!root.controller.saveAiPrompt(promptArea.text))
+    function savePersona() {
+        if (!root.controller.saveAiPersona(personaArea.text))
             return
-        root.savedPrompt = promptArea.text
+        root.savedPersona = personaArea.text
         savedHint.opacity = 1
         savedHintTimer.restart()
     }
@@ -47,7 +48,7 @@ Dialog {
             root.controller.requestAiSettings()
             return
         }
-        root.controller.requestAiReview(promptArea.text)
+        root.controller.requestAiReview(personaArea.text)
     }
 
     function adopt() {
@@ -81,11 +82,11 @@ Dialog {
     }
 
     onOpened: {
-        root.savedPrompt = root.controller.aiPromptText()
-        promptArea.text = root.savedPrompt
+        root.savedPersona = root.controller.aiPersonaText()
+        personaArea.text = root.savedPersona
         root.suggestion = root.controller.aiComment
         suggestionArea.text = root.suggestion
-        root.promptExpanded = false
+        root.drawerExpanded = false
         root.drawerTab = 0
         savedHint.opacity = 0
     }
@@ -455,7 +456,7 @@ Dialog {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 214
-            visible: root.promptExpanded
+            visible: root.drawerExpanded
             radius: Design.Theme.radiusMedium
             color: Design.Theme.surfaceSubtle
 
@@ -470,11 +471,16 @@ Dialog {
 
                     DrawerTab {
                         tabIndex: 0
-                        text: "提示词"
+                        text: "人设"
                     }
 
                     DrawerTab {
                         tabIndex: 1
+                        text: "输出契约"
+                    }
+
+                    DrawerTab {
+                        tabIndex: 2
                         text: "实际请求"
                     }
 
@@ -487,7 +493,7 @@ Dialog {
 
                         Layout.alignment: Qt.AlignVCenter
                         Layout.rightMargin: Design.Theme.space1
-                        visible: root.drawerTab === 0 && !root.promptDirty
+                        visible: root.drawerTab === 0 && !root.personaDirty
                         opacity: 0
                         text: "✓ 已保存"
                         color: Design.Theme.success
@@ -504,30 +510,43 @@ Dialog {
 
                     AppButton {
                         Layout.preferredHeight: 26
-                        visible: root.drawerTab === 0 && promptArea.text !== root.defaultPrompt
+                        visible: root.drawerTab === 0 && personaArea.text !== root.defaultPersona
                         text: "恢复默认"
                         appearance: "subtle"
                         font.pixelSize: Design.Theme.captionFontSize
                         enabled: !root.busy
-                        onClicked: promptArea.text = root.defaultPrompt
+                        onClicked: personaArea.text = root.defaultPersona
                     }
 
                     AppButton {
                         Layout.preferredHeight: 26
-                        visible: root.drawerTab === 0 && root.promptDirty
+                        visible: root.drawerTab === 0 && root.personaDirty
                         text: "撤销修改"
                         appearance: "subtle"
                         font.pixelSize: Design.Theme.captionFontSize
-                        onClicked: promptArea.text = root.savedPrompt
+                        onClicked: personaArea.text = root.savedPersona
                     }
 
                     AppButton {
                         Layout.preferredHeight: 26
-                        visible: root.drawerTab === 0 && root.promptDirty
+                        visible: root.drawerTab === 0 && root.personaDirty
                         text: "保存"
                         font.pixelSize: Design.Theme.captionFontSize
-                        onClicked: root.savePrompt()
+                        onClicked: root.savePersona()
                     }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: visible ? implicitHeight : 0
+                    visible: root.drawerTab !== 2
+                    text: root.drawerTab === 0
+                          ? "只影响语气与措辞；输出格式与评价口径固定，不可修改。"
+                          : "由应用固定生成，随版本升级更新；此处只读。"
+                    color: Design.Theme.textPlaceholder
+                    font.family: Design.Theme.fontFamily
+                    font.pixelSize: Design.Theme.captionFontSize
+                    elide: Text.ElideRight
                 }
 
                 Rectangle {
@@ -536,7 +555,7 @@ Dialog {
                     radius: Design.Theme.radiusSmall
                     color: Design.Theme.surface
                     border.width: 1
-                    border.color: promptArea.activeFocus ? Design.Theme.borderStrong : Design.Theme.border
+                    border.color: personaArea.activeFocus ? Design.Theme.borderStrong : Design.Theme.border
 
                     ScrollView {
                         anchors.fill: parent
@@ -545,7 +564,7 @@ Dialog {
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
                         TextArea {
-                            id: promptArea
+                            id: personaArea
 
                             leftPadding: Design.Theme.space3
                             rightPadding: Design.Theme.space3
@@ -553,7 +572,7 @@ Dialog {
                             bottomPadding: Design.Theme.space3
                             verticalAlignment: TextEdit.AlignTop
                             background: null
-                            placeholderText: "留空使用默认"
+                            placeholderText: "留空使用默认人设"
                             placeholderTextColor: Design.Theme.textPlaceholder
                             wrapMode: TextArea.Wrap
                             selectByMouse: true
@@ -581,8 +600,33 @@ Dialog {
                             background: null
                             readOnly: true
                             selectByMouse: true
-                            text: root.promptExpanded && root.drawerTab === 1
-                                  ? root.controller.aiRequestPreview(promptArea.text)
+                            text: root.drawerExpanded && root.drawerTab === 1 ? root.contractText : ""
+                            wrapMode: TextArea.Wrap
+                            color: Design.Theme.textSecondary
+                            selectionColor: Design.Theme.accent
+                            selectedTextColor: Design.Theme.textOnAccent
+                            font.family: "Consolas"
+                            font.pixelSize: Design.Theme.captionFontSize
+                        }
+                    }
+
+                    ScrollView {
+                        anchors.fill: parent
+                        anchors.margins: 1
+                        visible: root.drawerTab === 2
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+                        TextArea {
+                            leftPadding: Design.Theme.space3
+                            rightPadding: Design.Theme.space3
+                            topPadding: Design.Theme.space3
+                            bottomPadding: Design.Theme.space3
+                            verticalAlignment: TextEdit.AlignTop
+                            background: null
+                            readOnly: true
+                            selectByMouse: true
+                            text: root.drawerExpanded && root.drawerTab === 2
+                                  ? root.controller.aiRequestPreview(personaArea.text)
                                   : ""
                             wrapMode: TextArea.Wrap
                             color: Design.Theme.textSecondary
@@ -602,12 +646,12 @@ Dialog {
 
             AppButton {
                 Layout.alignment: Qt.AlignVCenter
-                text: root.promptDirty ? "提示词 · 未保存"
-                      : root.promptCustom ? "提示词 · 自定义" : "提示词"
+                text: root.personaDirty ? "人设 · 未保存"
+                      : root.personaCustom ? "人设 · 自定义" : "人设"
                 appearance: "command"
-                active: root.promptExpanded
+                active: root.drawerExpanded
                 menu: true
-                onClicked: root.promptExpanded = !root.promptExpanded
+                onClicked: root.drawerExpanded = !root.drawerExpanded
             }
 
             Item {

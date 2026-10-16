@@ -1,7 +1,6 @@
 """models.EnemyData / models.SkillEntry 的字段校验规则单元测试。
 
-不含 models.CardStyle：该死代码模型已在 todos/fix-20260706/04-error-handling-consistency.md
-批次中删除（全仓库零调用点，宽高与实际渲染生效的 RenderConfig 数值不符）。
+不含 models.CardStyle：该模型已删除（全仓库零调用点，宽高与实际渲染生效的 RenderConfig 数值不符）。
 """
 
 from __future__ import annotations
