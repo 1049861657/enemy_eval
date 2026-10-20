@@ -17,7 +17,7 @@ import structlog
 from cachetools import LRUCache
 
 from models.media import is_url
-from utils.network_image import get_url_cache_key
+from utils.net.image_fetch import get_url_cache_key
 
 logger = structlog.get_logger(__name__)
 

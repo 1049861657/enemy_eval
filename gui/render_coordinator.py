@@ -17,7 +17,7 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPixmap
 
 from models import EnemyData, RenderOptions
-from utils.thread_manager import CardGeneratorThread
+from utils.qt.render_task import CardGeneratorThread
 
 logger = logging.getLogger(__name__)
 

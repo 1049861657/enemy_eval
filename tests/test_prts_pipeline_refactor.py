@@ -3,7 +3,7 @@
 Covers:
 1. utils/prts/api_client.py — client/retry/timeout + JSON fetch + avatar imageinfo.
 2. utils/prts/pipeline.py — facade re-exports and error message mapping.
-3. utils/thread_manager.py::PrtsFetchThread — run() success/error/exception paths.
+3. utils/qt/prts_task.py::PrtsFetchThread — run() success/error/exception paths.
 4. core/optimization.py / core.render.avatar_prefetch — shared global image cache lock.
 5. gui/main_window.py — QML 发起的 PRTS 请求并发保护。
 
@@ -196,7 +196,7 @@ class TestPrtsMediawikiPipelineFacade:
 
 
 class TestPrtsFetchThread:
-    """utils/thread_manager.py::PrtsFetchThread — run() without real network."""
+    """utils/qt/prts_task.py::PrtsFetchThread — run() without real network."""
 
     @pytest.fixture
     def enemy_data(self):
@@ -231,7 +231,7 @@ class TestPrtsFetchThread:
         )
 
     def test_signal_exists(self, qapp):
-        from utils.thread_manager import PrtsFetchThread
+        from utils.qt.prts_task import PrtsFetchThread
 
         thread = PrtsFetchThread("测试敌人")
         # Signal must be attached to the class and callable for connect
@@ -242,7 +242,7 @@ class TestPrtsFetchThread:
         import core.render.avatar_prefetch as prefetch
         import utils.prts.enemy_builder as builder
         import utils.prts.pipeline as pipeline
-        from utils.thread_manager import PrtsFetchThread
+        from utils.qt.prts_task import PrtsFetchThread
 
         monkeypatch.setattr(
             pipeline,
@@ -279,7 +279,7 @@ class TestPrtsFetchThread:
 
     def test_run_error_dict_emits_mapped_message(self, qapp, monkeypatch):
         import utils.prts.pipeline as pipeline
-        from utils.thread_manager import PrtsFetchThread
+        from utils.qt.prts_task import PrtsFetchThread
 
         monkeypatch.setattr(
             pipeline,
@@ -300,7 +300,7 @@ class TestPrtsFetchThread:
 
     def test_run_exception_emits_message_with_exception_text(self, qapp, monkeypatch):
         import utils.prts.pipeline as pipeline
-        from utils.thread_manager import PrtsFetchThread
+        from utils.qt.prts_task import PrtsFetchThread
 
         monkeypatch.setattr(
             pipeline,

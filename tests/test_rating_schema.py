@@ -12,15 +12,9 @@ from models import (
     default_ratings,
     scores_for_rating_draft,
 )
-from utils.app_settings_store import (
-    is_rating_radar,
-    load_app_settings,
-    load_rating_schema,
-    recent_files,
-    remember_recent_file,
-    save_rating_schema,
-    set_rating_radar,
-)
+from utils.app.rating_prefs import load_rating_schema, save_rating_schema
+from utils.app.render_prefs import is_rating_radar, set_rating_radar
+from utils.app.settings import load_app_settings, recent_files, remember_recent_file
 
 
 class TestRatingSchema:

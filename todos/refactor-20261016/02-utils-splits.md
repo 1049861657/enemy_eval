@@ -111,6 +111,50 @@
 2. `grep -rn "import core" utils/` 只命中拆分后的 3 个 `_task` 文件函数体内。
 3. 两个联网冒烟脚本人工通过；偏好往返测试全绿；像素回归 4 组一致。
 
+## 执行记录（2026-10-20，会话 2）
+
+**状态**：已实施；本机验证（联网冒烟 / 全量 pytest / 像素回归）待用户执行。
+
+### 实际改动
+
+| 原文件 | 终态 |
+|---|---|
+| `utils/app_settings_store.py`（390 行 / 33 符号） | `utils/app/settings.py`（223 行：读写容错 + 通用槽 + 最近文件）、`rating_prefs.py`、`ai_prefs.py`、`render_prefs.py`、`update_prefs.py` |
+| `utils/thread_manager.py`（284 行 / 5 个线程类） | `utils/qt/{render_task,prts_task,avatar_task,update_task,ai_task}.py`（一文件一线程类） |
+| `utils/network_image.py` | `utils/net/image_fetch.py`（超时改取 `utils/net/transport.py`） |
+| — | 新增 `utils/net/transport.py`（`build_timeout` / `build_retry_transport` / `log_http_version` + 重试常量） |
+
+调用点共 24 处：`gui/{card_model,main_window,qml_bridge,render_coordinator}.py`、`main.py`、`core/{optimization.py,render/avatar_prefetch.py}`、`utils/{ai/client,ai/prompt,prts/enemy_builder,prts/pipeline,app/update_check}`、`tests/{conftest,test_rating_schema,test_prts_pipeline_refactor}`、`scripts/smoke_ai_review.py`、`models/media.py`（docstring）。
+
+### 与任务书的偏差（4 处，均有证据）
+
+1. **偏好拆 5 个模块而非 4 个**：`settings.py` 若同时装 `update_check_*` / `update_seen_*` 六个写入器是 257 行，破「≤250 行」验收门禁；且任务书未给这六个符号定位。故新增 `utils/app/update_prefs.py`（只写版本检查字段，吞掉写盘失败），`settings.py` 降到 223 行。
+2. **线程拆 5 个文件而非 3 个**：现状是 5 个线程类（任务书审计漏计 `UpdateCheckThread`、`AiEvaluateThread`）。已同步修正 `00-overview.md` D6。
+3. **`request_timeout` 留在 `prts/api_client.py` 作薄封装**（任务书二选一里的"保留薄封装"）：唯一实现 `build_timeout` 在 `transport.py`；`CONNECT_TIMEOUT` 移入 `transport.py`，`api_client` 转导入 → `tests` / `scripts/smoke_mediawiki_api.py` 的既有导入点零改动。
+4. **`_log_http_version` → `transport.log_http_version`**，日志文案由 `"PRTS HTTP version: %s"` 变为 `"HTTP version: %s"`（模块名已由 logger 名体现）。属**可观察文本差异**，无功能影响。
+
+另：原 `_write_updates`（吞掉并记日志）改为公开 `try_update_settings`，并保留 `update_settings`（抛 `FileOperationError`）——两者共用同一落盘点，日志文案不变。
+
+### 验收结果
+
+| 项 | 结果 |
+|---|---|
+| §7.1 悬空导入 / 旧模块名残留 | 0 / 0（`grep app_settings_store\|thread_manager\|network_image` 全仓库为空） |
+| §7.1 全模块导入冒烟 | 71 个模块全通过（`scripts/`、`tests/` 除外） |
+| §7.1 铁律 14 自证 | `import models` / `core` / `main` / `gui_main` 全通过 |
+| §7.1 代码内文件路径引用 | 缺失 0 处 |
+| §7.1 目录深度假设核查 | 仅 `utils/app/{resources,version}.py`（批次 1 已修为 `parents[2]`）与 `scripts/*`（深度 1，`parent.parent` 正确） |
+| 验收 1：`utils/` 单文件 ≤250 行 | ✅ 本批拆出的文件全部达标（最大 `utils/app/settings.py` 223）。`utils/` 仍有两处 >250 是既有例外：`wiki_span_parser.py` 469（D3 已定迁入 `core/render/text/`，批次 3）、`prts/field_mapping.py` 321（纯映射表，按验收豁免）。其余接近线者：`ai/client.py` 236、`prts/pipeline.py` 247 |
+| 验收 2：`utils` 内 `core` 引用 | ✅ 仅 3 个 task 文件函数体内（`render_task.run` / `prts_task._pull` / `avatar_task._pull`） |
+| 偏好往返 + 缓存 + 校验语义冒烟 | ✅ 模板/雷达/AI/人设/最近文件/更新检查六类字段读写闭环；删盘后普通读命中缓存、`force_reload` 才回落默认；空 URL / 空模型名仍抛 `ValueError`；落盘 JSON 字段名与顺序未变 |
+| 真实偏好文件隔离（§7.9） | ✅ 跑 `test_rating_schema.py` + `test_prts_pipeline_refactor.py` + `test_models.py`（60 passed）前后，真实偏好文件 mtime/size 完全一致 |
+| 目标测试 | ✅ `test_rating_schema.py` + `test_prts_pipeline_refactor.py` 共 31 passed |
+| `pyside6-qmllint -I gui/qml` | exit 0（5 Warning + 5 Info，全在既有 `RatingDisplaySwitch.qml`） |
+
+### 待用户执行
+
+`uv run pytest -q`（基线 141 项）、`07` §7.2 五组像素 sha256、两个联网冒烟脚本（`scripts/smoke_mediawiki_api.py`、`scripts/smoke_ai_review.py`）、GUI 人工冒烟（§7.3 第 1–5 条）。
+
 ## 顺带发现
 
 （执行时回填，不在本批实施）

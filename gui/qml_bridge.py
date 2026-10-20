@@ -28,19 +28,23 @@ from utils.ai.prompt import (
     render_preview,
 )
 from utils.app.identity import APP_NAME, APP_SUMMARY
-from utils.app_settings_store import (
+from utils.app.ai_prefs import (
     ai_base_url_preview,
     ai_request_config,
-    current_render_options,
-    is_rating_radar,
-    load_app_settings,
-    recent_files,
     save_ai_persona,
     save_ai_settings,
-    save_rating_schema,
-    set_rating_radar,
-    set_update_check_enabled,
 )
+from utils.app.rating_prefs import save_rating_schema
+from utils.app.render_prefs import (
+    current_render_options,
+    is_rating_radar,
+    set_rating_radar,
+)
+from utils.app.settings import (
+    load_app_settings,
+    recent_files,
+)
+from utils.app.update_prefs import set_update_check_enabled
 from utils.app.version import get_app_build_time, get_app_version
 from utils.errors import FileOperationError, categorize_error_message
 from utils.app.resources import resource_manager

@@ -79,7 +79,7 @@ enemy_eval/
 | D3 | 渲染域文本逻辑迁入 `core/render/text/`（`wiki_span_parser` 跨包迁入） | 该模块 docstring 自述"仅供卡片渲染"，却被 4 个 core 渲染文件引用；迁入后减少一条 `core→utils` 边 |
 | D4 | `core/optimization.py` 不存在了：拆为 `config / surface_pool / image_ops / text_layout / timing` | 名称与内容不符（6 个概念），且被 `gui` 直接导入，是对外暴露的偶然 API |
 | D5 | `core/__init__.py` 收口为只 re-export `EnemyCardGenerator` | 现状额外导出 4 个内部实现（`RenderResourceManager` 等），使 `core/render` 单一入口契约变松 |
-| D6 | `utils/thread_manager.py` 不存在了：按任务拆 3 文件 | 名字只说"卡片生成"，实际装渲染/PRTS/头像三类长任务 |
+| D6 | `utils/thread_manager.py` 不存在了：**按任务一文件拆 5 个**（`render_task` / `prts_task` / `avatar_task` / `update_task` / `ai_task`） | 名字只说"卡片生成"，实际装渲染/PRTS/头像/版本检查/AI 五类长任务（立项审计只数出 3 类，把后加的两个 AI 期线程漏了；批 2 实测 5 类） |
 | D7 | 网络传输策略集中到 `utils/net/transport.py`，PRTS/图像下载共用 | `utils/network_image.py` 反向依赖 `utils/prts_api_client.request_timeout`；AI/更新检查各自写超时 |
 | D8 | QML 侧**公开契约字符串**（属性名、信号名、`image://` key、`qmldir` 模块名）视为对外 API，只有批次 4 明确列出的才改 | QML 按名字调用，改名不会编译报错，只在运行时静默失效 |
 | D9 | 性能改动一律"先测后改"，单帧收益 <5% 或像素结果有差异即回退 | 无证据的优化会引入回归而无法判定 |

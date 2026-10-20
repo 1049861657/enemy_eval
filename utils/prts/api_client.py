@@ -1,7 +1,8 @@
-"""PRTS MediaWiki API 客户端：超时、重试、原始 JSON 拉取。
+"""PRTS MediaWiki API 客户端：端点、请求参数与原始 JSON 拉取。
 
 只负责网络层：不理解 wikitext 语义（见 utils/prts/wikitext_templates.py /
 utils/prts/field_mapping.py），也不组装 Pydantic 模型（见 utils/prts/enemy_builder.py）。
+超时与重试策略取自 utils/net/transport.py。
 """
 
 from __future__ import annotations
@@ -10,7 +11,13 @@ import logging
 from typing import Any, Optional
 
 import httpx
-from httpx_retries import Retry, RetryTransport
+
+from ..net.transport import (
+    CONNECT_TIMEOUT,
+    build_retry_transport,
+    build_timeout,
+    log_http_version,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,37 +37,11 @@ DEFAULT_TIMEOUT_PARSE = 22.0
 DEFAULT_TIMEOUT_IMAGEINFO = 12.0
 # resolve 是精确定位页面标题的加分项：失败/超时直接退回裸名 parse。
 RESOLVE_TIMEOUT = 4.0
-CONNECT_TIMEOUT = 5.0
-
-_RETRY_TOTAL = 2
-_RETRY_BACKOFF_FACTOR = 0.5
-_RETRY_STATUS_FORCELIST = (502, 503, 504)
-_CONNECT_RETRIES = 2
 
 
 def request_timeout(read: float) -> httpx.Timeout:
-    return httpx.Timeout(
-        connect=CONNECT_TIMEOUT,
-        read=read,
-        write=read,
-        pool=CONNECT_TIMEOUT,
-    )
-
-
-def _retry_transport(*, async_mode: bool) -> RetryTransport:
-    retry = Retry(
-        total=_RETRY_TOTAL,
-        backoff_factor=_RETRY_BACKOFF_FACTOR,
-        status_forcelist=_RETRY_STATUS_FORCELIST,
-    )
-    if async_mode:
-        inner: httpx.AsyncHTTPTransport | httpx.HTTPTransport = httpx.AsyncHTTPTransport(
-            http2=True,
-            retries=_CONNECT_RETRIES,
-        )
-    else:
-        inner = httpx.HTTPTransport(http2=True, retries=_CONNECT_RETRIES)
-    return RetryTransport(transport=inner, retry=retry)
+    """PRTS 三档 read 超时（parse 22 / imageinfo 12 / ask 4）；connect 与 pool 固定 CONNECT_TIMEOUT。"""
+    return build_timeout(connect=CONNECT_TIMEOUT, read=read)
 
 
 def build_async_client() -> httpx.AsyncClient:
@@ -69,7 +50,7 @@ def build_async_client() -> httpx.AsyncClient:
         http2=True,
         headers=DEFAULT_HEADERS,
         timeout=request_timeout(DEFAULT_TIMEOUT_PARSE),
-        transport=_retry_transport(async_mode=True),
+        transport=build_retry_transport(async_mode=True),
         follow_redirects=True,
     )
 
@@ -80,13 +61,9 @@ def build_client() -> httpx.Client:
         http2=True,
         headers=DEFAULT_HEADERS,
         timeout=request_timeout(DEFAULT_TIMEOUT_PARSE),
-        transport=_retry_transport(async_mode=False),
+        transport=build_retry_transport(async_mode=False),
         follow_redirects=True,
     )
-
-
-def _log_http_version(response: httpx.Response) -> None:
-    logger.debug("PRTS HTTP version: %s", response.http_version)
 
 
 async def _fetch_parse_json(
@@ -108,7 +85,7 @@ async def _fetch_parse_json(
             timeout=request_timeout(timeout),
         )
         r.raise_for_status()
-        _log_http_version(r)
+        log_http_version(r)
         return r.json(), None
     except httpx.HTTPError as e:
         return None, str(e)
@@ -143,7 +120,7 @@ async def resolve_enemy_page_title(
             timeout=request_timeout(timeout),
         )
         r.raise_for_status()
-        _log_http_version(r)
+        log_http_version(r)
         j = r.json()
     except httpx.HTTPError as e:
         return None, str(e)
@@ -181,7 +158,7 @@ async def fetch_avatar_imageinfo(
             timeout=request_timeout(timeout),
         )
         r.raise_for_status()
-        _log_http_version(r)
+        log_http_version(r)
         data = r.json()
         pages = data.get("query", {}).get("pages", [])
         if not pages or pages[0].get("missing"):

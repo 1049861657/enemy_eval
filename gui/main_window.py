@@ -16,16 +16,18 @@ from core.optimization import get_resource_manager
 from core.render.avatar_prefetch import is_avatar_cached
 from models import EnemyData
 from models.media import is_url
-from utils.app_settings_store import (
-    AiRequestConfig,
+from utils.app.ai_prefs import AiRequestConfig
+from utils.app.render_prefs import current_render_options
+from utils.app.settings import (
     AppSettings,
     clear_recent_files,
-    clear_update_seen,
-    current_render_options,
     load_app_settings,
-    mark_update_checked,
     remember_recent_file,
     remove_recent_file,
+)
+from utils.app.update_prefs import (
+    clear_update_seen,
+    mark_update_checked,
     set_update_block_until,
     set_update_seen,
     set_update_skip_tag,
@@ -41,12 +43,10 @@ from utils.errors import (
 from utils.fs.filenames import safe_filename
 from utils.prts.enemy_builder import rebuild_enemy_data
 from utils.prts.field_mapping import build_enemy_raw
-from utils.thread_manager import (
-    AiEvaluateThread,
-    NetworkAvatarPrefetchThread,
-    PrtsFetchThread,
-    UpdateCheckThread,
-)
+from utils.qt.ai_task import AiEvaluateThread
+from utils.qt.avatar_task import NetworkAvatarPrefetchThread
+from utils.qt.prts_task import PrtsFetchThread
+from utils.qt.update_task import UpdateCheckThread
 
 from .card_model import NO_PRTS_LEVEL, CardModel
 from .constants import (

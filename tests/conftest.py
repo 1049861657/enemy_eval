@@ -18,8 +18,8 @@ import pytest
 def app_settings_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """每个测试写入独立的 app_settings.json，避免碰到本机偏好。"""
     path = tmp_path / "app_settings.json"
-    monkeypatch.setattr("utils.app_settings_store.settings_file_path", lambda: path)
-    monkeypatch.setattr("utils.app_settings_store._cached", None)
+    monkeypatch.setattr("utils.app.settings.settings_file_path", lambda: path)
+    monkeypatch.setattr("utils.app.settings._cached", None)
     return path
 
 

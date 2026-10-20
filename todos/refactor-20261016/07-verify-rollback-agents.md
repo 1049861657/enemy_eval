@@ -205,7 +205,7 @@ uv run --group build -- python scripts/build_release.py                  # 校�
 | # | 位置 | 现内容 | 迁移后需改成 | 影响批次 |
 |---|---|---|---|---|
 | 1 | 铁律 6 | 例外路径 `utils/thread_manager.py` 的 `CardGeneratorThread.run` / `PrtsFetchThread._pull` / `NetworkAvatarPrefetchThread._pull` | `utils/qt/render_task.py` / `utils/qt/prts_task.py` / `utils/qt/avatar_task.py` | 2 |
-| 2 | 铁律 7 | 偏好存储条目里的 `utils/app_settings_store.py` | `utils/app/settings.py`（另三个偏好模块：`rating_prefs` / `ai_prefs` / `render_prefs`） | 1、2 |
+| 2 | 铁律 7 | 偏好存储条目里的 `utils/app_settings_store.py` | `utils/app/settings.py`（另四个偏好模块：`rating_prefs` / `ai_prefs` / `render_prefs` / `update_prefs`） | 1、2 |
 | 3 | 铁律 13 | 示例 `from utils.thread_manager import PrtsFetchThread` / `from utils.app_settings_store import current_render_options` | `utils.qt.prts_task` / `utils.app.render_prefs` | 1、2 |
 | 4 | 铁律 14 | "`utils` 不得模块级 `import core`；新增跨包 import 前自证不成环" | 结论不变，示例路径更新 | 1、2 |
 | 5 | 架构要点·对外渲染 | `from core import EnemyCardGenerator`（实现在 `core/render/`）；"唯一绘制入口 `_draw_card`" | 增补 `core/render/text/`、`core/render/primitives/`；注明 `core/__init__` 只导出 `EnemyCardGenerator` | 3 |
@@ -221,6 +221,8 @@ uv run --group build -- python scripts/build_release.py                  # 校�
 > 实测 `AGENTS.md` 共出现 17 个代码路径，其中 `models/media.py`、`Theme.qml`、`main.py`、`gui_main.py`、`pyproject.toml`、`data/{敌人名称}_config.json` 等**路径不变**，无需同步；上表 13 条覆盖全部会失效的引用。
 
 **处理方式**：批次 1–5 期间**不动 `AGENTS.md`**；每批结束时把"使哪条失效"记到本表；由用户决定何时一次性同步（届时由用户明确要求）。
+
+**批次 2 已核对上表**：第 1、2、3 条的目标路径已随代码落地并实测存在（`utils/qt/{render_task,prts_task,avatar_task}.py`、`utils/app/{settings,rating_prefs,ai_prefs,render_prefs,update_prefs}.py`）；AGENTS.md 全文没有 `utils/network_image.py` 引用，本次无需新增条目。
 
 ## 7.7 用户本地动作清单（我无法代做）
 

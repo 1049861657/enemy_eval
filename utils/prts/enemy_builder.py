@@ -6,7 +6,7 @@ import logging
 from typing import Any, Optional
 
 from models import EnemyData, SkillEntry, default_ratings
-from utils.app_settings_store import get_rating_names
+from utils.app.rating_prefs import get_rating_names
 
 logger = logging.getLogger(__name__)
 

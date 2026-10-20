@@ -13,12 +13,14 @@ import httpx
 
 from utils.app.version import get_app_version
 
+from ..net.transport import build_timeout
+
 logger = logging.getLogger(__name__)
 
 API_URL = "https://api.github.com/repos/1049861657/enemy_eval/releases/latest"
 RELEASES_PAGE = "https://github.com/1049861657/enemy_eval/releases/latest"
 
-_TIMEOUT = httpx.Timeout(connect=3, read=5, write=5, pool=5)
+_TIMEOUT = build_timeout(connect=3.0, read=5.0, write=5.0, pool=5.0)
 
 # SemVer 2.0.0 官方正则。预发布与构建元数据分开，构建元数据不参与比较。
 _SEMVER = re.compile(

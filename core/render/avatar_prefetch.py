@@ -6,6 +6,9 @@ EnemyData 之前）、`NetworkAvatarPrefetchThread`（加载配置 / 手填 URL 
 
 `_GLOBAL_IMAGE_CACHE` 可被渲染线程与上述两个线程并发读写，统一用
 core.optimization 的最小粒度锁。
+
+边界：`utils/net/image_fetch.py` 只下载字节、不碰缓存；写入由本模块负责，
+渲染侧（`core.optimization`）只读缓存、从不发网络。
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ import skia
 
 from core.optimization import _GLOBAL_IMAGE_CACHE, _GLOBAL_IMAGE_CACHE_LOCK
 from models.media import is_url
-from utils.network_image import download_image_data, get_url_cache_key
+from utils.net.image_fetch import download_image_data, get_url_cache_key
 
 logger = logging.getLogger(__name__)
 

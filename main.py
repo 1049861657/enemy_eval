@@ -12,7 +12,7 @@ from core import EnemyCardGenerator
 from models import DEFAULT_RATING_NAMES, EnemyData, RatingEntry, SkillEntry
 from utils.app.identity import APP_NAME, APP_SUMMARY
 from utils.app.logging import setup_logging
-from utils.app_settings_store import current_render_options
+from utils.app.render_prefs import current_render_options
 from utils.app.version import get_app_version
 
 console = Console()

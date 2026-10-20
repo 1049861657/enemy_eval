@@ -15,18 +15,19 @@ import httpx
 from models import AiEvaluationResult, EnemyData
 
 from .prompt import build_messages
-from ..app_settings_store import AiRequestConfig
+from ..app.ai_prefs import AiRequestConfig
 from ..errors import (
     AiCredentialError,
     AiNetworkError,
     AiRateLimitError,
     AiServiceError,
 )
+from ..net.transport import build_timeout
 
 logger = logging.getLogger(__name__)
 
 # 固定读超时：推理类模型单次生成可能超过 60 秒，连接与写超时保持短。
-AI_TIMEOUT = httpx.Timeout(connect=5.0, read=120.0, write=10.0, pool=5.0)
+AI_TIMEOUT = build_timeout(connect=5.0, read=120.0, write=10.0, pool=5.0)
 
 _NUMERIC_FIELDS = (
     "max_hp",

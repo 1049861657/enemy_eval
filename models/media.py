@@ -1,7 +1,7 @@
 """媒体来源判定：本地文件路径 vs 网络 URL。
 
 位于 models：数据层零项目内依赖，任何模块按任意顺序导入都不得触发其他包初始化。
-下载/缓存逻辑在 utils.network_image，它引用本模块。
+下载/缓存逻辑在 utils.net.image_fetch，它引用本模块。
 """
 
 from __future__ import annotations
