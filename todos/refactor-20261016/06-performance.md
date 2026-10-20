@@ -2,6 +2,8 @@
 
 **优先级** P2　**依赖** 批次 3（拆分完成后才好定位）　**回滚** 每项独立 commit
 
+> **2026-10-20：用户决定跳过本批。** P1–P8 与测量方法原样保留，未做任何性能改动；恢复时从「步骤」第一条的基线测量开始。
+
 ## 原则
 
 1. **先测后改**：每项先有测量数据（当前值 + 测量方法），改后再测；单帧/单次收益 **< 5%** 即回退并记录结论。
@@ -13,7 +15,7 @@
 
 | 手段 | 位置 | 用法 |
 |---|---|---|
-| `PerformanceTimer` | 现 `core/optimization.py:378` → `core/render/timing.py` | `_draw_card` 已包一层，DEBUG 日志输出毫秒 |
+| `PerformanceTimer` | `core/render/timing.py`（原 `core/optimization.py`） | `_draw_card` 已包一层，DEBUG 日志输出毫秒 |
 | 渲染耗时打点 | `gui/render_coordinator.py`（`busyChanged` 闭合）+ 日志 | 连续编辑时的端到端延迟 |
 | 启动打点 | `gui_main.py`（"QML 就绪" 日志，含 `elapsed_ms`） | 启动路径回归 |
 | 手工计时脚本 | 临时（直接调 `generate_card_image`；`core` 无 Qt 依赖，无需 offscreen） | 单帧耗时、连续 N 帧均值、峰值内存（`tracemalloc`，stdlib） |
@@ -22,11 +24,11 @@
 
 | # | 项 | 证据 | 机制 | 预期 | 风险 |
 |---|---|---|---|---|---|
-| P1 | 预览图整幅拷贝 | `gui/qml_bridge.py:63-69`：`requestImage` 每次 `self._image.copy()` | 1950×1500 RGBA ≈ 11.7 MB/次（长卡更大）；每帧渲染 + 每次请求各一次分配 | 去掉无谓的整幅拷贝（仅在需要缩放时拷贝），内存峰值下降 | QImage 隐式共享语义：不得让 QML 侧改动缓冲区；需锁内 `detach` 判断 |
-| P2 | 预览 URL 每次带 `revision` | `gui/qml/Workspace.qml:318`：`image://enemy-card/current?revision=N` | Qt 图像缓存按 URL 累积旧帧（每帧 ~12 MB） | 固定 key + 显式失效（或 `cache: false`） | 失效时机错误 → 预览不刷新（必须手工验证连续编辑） |
-| P3 | 可变 Surface 随高度频繁重建 | 现 `core/optimization.py:114-127`（拆后 `canvas_pool.py`） | 长卡每改一次文本高度即重建（每次分配 1950×H） | 高度分档缓存（2–3 档）或"单调增时不缩" | 相邻高度反复抖动时仍会重建；需测量真实抖动频率 |
-| P4 | 逐字符 `measureText` 换行 | 现 `core/optimization.py:197-260`（拆后 `text_layout.py`） | 每行最多 O(行字数) 次 `measureText`，全卡多次 | 批量化（skia 的按字符宽度数组 API）或按字符宽度缓存 | **[待验证]** skia-python 是否暴露批量宽度接口；否则退化为"字符宽度 LRU" |
-| P5 | 文本布局缓存键用 md5 | 现 `core/optimization.py:152-158` | 每次调用对全文算 md5；而 `str` 的哈希在 Python 内是**缓存**的 | 键改为 `(text, max_width, font_size, id(typeface))` 元组 | 元组持文本引用（文本本就在 `EnemyData` 上，不额外复制）；`id(typeface)` 复用风险需评估（现实现已有同样风险） |
+| P1 | 预览图整幅拷贝 | `gui/bridge/preview.py`：`requestImage` 每次 `self._image.copy()` | 1950×1500 RGBA ≈ 11.7 MB/次（长卡更大）；每帧渲染 + 每次请求各一次分配 | 去掉无谓的整幅拷贝（仅在需要缩放时拷贝），内存峰值下降 | QImage 隐式共享语义：不得让 QML 侧改动缓冲区；需锁内 `detach` 判断 |
+| P2 | 预览 URL 每次带 `revision` | `gui/qml/Workspace.qml`：`image://enemy-card/current?revision=N` | Qt 图像缓存按 URL 累积旧帧（每帧 ~12 MB） | 固定 key + 显式失效（或 `cache: false`） | 失效时机错误 → 预览不刷新（必须手工验证连续编辑） |
+| P3 | 可变 Surface 随高度频繁重建 | `core/render/canvas_pool.py`（原 `optimization.py:114-127`） | 长卡每改一次文本高度即重建（每次分配 1950×H） | 高度分档缓存（2–3 档）或"单调增时不缩" | 相邻高度反复抖动时仍会重建；需测量真实抖动频率 |
+| P4 | 逐字符 `measureText` 换行 | `core/render/text_layout.py`（原 `optimization.py:197-260`） | 每行最多 O(行字数) 次 `measureText`，全卡多次 | 批量化（skia 的按字符宽度数组 API）或按字符宽度缓存 | **[待验证]** skia-python 是否暴露批量宽度接口；否则退化为"字符宽度 LRU" |
+| P5 | 文本布局缓存键用 md5 | `core/render/text_layout.py`（原 `optimization.py:152-158`） | 每次调用对全文算 md5；而 `str` 的哈希在 Python 内是**缓存**的 | 键改为 `(text, max_width, font_size, id(typeface))` 元组 | 元组持文本引用（文本本就在 `EnemyData` 上，不额外复制）；`id(typeface)` 复用风险需评估（现实现已有同样风险） |
 | P6 | 测量与绘制重复换行 | `core/render/layout.py::wiki_line_count` 与绘制各自 `wrap_spans_to_lines` | 同一帧内同一文本被换行两次 | 同帧内复用第一次结果 | 需要跨模块传递（`layout` ↔ 渲染）→ 可能破坏"测量唯一真源"的简洁性，收益必须显著 |
 | P7 | 画布池与缓存的内存占用 | `RenderConfig.canvas_pool_size=3`、`image_cache_size`、`_text_layout_cache` 无上限 | 3×1950×1500 ≈ 35 MB + 图像缓存 + 文本缓存 + QImage/QPixmap 副本 | 按实测峰值决定是否降池或给文本缓存设上限 | 降池会加重新分配，需成对测量 |
 | P8 | 头像缩放重复处理 | `core/render/image_ops.py` 与 `core/render/avatar_prefetch.py` 各有一套缩放路径 | 同一头像可能被缩放两次 | 合并为单一缩放入口 | 属结构改动，需像素比对 |

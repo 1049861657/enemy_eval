@@ -33,6 +33,22 @@
 | 工程配置 | `pyproject.toml` 无 `[build-system]`、无 `[project.scripts]`、无任何 `[tool.*]` | 文件内容 |
 | 打包入口 | `enemyEval.spec`（camelCase，仓库其余文件 snake_case/PascalCase）；`hiddenimports` 含 `core.render.generator`、`core.render.avatar_prefetch`；`sys.path` 注入后 `from utils.app_identity import APP_AUTHOR, APP_NAME` | `enemyEval.spec` |
 
+## 改后对照（2026-10-20，批次 0–5 落地后实测）
+
+| 项 | 基线（改前） | 改后 | 结论 |
+|---|---|---|---|
+| 代码规模 | 68 py / 10241 行；QML 28 / 4687 + 15 svg | 102 py / 10781 行；QML 32 / 4809 + 15 svg | 文件 +34（拆分 + 桥接分域 + 4 个 AI 子面板）；行数 +540（契约注释与测试文件头），行为代码净减 |
+| 包规模 | `utils` 22/3279；`core` 15/2434；`gui` 8/1806；`tests` 11/1569；`scripts` 3/633；`models` 7/275 | `utils` 36/2901；`core` 24/2975；`gui` 15/2135；`tests` 14/1571；`scripts` 3/630；`models` 7/267 | `utils` 行数 −378（偏好/线程拆分后单文件变薄）；`core` +541 来自 `optimization` 拆 7 文件后的模块头与接口；`gui` +329 来自 `bridge/` |
+| 依赖方向 | `utils→core` 3 处函数内；`core→utils` 7 条模块级边 | `utils→core` 模块级 **0**、函数内 3（同一批例外）；`core→utils` **3** 条模块级边 | 改善：`core→utils` 7 → 3；铁律 14 由 AST 实测而非人工保证 |
+| 最大文件 | `qml_bridge` 657；`main_window` 553；`wiki_span_parser` 470；`optimization` 402；`app_settings_store` 391 | `main_window` 547；`qml_bridge` 528；`wikitext_spans` 470；`skills_talents` 389；`rating_grade` 354 | 前五均落到 <560；两个"杂货铺"不再存在 |
+| 抓杂货铺 | `optimization` 6 个无关概念；`app_settings_store` 33 符号 / 5 职责；`qml_bridge` 36 信号 + 26 属性 + 36 槽 | 分别拆成 7 / 5 / 8 个文件；`qml_bridge` 只剩声明与一行转发 | 已消除 |
+| 真死代码 | `card_model::update_skill` / `get_current_dict` 零引用 | 已删；另删 `QmlBridge.lightDismissRequested` 与 `canvas_pool._stats` | 归零 |
+| 字段散落 | 每字段 5~7 个 prod 文件 | `max_hp` 10 / `attack_interval` 9（口径为 `.py` 全文匹配；基线未记录口径） | **未改善**：属结构性问题（QML 编辑页 + 字段映射 + AI 白名单天然各存一份），本计划未覆盖 |
+| 测试覆盖 | 25/46 模块被引用 | 19/67（分母含拆分后的叶子模块） | 口径不可直接比较；用例数与通过数不变（141） |
+| 工程配置 | 无 `[build-system]`、无 `[project.scripts]`、无 `[tool.*]` | 有 `[project.scripts]`、`[tool.pyright]`；仍无 `[build-system]`（决策：不加） | 部分达成 |
+| 打包入口 | `enemyEval.spec` | `enemy_eval.spec`（`InternalName` / exe / zip 等产物名不变） | 达成 |
+| 注释体积 | 未统计（本计划新增指标） | 模块 docstring 402 → 301 行；行内注释 129 → 75 条 | 见 `05` 执行记录 |
+
 ## 目标结构（本计划终态）
 
 ```text

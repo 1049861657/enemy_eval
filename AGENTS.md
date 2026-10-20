@@ -21,26 +21,26 @@ Python 3.13 · uv（**勿手改 `uv.lock`**，改依赖后在本机 `uv lock` / 
 | 3 | 任务末尾不擅自运行 Python 验证；由用户本地运行 |
 | 4 | 直接替换：不留兼容层、不留旧名别名、不写迁移说明 |
 | 5 | 不做回退式凑合实现 |
-| 6 | import 一律写在文件顶部，禁止函数体中部 import。例外只有两类：`utils/thread_manager.py` 的 `CardGeneratorThread.run`、`PrtsFetchThread._pull`、`NetworkAvatarPrefetchThread._pull` 延迟导入 `core`（防循环）；`scripts/` 下独立脚本在 `sys.path` 注入后导入本项目模块，用 `# noqa: E402` 标注 |
-| 7 | 配置一律 JSON、形状符合 Pydantic。敌人配置 `data/{敌人名称}_config.json`；应用偏好 `platformdirs.user_config_path("牢杰的物种奇遇", appauthor="双老蜂")/app_settings.json`（`utils/app_settings_store.py`） |
+|6|import 一律写在文件顶部，禁止函数体中部 import。例外只有两类：`utils/qt/render_task.py` 的 `run`、`utils/qt/prts_task.py` 与 `utils/qt/avatar_task.py` 的 `_pull` 延迟导入 `core`（防循环）；`scripts/` 下独立脚本在 `sys.path` 注入后导入本项目模块，用 `# noqa: E402` 标注|
+| 7 | 配置一律 JSON、形状符合 Pydantic。敌人配置 `data/{敌人名称}_config.json`；应用偏好 `platformdirs.user_config_path("牢杰的物种奇遇", appauthor="双老蜂")/app_settings.json`（`utils/app/settings.py`） |
 | 8 | GUI 职责分离：界面在 `gui/qml/`、主题 `Theme.qml`；启动期的固定连接集中在 `__init__`（可经其调用的一次性 helper，如 `_connect_signals`），随对象生命周期产生的连接（线程实例、换模型）在其创建处完成，且不得落在可重复路径上 |
 | 9 | 私有成员 `_` 前缀；完整类型注解（GUI 尤甚）；导入顺序 标准库 → 第三方 → 本项目 |
 | 10 | 长任务走线程；关窗只 `requestInterruption` + `task.cancel()`，**绝不 `terminate`** |
 | 11 | 依赖单向 `models ← utils / core / gui`，不得出现反向边（有环即为 bug） |
 | 12 | `models` 零项目内依赖（标准库 + Pydantic；媒体来源判定 `models/media.py::is_url`）→ `import models` 在任意导入顺序下必须可用 |
-| 13 | `utils/__init__.py` 不做聚合导出（只留文档字符串；聚合会让导入任一子模块就初始化整包）。调用方直接写 `from utils.thread_manager import PrtsFetchThread` |
+| 13 | `utils/__init__.py` 不做聚合导出（只留文档字符串；聚合会让导入任一子模块就初始化整包）。调用方直接写 `from utils.qt.prts_task import PrtsFetchThread` |
 | 14 | `utils` 不得模块级 `import core`（渲染相关只走第 6 条例外）；新增跨包 import 前自证不成环：`python -c "import models"`、`import core`、`import main` 各自必须通过 |
 | 15 | 注释 / 文档字符串只写声明性事实（契约、不变量、单位、边界、易错点、副作用），短句、名词语。**不写过程性内容**：改动史、"之前是…"、调试过程、动机叙事、第一人称/时间线 |
 
 ## 架构要点
 
-- **对外渲染**：`from core import EnemyCardGenerator`（实现在 `core/render/`）。唯一绘制入口 `_draw_card(enemy, options)`；`RenderOptions` 由 GUI/CLI 传入，core 不读偏好存储。
-- **网络头像**：渲染侧只查全局图像缓存、从不下载，未命中即跳过不画；网络 URL 必须先由 PRTS 拉取线程或 `NetworkAvatarPrefetchThread` 预取（`core/render/avatar_prefetch.py`）。
-- **PRTS**：HTTP 层 `utils/prts_api_client.py`（async `AsyncClient` / 同步 `Client`）；编排 `utils/prts_mediawiki_pipeline.py`（async，resolve → parse → imageinfo **串行**）；GUI 经 `PrtsFetchThread` 复用同一 `AsyncClient`。超时一律 `request_timeout(read)`，四参数写全。
-- **gui**：QML 拆 `Editor*Page` / `CommandBar` / `PrtsQueryDialog`，组件 PascalCase；Python 编排 `main_window` / `qml_bridge` / `card_model` / `skill_list_model` / `render_coordinator`（渲染串行化）；技能列表走 `QAbstractListModel`；标量 JSON 不含 `skills`。
-- **错误**：统一 `utils/error_handler.py`（`RenderError` / `EnemyEvalException` / `FileOperationError`），展示走 `categorize_error_message`。
-- **性能**：图像缓存 `core/optimization.py`（`cachetools.LRUCache` + 锁）；预览防抖 `utils/debouncer.py`；长任务 `utils/thread_manager.py`。
-- **文件名**：保存/导出默认名一律 `utils/filenames.py::safe_filename`。
+- **对外渲染**：`from core import EnemyCardGenerator`（实现在 `core/render/`，`core/__init__` 只导出它）。唯一绘制入口 `_draw_card(enemy, options)`；`RenderOptions` 由 GUI/CLI 传入，core 不读偏好存储。
+- **网络头像**：渲染侧只查全局图像缓存、从不下载，未命中即跳过不画；网络 URL 必须先由 PRTS 拉取线程或 `NetworkAvatarPrefetchThread` 预取（`core/render/avatar_prefetch.py`）。缓存与锁的唯一持有者是 `core/render/image_cache.py`。
+- **PRTS**：HTTP 层 `utils/prts/api_client.py`（async `AsyncClient` / 同步 `Client`）；编排 `utils/prts/pipeline.py`（async，resolve → parse → imageinfo **串行**）；GUI 经 `PrtsFetchThread` 复用同一 `AsyncClient`。超时一律 `request_timeout(read)`，四参数写全。
+- **gui**：QML 在 `gui/qml/{components,pages,dialogs}/`；Python 编排 `main_window` / `qml_bridge` / `bridge/` / `card_model` / `skill_list_model` / `render_coordinator`（渲染串行化）。QML 可见名与信号只在 `qml_bridge.py` 声明，逻辑在 `gui/bridge/`；预览图 provider 在 `gui/bridge/preview.py`。技能列表走 `QAbstractListModel`；标量 JSON 不含 `skills`。
+- **错误**：统一 `utils/errors.py`（`RenderError` / `EnemyEvalException` / `FileOperationError`），展示走 `categorize_error_message`。
+- **性能**：图像缓存 `core/render/image_cache.py`（`cachetools.LRUCache` + 锁）；预览防抖 `utils/qt/debounce.py`；长任务 `utils/qt/*_task.py`。
+- **文件名**：保存/导出默认名一律 `utils/fs/filenames.py::safe_filename`。
 
 ## 目录索引
 
@@ -49,10 +49,10 @@ enemy_eval/
 ├── main.py / gui_main.py # CLI / GUI 入口
 ├── models/               # 数据层：Pydantic 模型与跨层词表（零项目内依赖）
 ├── core/                 # 渲染层：绘制、布局、字体、资源复用
-│   └── render/           # 卡片绘制实现（分区、布局、wiki 文本、头像预取）
-├── utils/                # 工具层：偏好、网络与图像缓存、wiki 解析、日志、线程、错误、文件名、版本
-├── gui/                  # GUI 层：Qt 编排与 QML 界面
-│   └── qml/              # QML 页面、组件、主题与图标
+│   └── render/           # 卡片绘制实现（sections/ 分区、text/ wiki 文本、primitives/ 图元）
+├── utils/                # 工具层：app/ prts/ ai/ net/ qt/ fs/ 子包 + errors.py
+├── gui/                  # GUI 层：Qt 编排（bridge/ 域实现）与 QML 界面
+│   └── qml/              # Workspace.qml / Theme.qml + components/ pages/ dialogs/ icons/
 ├── data/                 # 敌人配置 JSON 与 PRTS 调试导出
 ├── enemy/                # 用户本地敌人资源（git 忽略）
 ├── example/              # CLI 示例头像（`main.py` 引用）
@@ -60,7 +60,7 @@ enemy_eval/
 ├── scripts/              # 人工联网冒烟脚本（不接入 pytest discovery）
 ├── tests/                # pytest 用例与 conftest（隔离偏好文件与 Qt 平台）
 ├── todos/                # 历次与在途的改进计划
-├── enemyEval.spec        # PyInstaller 打包入口
+├── enemy_eval.spec       # PyInstaller 打包入口
 ├── pyproject.toml        # 依赖与唯一版本号来源
 ├── CHANGELOG.md          # 发布变更记录
 ├── uv.lock
@@ -71,11 +71,11 @@ enemy_eval/
 
 1. `CHANGELOG.md`「未发布」整块剪切到新版本节；对照上次 tag 核对完整性。
 2. SemVer：AI 只可改 `Y` / `Z`，**禁止改 `X`**（除非用户手写指定）。变化大 `Y+1, Z=0`；变化小 `Z+1`。
-3. `pyproject.toml` 的 `[project].version` 与该版本节一致（`utils/app_version.py` 依次取已安装分发包元数据、打包 `build_info.json`、`pyproject.toml`；本仓库未安装为分发包，源码运行读到的就是 `pyproject.toml`）。
+3. `pyproject.toml` 的 `[project].version` 与该版本节一致（`utils/app/version.py` 依次取已安装分发包元数据、打包 `build_info.json`、`pyproject.toml`；本仓库未安装为分发包，源码运行读到的就是 `pyproject.toml`）。
 4. 提交 `chore: release X.Y.Z`；附注 tag `git tag -a vX.Y.Z -m "release X.Y.Z"`。**未经授权不代为 `git push`。**
 
 ## 打包（Windows 参考）
 
 ```bash
-pyinstaller --noconfirm --clean enemyEval.spec
+pyinstaller --noconfirm --clean enemy_eval.spec
 ```

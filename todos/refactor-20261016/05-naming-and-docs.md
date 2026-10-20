@@ -43,7 +43,7 @@
 
 | 类型 | 位置 | 评价 |
 |---|---|---|
-| 好（保留并作为模板） | `core/fonts.py::FontManager.get_font` 的 docstring：说明缓存"模板 + `makeWithSize` 新实例"的原因与实测收益，明确调用方可否原地修改返回值 | 契约 + 坑，一句话讲清 |
+| 好（保留并作为模板） | `core/render/fonts.py::FontManager.get_font` 的 docstring：说明缓存"模板 + `makeWithSize` 新实例"的原因与实测收益，明确调用方可否原地修改返回值 | 契约 + 坑，一句话讲清 |
 | 好 | `core/render/avatar_prefetch.py:7` 关于"全局图像缓存被三个线程并发读写、统一用某把锁" | 线程契约 |
 | 好 | `gui/render_coordinator.py` 模块 docstring：三个终止路径 + busy 只在 `finished` 收敛 | 不变量 |
 | 坏 → 改 | `utils/network_image.py:1` "网络图片支持工具 - 最小侵入性实现" | 动机叙事 |

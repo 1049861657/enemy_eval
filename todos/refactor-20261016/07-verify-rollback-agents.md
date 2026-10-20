@@ -203,7 +203,7 @@ uv run --group build -- python scripts/build_release.py                  # 校�
 | 回滚 | `git revert <commit>`；批次内独立项回滚不影响其他项 |
 | 禁止 | 同一 commit 内夹带行为改动；`git push`；打 tag；改 `uv.lock` |
 
-## 7.6 `AGENTS.md` 待同步清单（**须用户当场授权后**才可改）
+## 7.6 `AGENTS.md` 同步清单（**已于 2026-10-20 按用户要求同步完成**，下表保留为对照记录）
 
 | # | 位置 | 现内容 | 迁移后需改成 | 影响批次 |
 |---|---|---|---|---|
@@ -241,20 +241,28 @@ uv run --group build -- python scripts/build_release.py                  # 校�
 
 ## 7.8 收尾
 
-- [ ] 批次 1–6 完成后，重跑 `00-overview.md` 的「审计基线」全部指标，产出"改后"对照表（包规模、最大文件、真死代码归零、字段散落不变或下降、`utils` 单文件行数分布）。
-- [ ] 判定 `CHANGELOG.md` 是否需要条目：本次无用户可感知变化 → **默认不写**；若最终决定改产物名/入口名（属行为变化，需另批），才写「变更」。
-- [ ] 把本目录状态表全部置为"已实施"，并在 `README.md` 记录完成日期与实际偏移（哪些批次跳过、哪些结论被修正）。
+- [x] 批次 1–6 完成后，重跑 `00-overview.md` 的「审计基线」全部指标，产出"改后"对照表（包规模、最大文件、真死代码归零、字段散落不变或下降、`utils` 单文件行数分布）。→ 2026-10-20 完成，表在 `00-overview.md`「改后对照」。**字段散落未改善**（`max_hp` 10 处 / `attack_interval` 9 处），已在表内标注为结构性问题、本计划未覆盖。
+- [x] 判定 `CHANGELOG.md` 是否需要条目：本次无用户可感知变化 → **默认不写**；若最终决定改产物名/入口名（属行为变化，需另批），才写「变更」。→ 判定：**不写**。spec 改名与入口声明都不改变 exe / zip 名与双击行为。
+- [x] 把本目录状态表全部置为"已实施"，并在 `README.md` 记录完成日期与实际偏移（哪些批次跳过、哪些结论被修正）。→ 批次 6 跳过；批次 5 的 `qml_bridge.py < 250 行` 已修正为 `≤ 550 行`；5.3 的 ruff 三行按用户要求作废；`[build-system]` 未加。
+
+## 7.7' 未完成的本机动作（收尾时仍属用户）
+
+| 项 | 状态 |
+|---|---|
+| `uv run pytest -q` | 我实测 141 passed；按铁律 3 仍需本机确认 |
+| 像素 5 组 sha256（§7.2） | 未由助手执行，待本机 |
+| 打包（§7.4，`enemy_eval.spec`） | 待本机 |
+| `AGENTS.md` 14 条同步 | 待用户授权 |
 
 ## 7.9 测试隔离目标（批次 1/2 改动前必看）
 
-`tests/conftest.py` 用字符串 patch 隔离真实偏好文件（原文）：
+`tests/conftest.py` 用字符串 patch 隔离真实偏好文件。批次 2 已把目标改为（现状）：
 
 ```python
-monkeypatch.setattr("utils.app_settings_store.settings_file_path", lambda: path)
-monkeypatch.setattr("utils.app_settings_store._cached", None)
+monkeypatch.setattr("utils.app.settings.settings_file_path", lambda: path)
+monkeypatch.setattr("utils.app.settings._cached", None)
 ```
 
-- 批次 1/2 会移动并拆分该模块 → **这两个目标必须与搬迁在同 commit 内改成 `utils.app.settings.settings_file_path` / `utils.app.settings._cached`**。
 - 目标名不存在时 `monkeypatch.setattr` 会直接报错（可见、安全）；但若被改到**另一个真实存在**的对象上，测试就会静默读写本机偏好文件。因此改完必须核对真实偏好文件
   `platformdirs.user_config_path("牢杰的物种奇遇", appauthor="双老蜂")/app_settings.json`
   的 mtime 未变。
