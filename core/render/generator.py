@@ -1,4 +1,7 @@
-"""敌人评价卡片生成器：画布生命周期与分区编排。"""
+"""卡片生成器：`generate_card_image` / `save_card_image` 是对外入口，`_draw_card` 是唯一绘制入口。
+
+画布来自 `canvas_pool`（超高卡片用非池化 Surface）；渲染串行驱动，实例状态不加锁；不读偏好。
+"""
 
 from __future__ import annotations
 
@@ -21,7 +24,6 @@ from .timing import PerformanceTimer
 
 
 class EnemyCardGenerator:
-    """敌人评价卡片生成器：Canvas 池、渐变背景、分区绘制。"""
 
     def __init__(
         self,

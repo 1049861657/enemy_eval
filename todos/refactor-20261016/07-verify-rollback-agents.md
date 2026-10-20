@@ -188,7 +188,7 @@ for name, enemy, radar in samples:
 ## 7.4 涉及打包的批次（1、3、5）
 
 ```bash
-uv run --group build -- pyinstaller --noconfirm --clean enemyEval.spec   # 批次 5 后为 enemy_eval.spec
+uv run --group build -- pyinstaller --noconfirm --clean enemy_eval.spec   # 批次 5 已改名
 uv run --group build -- python scripts/build_release.py                  # 校验 + 打 zip
 ```
 产物校验清单见 `todos/feat-20260929/05-portable-distribution.md:115-117`（`dist/enemyEval/enemyEval.exe`、`_internal/build_info.json`、`_internal/gui/qml`、`_internal/resource`、`opengl32sw.dll`、`Qt6ShaderTools.dll`、`qml/QtQuick/Controls`）。

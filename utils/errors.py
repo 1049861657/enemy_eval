@@ -1,26 +1,24 @@
-"""
-统一错误处理机制
+"""跨层错误词表与界面文案归类。
+
+`error_handler` 把非业务异常包成 `EnemyEvalException`（`silent=True` 只记日志）；
+`categorize_error_message` 是 异常 → (标题, 文案) 的唯一映射点。
 """
 import logging
 from contextlib import contextmanager
 from typing import Generator
 
-# 设置日志
 logger = logging.getLogger(__name__)
 
 
 class EnemyEvalException(Exception):
-    """项目基础异常"""
     pass
 
 
 class RenderError(EnemyEvalException):
-    """渲染错误"""
     pass
 
 
 class FileOperationError(EnemyEvalException):
-    """文件操作错误"""
     pass
 
 
@@ -42,11 +40,9 @@ class AiNetworkError(EnemyEvalException):
 
 @contextmanager
 def error_handler(operation: str, silent: bool = False) -> Generator[None, None, None]:
-    """统一错误处理上下文管理器
-    
-    Args:
-        operation: 操作描述
-        silent: 是否静默失败（不抛出异常）
+    """统一错误语义：业务异常原样上抛，其余包成 `EnemyEvalException`（消息带 operation 前缀）。
+
+    `silent=True` 只记 warning 不抛，用于失败无妨的路径（如关窗清理）。
     """
     try:
         yield
@@ -62,14 +58,7 @@ def error_handler(operation: str, silent: bool = False) -> Generator[None, None,
 
 
 def categorize_error_message(error_message: Exception | str) -> tuple[str, str]:
-    """根据错误分类返回标题和用户友好的消息
-    
-    Args:
-        error_message: 异常对象或原始错误信息
-        
-    Returns:
-        tuple: (错误标题, 用户友好的错误消息)
-    """
+    """异常或原始文本 → (标题, 用户可读正文)；界面只消费这一处映射。"""
     if isinstance(error_message, AiCredentialError):
         return (
             "AI 配置错误",

@@ -16,11 +16,9 @@ class RenderConfig:
     - `cache_expire_seconds`：文本布局缓存有效期（秒）。
     """
 
-    # Canvas参数
     width: int = 1950
     height: int = 1500
 
-    # 性能参数
     canvas_pool_size: int = 3
     text_cache_size: int = 100
     image_cache_size: int = 20

@@ -1,10 +1,6 @@
-"""预览渲染长任务：CardGeneratorThread。
+"""`CardGeneratorThread`：预览渲染，输出 `cardGenerated(QPixmap, revision)` 或 `errorOccurred`。
 
-输入：敌人数据与渲染选项（run 内各深拷贝一次，线程不读共享模型）、revision 序号。
-产出：cardGenerated(QPixmap, revision) 或 errorOccurred(str, revision)；revision 供调用方丢弃过时渲染。
-取消：requestInterruption 后尽快返回，不发信号；绝不 terminate。
-线程内禁止：新建或访问 QWidget、写偏好文件、发起网络请求。
-core 延迟导入（run 内），以保持 utils 不模块级 import core。
+输入深拷贝一次；取消后不发信号。`core` 延迟导入，保持 utils 不模块级依赖 core。
 """
 
 from __future__ import annotations
@@ -34,7 +30,6 @@ class CardGeneratorThread(QThread):
         self._revision = revision
 
     def run(self):
-        """在后台线程中生成卡片预览图。"""
         from core import EnemyCardGenerator
 
         snapshot = self.enemy_data.model_copy(deep=True)

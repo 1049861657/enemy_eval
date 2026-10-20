@@ -53,7 +53,6 @@ def _ensure_shared_chinese_typeface() -> Optional[skia.Typeface]:
 
 
 class FontManager:
-    """字体管理器 - Windows版本"""
 
     def __init__(self) -> None:
         self.chinese_font: Optional[skia.Typeface] = _ensure_shared_chinese_typeface()
@@ -89,7 +88,6 @@ _global_font_manager: Optional[FontManager] = None
 
 
 def get_font_manager() -> FontManager:
-    """获取全局字体管理器单例"""
     global _global_font_manager
     if _global_font_manager is None:
         _global_font_manager = FontManager()

@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 
 def is_url(path: str) -> bool:
-    """检查路径是否为网络URL"""
+    """`http` / `https` scheme 即视为 URL；畸形字符串（如非法端口号）返回 False。"""
     try:
         parsed = urlparse(path)
         return parsed.scheme in ("http", "https")

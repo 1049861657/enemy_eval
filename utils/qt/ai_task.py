@@ -1,9 +1,6 @@
-"""AI 评价长任务：AiEvaluateThread。
+"""`AiEvaluateThread`：AI 评价调用，完成发 `evaluationFinished(result, revision)` 或 `evaluationFailed`。
 
-输入：调用配置、人设、基准数据、敌人快照、revision 序号（构造前由调用方备好快照，线程不读模型）。
-产出：evaluationFinished(AiEvaluationResult, revision) 或 evaluationFailed(Exception, revision)。
-取消：requestInterruption 后以 50ms 粒度轮询取消在飞请求；绝不 terminate。
-线程内禁止：新建或访问 QWidget、写偏好文件。
+快照由调用方备好（线程不读模型）；取消 50ms 轮询；线程内不碰 QWidget、不写偏好。
 """
 
 from __future__ import annotations

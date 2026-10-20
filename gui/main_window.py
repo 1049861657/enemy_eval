@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEvent, QTimer, QUrl
+from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QStatusBar
@@ -48,20 +48,20 @@ from utils.qt.avatar_task import NetworkAvatarPrefetchThread
 from utils.qt.prts_task import PrtsFetchThread
 from utils.qt.update_task import UpdateCheckThread
 
-from .card_model import NO_PRTS_LEVEL, CardModel
-from .constants import (
-    WINDOW_DEFAULT_HEIGHT,
-    WINDOW_DEFAULT_WIDTH,
-    WINDOW_DEFAULT_X,
-    WINDOW_DEFAULT_Y,
-    WINDOW_MIN_HEIGHT,
-    WINDOW_MIN_WIDTH,
-)
 from .bridge.preview import CardImageProvider
+from .card_model import NO_PRTS_LEVEL, CardModel
 from .qml_bridge import QmlBridge
 from .render_coordinator import RenderCoordinator
 
 logger = logging.getLogger(__name__)
+
+# 主窗口几何：首次启动的位置与尺寸，以及用户可拖到的最小尺寸。
+WINDOW_DEFAULT_X = 100
+WINDOW_DEFAULT_Y = 100
+WINDOW_DEFAULT_WIDTH = 1400
+WINDOW_DEFAULT_HEIGHT = 900
+WINDOW_MIN_WIDTH = 1200
+WINDOW_MIN_HEIGHT = 800
 
 _UPDATE_CHECK_COOLDOWN_S = 24 * 60 * 60
 _UPDATE_CHECK_BACKOFF_S = 30 * 60
@@ -507,12 +507,6 @@ class MainWindow(QMainWindow):
         self._bridge.invalidate_ai_review()
         self.status_bar.showMessage(f"已切换到{label}")
         self._generate_card()
-
-    def event(self, event: QEvent) -> bool:
-        """标题栏属于非客户区。按下时先收起轻量弹出层，再交给系统处理拖动和标题按钮。"""
-        if event.type() == QEvent.Type.NonClientAreaMouseButtonPress:
-            self._bridge.lightDismissRequested.emit()
-        return super().event(event)
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
         try:

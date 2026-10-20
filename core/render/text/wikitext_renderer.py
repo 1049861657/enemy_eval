@@ -1,4 +1,8 @@
-"""Wikitext 段落绘制（Skia）。"""
+"""wikitext 片段绘制：把 `wikitext_spans` 解析出的片段按行画到 Skia 画布。
+
+换行与占位宽度一律复用 `wikitext_spans` 的常量与 `wrap_spans_to_lines`，本模块不另立口径；
+只画不解析模板语法（PRTS 模板语法的数据源侧解析见 `utils/prts/wikitext_templates.py`）。
+"""
 
 from __future__ import annotations
 

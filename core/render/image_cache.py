@@ -1,9 +1,6 @@
 """全局图像缓存与它的锁：本模块是唯一持有者。
 
-渲染线程（`utils/qt/render_task.py::CardGeneratorThread`）与预取线程
-（`PrtsFetchThread` / `NetworkAvatarPrefetchThread`，见 `core/render/avatar_prefetch.py`）
-会并发读写，因此读写一律经 `cache_get` / `cache_put` / `cache_has` / `cache_clear`，
-锁在访问器内部获取；调用方不得绕过访问器直接操作缓存对象。
+读写一律经 `cache_get` / `cache_put` / `cache_has` / `cache_clear`（锁在访问器内），不得直接操作缓存对象。
 """
 
 from __future__ import annotations

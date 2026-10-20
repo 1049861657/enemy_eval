@@ -1,9 +1,6 @@
-"""版本检查长任务：UpdateCheckThread。
+"""`UpdateCheckThread`：releases/latest 条件请求，结果（含 ETag、退避时间）只回主线程。
 
-输入：上次响应留下的 ETag（空串即无条件请求）。
-产出：checkFinished(outcome, tag, url, etag, retry_at)；结果只回主线程，写偏好由主线程决定。
-取消：单次请求，requestInterruption 后不发信号；绝不 terminate。
-线程内禁止：新建或访问 QWidget、写偏好文件。
+写偏好由主线程决定；取消后不发信号。
 """
 
 from __future__ import annotations

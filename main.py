@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""
-敌人评价卡片生成器主程序
-使用2025年最新技术栈：Skia-Python + Pydantic V2
+"""CLI 入口：用内置示例数据渲染一张卡片，验证渲染链路与字体/图像缓存。
+
+渲染选项取自偏好文件（与 GUI 同一装配点）；不写用户数据。
 """
 
 from pathlib import Path
@@ -18,13 +18,11 @@ from utils.app.version import get_app_version
 console = Console()
 
 def main():
-    """主程序入口"""
     setup_logging()
     console.print(f"[bold green]{APP_NAME} v{get_app_version()}[/bold green]")
     console.print(f"[dim]{APP_SUMMARY}[/dim]")
     console.print("[dim]Powered by Skia-Python & 2025最新技术栈[/dim]\n")
     
-    # 示例数据
     enemy_data = EnemyData(
         name="鸟",
         attack_type="近战",
@@ -81,10 +79,8 @@ def main():
         talents_abilities="空中优势 - 在空中时攻击力提升20%；能力：敏捷身法 - 移动速度比一般敌人快30%，能够快速调整位置进行攻击。偶尔会发生一次周几，造成10完备的伤害。每0.1秒检查周遭：若半径0.5范围内存在“某种天命”、伪装的土遁忍者/土遁宗师，或半径0.8范围内的地块（中点判定）中存在地穴时，立刻尝试释放【吓我一跳！】"
     )
     
-    # 创建生成器
     generator = EnemyCardGenerator()
     
-    # 生成卡片
     console.print("[yellow]正在生成敌人评价卡片...[/yellow]")
     
     output_path = generator.generate_card(enemy_data, current_render_options())

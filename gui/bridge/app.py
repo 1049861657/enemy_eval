@@ -12,7 +12,6 @@ from utils.app.version import get_app_build_time, get_app_version
 
 
 def app_name() -> str:
-    """应用名。"""
     return APP_NAME
 
 

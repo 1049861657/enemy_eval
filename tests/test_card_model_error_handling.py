@@ -19,7 +19,6 @@ from utils.errors import FileOperationError
 
 @pytest.fixture
 def card_model(qapp):
-    """A clean CardModel with default enemy data."""
     return CardModel()
 
 

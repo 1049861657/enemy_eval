@@ -1,5 +1,6 @@
-"""
-卡片数据模型 - 支持实时更新的GUI数据模型
+"""卡片数据模型：`EnemyData` 的唯一持有者，所有写入经 `QUndoStack`（上限 100 条）。
+
+模型替换与信号只在命令的 redo/undo 内发生；`prts_level_index == NO_PRTS_LEVEL` 表示无 PRTS 级别来源。
 """
 
 import json
@@ -24,15 +25,13 @@ NO_PRTS_LEVEL = -1
 
 
 class CardModel(QObject):
-    """支持信号机制的卡片数据模型"""
 
-    # 信号定义
-    dataChanged = Signal()  # 当任何数据发生变化时发出
+    dataChanged = Signal()
     snapshotChanged = Signal()  # 标量表单快照（不含技能列表）需要刷新
     validationFailed = Signal(str, str)  # (property_name, error_message)：属性校验失败时发出，供 UI 恢复为模型当前真实值
     avatarPathChanged = Signal(str)  # 头像路径变更（可能是网络 URL），GUI 据此补预缓存
     prtsLevelChanged = Signal(int)  # PRTS 级别来源变更（导入、切换级别、撤销回放）
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._enemy_data = self._create_default_enemy_data()
@@ -43,7 +42,7 @@ class CardModel(QObject):
     def undo_stack(self) -> QUndoStack:
         """当前卡片的撤销栈。换模型时由桥接重连其 canUndo/canRedo 信号。"""
         return self._undo_stack
-        
+
     def _create_default_enemy_data(self) -> EnemyData:
         """创建默认的敌人数据。评价维度取当前新建模板。"""
         names = get_rating_names()
@@ -76,10 +75,9 @@ class CardModel(QObject):
             skills=[],
             talents_abilities=""
         )
-    
+
     @property
     def enemy_data(self) -> EnemyData:
-        """获取敌人数据"""
         return self._enemy_data
 
     @property
@@ -96,7 +94,7 @@ class CardModel(QObject):
             return
         self._prts_level_index = level_index
         self.prtsLevelChanged.emit(level_index)
-    
+
     def update_property(self, property_name: str, value: Any) -> None:
         """更新一个字段。校验通过后入栈一步。"""
         if hasattr(self._enemy_data, property_name):
@@ -118,19 +116,6 @@ class CardModel(QObject):
             self.validationFailed.emit(field, str(error))
             return
         self._commit(self._snapshot(), _CardSnapshot(next_data, self._prts_level_index), True)
-    
-    def update_skill(self, index: int, skill_data: Dict[str, str] | SkillEntry):
-        """更新技能数据"""
-        entry = (
-            skill_data
-            if isinstance(skill_data, SkillEntry)
-            else SkillEntry.model_validate(skill_data)
-        )
-        skills = list(self._enemy_data.skills)
-        while len(skills) <= index:
-            skills.append(SkillEntry())
-        skills[index] = entry
-        self.replace_skills(skills)
 
     def replace_skills(self, skills: list[SkillEntry]) -> bool:
         """替换技能列表；成功后只发 dataChanged，不刷新标量 JSON 快照。"""
@@ -144,9 +129,8 @@ class CardModel(QObject):
             return False
         self._commit(self._snapshot(), _CardSnapshot(next_data, self._prts_level_index), False)
         return True
-    
+
     def update_abnormal_resistance(self, resistance_name: str, value: float):
-        """更新异常抗性"""
         resistances: Dict[str, float] = dict(self._enemy_data.abnormal_resistances)
         resistances[resistance_name] = value
         self.update_property('abnormal_resistances', resistances)
@@ -178,7 +162,7 @@ class CardModel(QObject):
         if enemy == self._enemy_data and level_index == self._prts_level_index:
             return
         self._commit(self._snapshot(), _CardSnapshot(enemy, level_index), True)
-    
+
     def load_from_file(self, file_path: str) -> None:
         """从文件加载数据；相对头像路径按配置文件所在目录解析。失败时抛出 FileOperationError，不吞异常。"""
         try:
@@ -197,7 +181,7 @@ class CardModel(QObject):
         self.snapshotChanged.emit()
         self.avatarPathChanged.emit(self._enemy_data.avatar_path or "")
         self._undo_stack.clear()
-    
+
     def save_to_file(self, file_path: str) -> None:
         """保存数据到文件；头像路径按目标文件所在目录转为存储形式。失败时抛出 FileOperationError，不吞异常。"""
         try:
@@ -210,7 +194,7 @@ class CardModel(QObject):
         except Exception as e:
             logger.error("保存文件失败: %s", e, exc_info=True)
             raise FileOperationError(f"保存文件失败: {e}") from e
-    
+
     def set_enemy_data(self, enemy_data: EnemyData):
         """设置完整的敌人数据。评价维度以这份数据自带的名称为准。级别来源由调用方随后打标。"""
         self._enemy_data = enemy_data
@@ -238,7 +222,3 @@ class CardModel(QObject):
     def _commit(self, previous: _CardSnapshot, next_: _CardSnapshot, refresh_snapshot: bool) -> None:
         """入栈。push 调用 redo，由 redo 写模型。"""
         self._undo_stack.push(_StateCommand(self, previous, next_, refresh_snapshot))
-    
-    def get_current_dict(self) -> Dict[str, Any]:
-        """获取当前数据的字典形式"""
-        return self._enemy_data.model_dump()

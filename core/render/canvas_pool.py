@@ -26,39 +26,28 @@ class CanvasPool:
     def __init__(self, config: Optional[RenderConfig] = None):
         self.config = config or RenderConfig()
 
-        # Canvas 复用池：避免重复创建 Surface
         self._canvas_pool: List[Tuple[skia.Surface, skia.Canvas]] = []
         self._canvas_in_use: set = set()
-
-        # 性能统计
-        self._stats = {'canvas_reuse_count': 0}
 
         # 可变高度备用 Surface：只保留最近一次非默认尺寸
         self._variable_surface: Optional[Tuple[int, int, skia.Surface]] = None
 
-        # 初始化Canvas池
         self._init_canvas_pool()
 
     def _init_canvas_pool(self):
-        """初始化Canvas复用池"""
         for _ in range(self.config.canvas_pool_size):
             surface = skia.Surface(self.config.width, self.config.height)
             canvas = surface.getCanvas()
             self._canvas_pool.append((surface, canvas))
 
     def acquire_canvas(self) -> Tuple[skia.Surface, skia.Canvas]:
-        """获取复用的Canvas"""
-        # 优先从池中获取未使用的Canvas
         for i, (surface, canvas) in enumerate(self._canvas_pool):
             if i not in self._canvas_in_use:
                 self._canvas_in_use.add(i)
-                self._stats['canvas_reuse_count'] += 1
 
-                # 清空Canvas但保持配置
                 canvas.clear(skia.Color4f(0, 0, 0, 0))
                 return surface, canvas
 
-        # 池已满，创建新的临时Canvas
         surface = skia.Surface(self.config.width, self.config.height)
         canvas = surface.getCanvas()
         return surface, canvas
@@ -72,14 +61,12 @@ class CanvasPool:
             surface = cached[2]
             canvas = surface.getCanvas()
             canvas.clear(skia.Color4f(0, 0, 0, 0))
-            self._stats["canvas_reuse_count"] += 1
             return surface, canvas
         surface = skia.Surface(width, height)
         self._variable_surface = (width, height, surface)
         return surface, surface.getCanvas()
 
     def release_canvas(self, surface: skia.Surface, canvas: skia.Canvas):
-        """释放Canvas回池"""
         for i, (pool_surface, pool_canvas) in enumerate(self._canvas_pool):
             if pool_surface == surface:
                 self._canvas_in_use.discard(i)
@@ -95,7 +82,6 @@ _global_canvas_pool: Optional[CanvasPool] = None
 
 
 def get_canvas_pool() -> CanvasPool:
-    """获取全局画布池单例"""
     global _global_canvas_pool
     if _global_canvas_pool is None:
         _global_canvas_pool = CanvasPool()

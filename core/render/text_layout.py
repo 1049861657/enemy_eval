@@ -23,7 +23,6 @@ _text_cache_hits: int = 0
 
 @dataclass
 class TextLayoutResult:
-    """文本布局结果缓存"""
     lines: List[str]
     total_height: float
     max_width: float
@@ -42,28 +41,22 @@ def get_text_layout(
     `line_height` 取字号 × 1.2；缓存条数超 `RenderConfig.text_cache_size` 时淘汰最旧一项。
     """
     global _text_cache_hits
-    # 生成缓存键
     cache_key = hashlib.md5(
         f"{text}_{max_width}_{font_size}_{id(typeface)}".encode()
     ).hexdigest()
 
-    # 检查缓存
     if cache_key in _text_layout_cache:
         result = _text_layout_cache[cache_key]
-        # 检查是否过期
         if time.time() - result.timestamp < _CONFIG.cache_expire_seconds:
             _text_cache_hits += 1
             return result
         else:
-            # 过期清理
             del _text_layout_cache[cache_key]
 
-    # 缓存未命中，重新计算
     font = get_font(font_size, typeface)
     lines = wrap_text_optimized(text, max_width, font)
 
-    # 计算布局信息
-    line_height = font_size * 1.2  # 行高系数
+    line_height = font_size * 1.2  # 行高 = 1.2 × 字号
     total_height = len(lines) * line_height
     max_actual_width = max((font.measureText(line) for line in lines), default=0)
 
@@ -74,9 +67,7 @@ def get_text_layout(
         line_height=line_height,
     )
 
-    # 缓存结果（LRU清理）
     if len(_text_layout_cache) >= _CONFIG.text_cache_size:
-        # 清理最旧的缓存项
         oldest_key = min(_text_layout_cache.keys(), key=lambda k: _text_layout_cache[k].timestamp)
         del _text_layout_cache[oldest_key]
 
@@ -89,11 +80,9 @@ def wrap_text_optimized(text: str, max_width: int, font: skia.Font) -> List[str]
     if not text:
         return [""]
 
-    # 处理制表符 - 转换为4个空格
     if '\t' in text:
         text = text.replace('\t', '    ')
 
-    # 处理主动换行符
     if '\n' in text:
         manual_lines = text.split('\n')
         result_lines = []
@@ -107,8 +96,7 @@ def wrap_text_optimized(text: str, max_width: int, font: skia.Font) -> List[str]
     if font.measureText(text) <= max_width:
         return [text]
 
-    # 避头尾规则定义
-    cannot_start_line = "，。！？；、）】｝\"'》』"  # 不能在行首的字符
+    cannot_start_line = "，。！？；、）】｝\"'》』"
     cannot_end_line = "\"'（【｛《「"  # 不能在行尾的字符
 
     lines = []
@@ -119,26 +107,19 @@ def wrap_text_optimized(text: str, max_width: int, font: skia.Font) -> List[str]
         char = text[i]
         test_line = current_line + char
 
-        # 检查当前字符是否能放在当前行
         if font.measureText(test_line) <= max_width:
             current_line = test_line
             i += 1
         else:
-            # 当前字符放不下，需要换行
             if current_line:
-                # 检查避头尾规则
                 final_line = current_line
                 next_char = char
 
-                # 如果下一个字符不能在行首，尝试将其挤到当前行
                 if next_char in cannot_start_line:
-                    # 尝试移动当前行最后的一些字符到下一行
                     if len(current_line) > 1:
-                        # 找到合适的断点
                         for j in range(len(current_line) - 1, 0, -1):
                             split_char = current_line[j-1]
                             if split_char not in cannot_end_line:
-                                # 在这里分割
                                 final_line = current_line[:j]
                                 remaining = current_line[j:] + next_char
                                 if font.measureText(remaining) <= max_width:
@@ -147,22 +128,18 @@ def wrap_text_optimized(text: str, max_width: int, font: skia.Font) -> List[str]
                                     i += 1
                                     break
                         else:
-                            # 找不到合适断点，强制换行
                             lines.append(current_line)
                             current_line = next_char
                             i += 1
                     else:
-                        # 当前行只有一个字符，强制换行
                         lines.append(current_line)
                         current_line = next_char
                         i += 1
                 else:
-                    # 正常换行
                     lines.append(current_line)
                     current_line = next_char
                     i += 1
             else:
-                # 当前行为空，单个字符就超宽，强制添加
                 current_line = char
                 i += 1
 

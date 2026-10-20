@@ -1,11 +1,6 @@
-"""PRTS 拉取长任务：PrtsFetchThread。
+"""`PrtsFetchThread`：敌人名 → `EnemyData` + 页面上下文（级别切换用，不落盘）。
 
-输入：敌人名称。
-产出：fetchFinished(EnemyData | None, str | None 错误文案, dict | None 页面上下文)。
-页面上下文供级别切换（整页 wikitext + 级别列表 + 默认级别下标），只随本次导入存在、不落盘。
-取消：requestInterruption 后以 50ms 粒度轮询取消在飞 asyncio 任务；绝不 terminate。
-线程内禁止：新建或访问 QWidget、写偏好文件。
-core.render.avatar_prefetch 延迟导入（`_pull` 内）——头像预下载属渲染层职责。
+取消靠 `requestInterruption` + 50ms 轮询 asyncio 任务；线程内不碰 QWidget、不写偏好。
 """
 
 from __future__ import annotations
@@ -30,7 +25,6 @@ class PrtsFetchThread(QThread):
         self.enemy_name = enemy_name
 
     def run(self):
-        """在后台线程中拉取 PRTS 数据并预下载头像。"""
         try:
             asyncio.run(self._fetch())
         except Exception as e:

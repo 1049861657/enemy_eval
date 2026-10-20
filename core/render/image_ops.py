@@ -81,7 +81,6 @@ class ImageProcessor:
                 scaled_surface = skia.Surface(target_w, target_h)
                 scaled_canvas = scaled_surface.getCanvas()
 
-                # Mitchell 立方重采样
                 sampling = skia.SamplingOptions(skia.CubicResampler.Mitchell())
 
                 paint = skia.Paint()

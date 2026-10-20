@@ -67,7 +67,7 @@ enemy_eval/
 │   └── fs/                       # filenames.py/avatar_paths.py
 ├── gui/                          # 8 py + qml/（components | pages | dialogs | icons，见 04）
 ├── tests/ scripts/ data/ resource/ example/
-└── enemy_eval.spec               # ← enemyEval.spec（需授权改名，见 05/07）
+└── enemy_eval.spec               # 原 enemyEval.spec，批次 5 改名
 ```
 
 ## 冻结结论

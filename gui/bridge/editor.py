@@ -59,12 +59,10 @@ def update_properties(card_model: CardModel, values_json: str, on_error: FieldEr
 
 
 def update_resistance(card_model: CardModel, resistance_name: str, value: float) -> None:
-    """写入单项异常抗性。"""
     card_model.update_abnormal_resistance(resistance_name, value)
 
 
 def update_rating_score(card_model: CardModel, index: int, score: int) -> None:
-    """写入第 index 个评价维度的分数。"""
     card_model.update_rating_score(index, score)
 
 

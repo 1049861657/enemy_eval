@@ -11,7 +11,6 @@ from .skill_entry import SkillEntry
 
 
 class EnemyData(BaseModel):
-    """敌人数据模型"""
 
     name: str = Field(..., description="敌人名称")
     grade: str = Field(..., description="等级 (S/A/B/C/D)")

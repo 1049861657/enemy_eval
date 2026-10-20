@@ -1,24 +1,6 @@
-"""PRTS 敌人数据管线门面：MediaWiki API → wikitext 模板解析 → EnemyData。
+"""PRTS 数据门面：MediaWiki API → wikitext 解析 → `EnemyData`；调用方只依赖本模块。
 
-本文件是对外统一入口，编排以下几个职责单一的模块完成整条管线：
-- utils/prts/api_client.py        —— HTTP 超时/重试/原始 JSON 拉取
-- utils/prts/wikitext_templates.py —— 纯 wikitext 模板字符串解析
-- utils/prts/field_mapping.py     —— 中文字段名 → 英文字段的映射表与合并规则
-- utils/prts/enemy_builder.py     —— 合并字典 → EnemyData 的 Pydantic 组装
-- core/render/avatar_prefetch.py —— 头像预下载/Skia 缓存（渲染层职责）
-
-调用方（GUI/脚本/测试）只需依赖本文件，无需关心内部按职责拆分的细节。
-
-数据源仅为 {{敌人信息/common2}} / {{敌人信息/levelcontent}}；parse 仍可取 text 供调试导出。
-页面标题按敌人名称通过 Semantic MediaWiki `action=ask`（`[[分类:敌人]][[名称::<name>]]`）
-精确解析后再拉取，避免猜测敌我同名单位（弑君者/W/变格博士等）的消歧义后缀，见
-utils/prts/api_client.py::resolve_enemy_page_title。
-levelcontent 中 技能N* 会合并为 skills；对外入口为 fetch_enemy_data / fetch_enemy_data_raw。
-
-注意：本文件不包含头像预下载逻辑。头像下载/Skia 解码属于渲染层职责，
-由 GUI 层的 utils/qt/prts_task.py::PrtsFetchThread 在后台线程中调用
-core.render.avatar_prefetch.preload_network_avatar_image 完成，
-使本文件及其编排的各模块保持对 core 零依赖。
+分步实现在同包的 api_client / wikitext_templates / field_mapping / enemy_builder，顺序由本模块编排。
 """
 
 from __future__ import annotations

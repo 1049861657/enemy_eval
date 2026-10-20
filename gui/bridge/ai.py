@@ -68,17 +68,14 @@ class ReviewSession:
 
 
 def base_url() -> str:
-    """设置框预填的地址。"""
     return load_app_settings().ai_base_url
 
 
 def model() -> str:
-    """设置框预填的模型名。"""
     return load_app_settings().ai_model
 
 
 def api_key() -> str:
-    """设置框预填的密钥（明文存偏好）。"""
     return load_app_settings().ai_api_key
 
 

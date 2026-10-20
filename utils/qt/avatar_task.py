@@ -1,10 +1,6 @@
-"""网络头像补取长任务：NetworkAvatarPrefetchThread。
+"""`NetworkAvatarPrefetchThread`：把 URL 拉进全局图像缓存，完成发 `prefetchFinished(bool)`。
 
-输入：头像 URL（加载配置或手填 URL 得到的地址，非 PRTS 导入路径）。
-产出：prefetchFinished(bool) —— True 表示该 URL 已进入全局图像缓存，渲染可以画出来。
-取消：requestInterruption 后以 50ms 粒度轮询取消；绝不 terminate。
-线程内禁止：新建或访问 QWidget、写偏好文件；渲染线程不下载，未命中即跳过不画。
-core.render.avatar_prefetch 延迟导入（`_pull` 内）——缓存读写属渲染层职责。
+只服务「加载配置 / 手填 URL」路径；取消 50ms 轮询。`core` 延迟导入。
 """
 
 from __future__ import annotations
@@ -30,7 +26,6 @@ class NetworkAvatarPrefetchThread(QThread):
         self.avatar_url = avatar_url
 
     def run(self):
-        """在后台线程中下载并解码网络头像。"""
         try:
             asyncio.run(self._fetch())
         except Exception:

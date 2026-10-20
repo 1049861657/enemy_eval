@@ -1,11 +1,6 @@
-"""渲染协调器：接管 CardGeneratorThread 生命周期与结果分发，MainWindow 只做 UI 编排。
+"""渲染协调器：`CardGeneratorThread` 的生命周期与结果分发。
 
-架构约定：
-  - busyChanged 只由线程生命周期驱动（_start 置 True / _on_thread_finished 置 False），
-    不与 errorOccurred 等业务结果信号耦合。CardGeneratorThread.run() 有成功/异常/
-    静默中断（isInterruptionRequested 为真时连 errorOccurred 都不发）三条终止路径，
-    唯有 finished 保证在全部路径下触发，故 busy 收敛只能挂在它上面。
-  - save_current() 不抛异常，失败原因归一化为返回值，调用方无需感知内部异常类型。
+`busyChanged` 只挂在 `finished` 上——成功、异常、静默中断三条路径里它唯一必发。
 """
 
 from __future__ import annotations
@@ -23,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 class RenderCoordinator(QObject):
-    """见模块文档。"""
 
     # 渲染完成：(pixmap, revision)
     cardReady = Signal(object, int)
@@ -42,9 +36,6 @@ class RenderCoordinator(QObject):
         self._busy: bool = False
         self.last_generated_pixmap: Optional[QPixmap] = None
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # Public API
-    # ──────────────────────────────────────────────────────────────────────────
 
     def request(self, enemy_data: EnemyData, options: RenderOptions) -> None:
         """请求渲染（任意时刻只允许一个线程运行）。
@@ -86,9 +77,6 @@ class RenderCoordinator(QObject):
                 logger.error("渲染线程未能在 3 秒内停止，放弃等待且不 terminate")
         self.last_generated_pixmap = None
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # Internal
-    # ──────────────────────────────────────────────────────────────────────────
 
     def _set_busy(self, busy: bool) -> None:
         """带去重的忙碌状态设置；避免同一状态重复触发下游 UI 更新。"""

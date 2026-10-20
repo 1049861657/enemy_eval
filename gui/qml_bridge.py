@@ -1,9 +1,8 @@
 """QML 桥接层：只声明 QML 可见的信号、属性与槽，逻辑按域落在 `gui/bridge/`。
 
-冻结契约（见 `todos/refactor-20261016/04` §4.1）：QML 可见名与信号签名、provider id
-`enemy-card` 及查询参数 `revision` 都不得改名——QML 按名调用，改名不会编译报错，只在运行时
-静默失效。Qt 元对象必须声明在本类上（PySide6 不支持从非 QObject mixin 继承元对象），
-故域实现是普通函数/小类，本类只做一行转发与信号发射。
+QML 按名调用：QML 可见名、信号签名、provider id `enemy-card` 及查询参数 `revision` 都不得改名——
+改名不会编译报错，只在运行时静默失效。Qt 元对象必须声明在本类上（PySide6 不支持从非 QObject
+mixin 继承元对象），故域实现是普通函数/小类，本类只做一行转发与信号发射。
 """
 
 from __future__ import annotations
@@ -54,7 +53,6 @@ class QmlBridge(QObject):
     prtsLevelsChanged = Signal()
     prtsLevelChangeRequested = Signal(int)
     aboutRequested = Signal()
-    lightDismissRequested = Signal()
     undoStateChanged = Signal()
     updateBannerChanged = Signal()
     updateCheckEnabledChanged = Signal()

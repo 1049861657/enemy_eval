@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# 与 enemyEval.spec 的删除名单一致。
+# 与 enemy_eval.spec 的删除名单一致。
 _DROP_DLL_PREFIXES = (
     "Qt6WebEngine",
     "Qt63D",
@@ -173,7 +173,7 @@ def main() -> int:
             "pyinstaller",
             "--noconfirm",
             "--clean",
-            "enemyEval.spec",
+            "enemy_eval.spec",
         ],
         cwd=ROOT,
         check=True,

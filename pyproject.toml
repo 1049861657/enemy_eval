@@ -16,6 +16,10 @@ dependencies = [
     "cachetools>=7.2.0",
 ]
 
+[project.scripts]
+enemy-eval = "gui_main:main"
+enemy-eval-cli = "main:main"
+
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
@@ -25,3 +29,11 @@ build = [
     "pyinstaller>=6.22.3",
     "pyinstaller-hooks-contrib>=2026.7",
 ]
+
+[tool.pyright]
+include = ["models", "core", "utils", "gui", "scripts", "tests", "main.py", "gui_main.py"]
+exclude = [".venv", "build", "dist", "data", "enemy", "example", "resource", "todos"]
+pythonVersion = "3.13"
+typeCheckingMode = "basic"
+# GUI 目录按 strict 计错，与整体 basic 的基线分开统计。
+strict = ["gui"]

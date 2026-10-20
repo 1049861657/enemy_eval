@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GUI 入口。"""
+"""GUI 入口：依赖自检 → 启动封面 → 注册 QML 根目录与静态资源 → 主窗口与事件循环。"""
 
 import importlib
 import sys
@@ -13,7 +13,6 @@ from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
 
-# 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent))
 
 from utils.app.identity import APP_AUTHOR, APP_NAME
@@ -34,7 +33,6 @@ except ImportError as e:
 
 
 def create_splash_screen():
-    """创建启动画面"""
     cover_path = resource_manager.get_pic_path("封面.png")
     pixmap = QPixmap(cover_path)
     
@@ -66,7 +64,6 @@ def check_dependencies() -> list[str]:
 
 
 def show_dependency_error(missing_deps):
-    """显示依赖项缺失错误"""
     app = QApplication(sys.argv)
     
     msg = QMessageBox()
@@ -89,9 +86,7 @@ def show_dependency_error(missing_deps):
 
 
 def main():
-    """主函数"""
     started = time.perf_counter()
-    # 检查依赖项
     missing_deps = check_dependencies()
     if missing_deps:
         return show_dependency_error(missing_deps)
@@ -99,7 +94,6 @@ def main():
     # 必须在创建 QApplication 前选择 Qt Quick Controls 风格。
     QQuickStyle.setStyle("FluentWinUI3")
 
-    # 创建应用程序
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon(resource_manager.get_resource_path("resource/icon.png")))
     app.setApplicationName(APP_NAME)
@@ -108,12 +102,10 @@ def main():
     app.setOrganizationName(APP_AUTHOR)
     setup_logging()
     
-    # 显示启动画面
     splash = create_splash_screen()
     app.processEvents()
     
     try:
-        # 创建主窗口
         main_window = MainWindow()
         workspace = getattr(main_window, "workspace", None)
         if workspace is not None and workspace.status() == QQuickWidget.Status.Ready:
@@ -127,13 +119,11 @@ def main():
         main_window.show()
         splash.finish(main_window)
 
-        # 运行事件循环
         return app.exec()
         
     except Exception as e:
         splash.close()
         
-        # 显示错误对话框
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Icon.Critical)
         msg.setWindowTitle("启动失败")

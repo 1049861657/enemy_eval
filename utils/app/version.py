@@ -1,4 +1,9 @@
-"""应用版本与构建信息。"""
+"""应用版本与构建时间。
+
+版本取值优先级：已安装分发包 `enemy-eval` 的元数据 → 冻结制品的 `build_info.json` → `pyproject.toml`
+的 `[project].version`（唯一版本号来源）。源码树未安装为分发包，故读到的是 pyproject 的值；
+`build_info.json` 只存在于打包产物，由构建阶段写入。
+"""
 
 from __future__ import annotations
 

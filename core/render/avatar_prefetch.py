@@ -1,11 +1,6 @@
-"""网络头像预下载 → 写入渲染层全局图像缓存。
+"""网络头像预取 → 全局图像缓存；渲染侧只查缓存、从不下载，未命中即跳过。
 
-不变量：渲染侧对 URL 只查缓存、从不下载（`core/render/image_ops.py::load_avatar_optimized`
-未命中即跳过），因此网络头像必须先落进缓存。调用点：`PrtsFetchThread`（拿到
-EnemyData 之前）、`NetworkAvatarPrefetchThread`（加载配置 / 手填 URL 之后）。
-
-边界：`utils/net/image_fetch.py` 只下载字节、不碰缓存；写入由本模块负责，且一律经
-`core/render/image_cache.py` 的访问器（锁在访问器内），渲染侧只读缓存、不发网络。
+写入一律经 `image_cache` 的访问器（锁在访问器内）；调用点是 PRTS 拉取线程与头像补取线程。
 """
 
 from __future__ import annotations
