@@ -12,8 +12,8 @@ from PySide6.QtGui import QCloseEvent
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QStatusBar
 
-from core.optimization import get_resource_manager
 from core.render.avatar_prefetch import is_avatar_cached
+from core.render.canvas_pool import clear_caches
 from models import EnemyData
 from models.media import is_url
 from utils.app.ai_prefs import AiRequestConfig
@@ -546,7 +546,7 @@ class MainWindow(QMainWindow):
                             "AI 评价线程未能在 3 秒内停止，放弃等待且不 terminate"
                         )
                 self._debouncer.cleanup()
-                get_resource_manager().clear_caches()
+                clear_caches()
         except Exception:
             logger.exception("窗口资源清理失败")
         event.accept()

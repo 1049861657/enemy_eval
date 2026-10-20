@@ -1,8 +1,8 @@
-"""utils.wiki_span_parser：wikitext → 绘制用片段解析与换行的单元测试。"""
+"""core.render.text.wikitext_spans：wikitext → 绘制用片段解析与换行的单元测试。"""
 
 from __future__ import annotations
 
-from utils.wiki_span_parser import (
+from core.render.text.wikitext_spans import (
     TextSpan,
     WikiStyle,
     parse_wikitext_to_spans,

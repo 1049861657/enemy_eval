@@ -1,7 +1,8 @@
-"""wikitext → Skia 绘制用片段 + 按宽度换行（仅供卡片渲染）。
+"""wikitext → Skia 绘制用片段 + 按宽度换行。
 
-卡片 JSON 存原文；本模块是渲染时的唯一展开点。已知模板走
-`_TEMPLATE_HANDLERS`，未知模板只展示末尾无名参数、永不展开命名参数。
+卡片 JSON 存原文；本模块是渲染时的唯一展开点（属渲染域，见 `core/render/text/`）。已知模板走
+`_TEMPLATE_HANDLERS`，未知模板只展示末尾无名参数、永不展开命名参数。纯字符串处理：
+不导入 Skia、不读偏好文件。
 """
 
 from __future__ import annotations
@@ -48,7 +49,7 @@ def _unwrap_bracket_template(inner: str) -> str:
 _LINK_TERM_RGBA = (0.14, 0.48, 0.74, 1.0)
 # PRTS {{popup}} 默认图标色（模板:Popup 的 --darkblue）
 _POPUP_HINT_RGBA = _LINK_TERM_RGBA
-# 圆圈问号占位宽度相对正文字号；与 wiki_paragraph_renderer 绘制口径共用
+# 圆圈问号占位宽度相对正文字号；与 core/render/text/wikitext_renderer.py 绘制口径共用
 _HINT_MARK_ADVANCE_RATIO = 0.82
 # MediaWiki 把 <br>、<br/>、</br> 都渲成换行（parse HTML 里是 <br />）
 _BR_TAG = re.compile(r"</?br\s*/?>", re.IGNORECASE)

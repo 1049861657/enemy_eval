@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.fonts import FontManager
+from core.render.fonts import FontManager
 from core.render.layout import measure_grade_block_height, measure_render_height
 from models import EnemyData
 

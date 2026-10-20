@@ -9,17 +9,15 @@ import skia
 from models import EnemyData, RenderOptions
 from utils.fs.filenames import safe_filename
 
-from core.fonts import FontManager, get_font_manager
-from core.optimization import (
-    ImageProcessor,
-    PerformanceTimer,
-    RenderConfig,
-    RenderResourceManager,
-    get_resource_manager,
-)
-
 from . import layout
+from .canvas_pool import CanvasPool, get_canvas_pool
+from .config import RenderConfig
+from .font_cache import get_font
+from .fonts import FontManager, get_font_manager
+from .image_ops import ImageProcessor
 from .sections import avatar, info, rating_grade, skills_talents
+from .text_layout import get_text_layout
+from .timing import PerformanceTimer
 
 
 class EnemyCardGenerator:
@@ -27,15 +25,15 @@ class EnemyCardGenerator:
 
     def __init__(
         self,
-        resource_manager: Optional[RenderResourceManager] = None,
+        canvas_pool: Optional[CanvasPool] = None,
         font_manager: Optional[FontManager] = None,
     ):
         self.config = RenderConfig()
         self.width = self.config.width
         self.height = self.config.height
 
-        self.resource_manager = resource_manager or get_resource_manager()
-        self.image_processor = ImageProcessor(self.resource_manager)
+        self._canvas_pool = canvas_pool or get_canvas_pool()
+        self.image_processor = ImageProcessor()
 
         self.surface: Optional[skia.Surface] = None
         self.canvas: Optional[skia.Canvas] = None
@@ -58,10 +56,10 @@ class EnemyCardGenerator:
         h = int(render_height or self.config.height)
         self._render_height = h
         if h == self.config.height:
-            self.surface, self.canvas = self.resource_manager.acquire_canvas()
+            self.surface, self.canvas = self._canvas_pool.acquire_canvas()
             self._canvas_from_pool = True
         else:
-            self.surface, self.canvas = self.resource_manager.acquire_variable_canvas(
+            self.surface, self.canvas = self._canvas_pool.acquire_variable_canvas(
                 self.config.width, h
             )
             self._canvas_from_pool = False
@@ -84,13 +82,13 @@ class EnemyCardGenerator:
         if not self.surface or not self.canvas:
             return
         if self._canvas_from_pool:
-            self.resource_manager.release_canvas(self.surface, self.canvas)
+            self._canvas_pool.release_canvas(self.surface, self.canvas)
         self.surface = None
         self.canvas = None
 
     def _get_optimized_font(self, size: int) -> skia.Font:
         typeface = self.font_manager.chinese_font if self.font_manager.chinese_font else None
-        return self.resource_manager.get_font(size, typeface)
+        return get_font(size, typeface)
 
     def _measure_render_height(self, enemy: EnemyData, options: RenderOptions) -> int:
         return layout.measure_render_height(
@@ -105,9 +103,7 @@ class EnemyCardGenerator:
         if not text:
             return [""]
         typeface = self.font_manager.chinese_font if self.font_manager.chinese_font else None
-        layout_result = self.resource_manager.get_text_layout(
-            text, max_width, font_size, typeface
-        )
+        layout_result = get_text_layout(text, max_width, font_size, typeface)
         return layout_result.lines
 
     def _draw_card(self, enemy: EnemyData, options: RenderOptions) -> skia.Image:

@@ -166,11 +166,13 @@ for name, enemy, radar in samples:
 
 | 样本 | 基线 sha256 | 批次 1 | 批次 2 | 批次 3 | 批次 4 | 批次 5 | 批次 6 |
 |---|---|---|---|---|---|---|---|
-| S1 | `efde66b2…1033` | | | | | | |
-| S2 | `fbee4185…b6ef` | | | | | | |
-| S3 | `5a1b03e0…7587` | | | | | | |
-| S4 | `cf651b4c…02c9` | | | | | | |
-| S5 | `5f920ec0…7da2` | | | | | | |
+| S1 | `efde66b2…1033` | ✅ | ✅ | ✅ | | | |
+| S2 | `fbee4185…b6ef` | ✅ | ✅ | ✅ | | | |
+| S3 | `5a1b03e0…7587` | ✅ | ✅ | ✅ | | | |
+| S4 | `cf651b4c…02c9` | ✅ | ✅ | ✅ | | | |
+| S5 | `5f920ec0…7da2` | ✅ | ✅ | ✅ | | | |
+
+> 批次 1/2 的"✅"证据来自批次 3 会话的**改动前**实测（树含批次 1+2 的改动，5 组 sha256 与基线逐字一致）；批次 3 的"✅"是改动**后**实测结果（2026-10-20）。
 
 > 任一格与基线不同 = 该批失败，先回滚再定位。本计划不含任何渲染改动，**不允许出现"差异可接受"的判断**；批次 6 的性能项若改变像素，同样按该项失败处理（回退）。
 
@@ -223,6 +225,8 @@ uv run --group build -- python scripts/build_release.py                  # 校�
 **处理方式**：批次 1–5 期间**不动 `AGENTS.md`**；每批结束时把"使哪条失效"记到本表；由用户决定何时一次性同步（届时由用户明确要求）。
 
 **批次 2 已核对上表**：第 1、2、3 条的目标路径已随代码落地并实测存在（`utils/qt/{render_task,prts_task,avatar_task}.py`、`utils/app/{settings,rating_prefs,ai_prefs,render_prefs,update_prefs}.py`）；AGENTS.md 全文没有 `utils/network_image.py` 引用，本次无需新增条目。
+
+**批次 3 补充**：第 6、9 条的目标模块名按实际落地为 `core/render/image_cache.py`（全局图像缓存 + 锁 + `cache_get/cache_put/cache_has/cache_clear`）；第 5 条提到的 `core/render/primitives/` 与 `core/render/text/` 已建成；`AGENTS.md` 目录索引（第 12 条）还需补 `core/render/text/`、`core/render/primitives/` 与拆出的 7 个渲染基础模块。
 
 ## 7.7 用户本地动作清单（我无法代做）
 

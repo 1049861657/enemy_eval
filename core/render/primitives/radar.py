@@ -6,8 +6,8 @@ import math
 
 import skia
 
-from core.fonts import FontManager
-from core.render.layout import (
+from ..fonts import FontManager
+from ..layout import (
     RATING_RADAR_BOX,
     RATING_RADAR_START_X,
     RATING_SECTION_TOP,

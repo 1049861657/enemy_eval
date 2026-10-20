@@ -124,6 +124,67 @@
 3. `grep -rn "core.optimization" .` 零命中（含 `spec` 的 `hiddenimports`：`core.render.generator`、`core.render.avatar_prefetch` 需按新路径复核）。
 4. 像素回归 4 组一致；`pytest` 全绿（含改路径后的 `test_prts_pipeline_refactor.py`、`test_layout.py`）。
 
-## 顺带发现
+## 执行记录（2026-10-20，会话 3）
 
-（执行时回填，不在本批实施）
+**状态**：已实施；本机验证（全量 pytest / 打包 / GUI 关窗冒烟）待用户执行。
+
+### 实际改动
+
+| 原 | 终态 |
+|---|---|
+| `core/optimization.py`（402 行 / 6 概念） | 删除，拆为 `core/render/`：`config.py`、`canvas_pool.py`、`font_cache.py`、`text_layout.py`、`image_cache.py`、`image_ops.py`、`timing.py` |
+| `core/__init__.py`（聚合导出 6 个名） | 只 re-export `EnemyCardGenerator` |
+| `utils/wiki_span_parser.py`（470 行） | `core/render/text/wikitext_spans.py` |
+| `core/render/wiki_paragraph_renderer.py` | `core/render/text/wikitext_renderer.py` |
+| `core/fonts.py` | `core/render/fonts.py` |
+| `core/render/stars.py` / `radar.py` | `core/render/primitives/{stars,radar}.py`（新建 `text/__init__.py`、`primitives/__init__.py`） |
+
+调用点：`core/render/{generator,layout,avatar_prefetch}.py`、`core/render/sections/{info,skills_talents,rating_grade}.py`、`gui/main_window.py`、`tests/{test_layout,test_wiki_span_parser,test_prts_pipeline_refactor}.py`、`utils/net/{__init__,image_fetch}.py`（docstring 指路）。
+
+### 旧符号 → 新家（按 `grep -n "def "` 逐条核对，无遗漏）
+
+| 旧符号 | 新家 |
+|---|---|
+| `RenderConfig` | `config.py`（字段名、默认值、单位注释未动） |
+| `RenderResourceManager.__init__` / `_init_canvas_pool` / `acquire_canvas` / `acquire_variable_canvas` / `release_canvas` / `_variable_surface` | `CanvasPool` 同名方法；清理改为 `discard_variable_surface()` |
+| `._stats['canvas_reuse_count']` | `CanvasPool._stats`（保留同一计数语义） |
+| `.get_font` | `font_cache.py::get_font`（"模板 + `makeWithSize()`"语义与其注释原样保留） |
+| `.get_text_layout`、`._wrap_text_optimized` | `text_layout.py::get_text_layout`、`wrap_text_optimized`（换行算法逐行照搬） |
+| `._stats['text_cache_hits']` | `text_layout._text_cache_hits` |
+| `_GLOBAL_IMAGE_CACHE` / `_GLOBAL_IMAGE_CACHE_LOCK` | `image_cache.py` + 新访问器 `cache_get/cache_put/cache_has/cache_clear`（锁移进访问器，外部不再 import 私有名） |
+| `ImageProcessor.__init__(cache_manager)` / `.load_image_direct` / `.load_avatar_optimized` | `image_ops.py::ImageProcessor`（无构造参数；`_stats['image_cache_hits']` → 模块级 `_image_cache_hits`） |
+| `PerformanceTimer` | `timing.py` |
+| `.clear_caches` | `canvas_pool.py::clear_caches`（跨模块入口：可变 Surface + 字体 + 文本布局 + 图像缓存） |
+| `get_resource_manager()` | `canvas_pool.py::get_canvas_pool()` |
+
+`EnemyCardGenerator` 的属性面（`canvas` / `font_manager` / `grade_colors` / `_wrap_text` / `image_processor` / `config` / `_get_optimized_font`）按开工前重算的频次表逐一保留，未改名、未改语义。
+
+### 与任务书的偏差（4 处）
+
+1. **`clear_caches` 与单例落 `canvas_pool.py`**：任务书写"单例归属拆后最大的那个模块"，但拆后无单一"最大模块"；池是唯一有状态且需单例的对象，故单例 + 跨模块清缓存入口都放这里（`canvas_pool.py` 因此 import `font_cache` / `text_layout` / `image_cache` 的清理函数）。
+2. **`_stats` 三分**：计数无任何读取方（全仓库零引用），按"不改行为"保留为三处独立计数器，不引入共享 stats 模块。
+3. **`ImageProcessor` 构造参数消失**：原构造参数只为拿 `_image_cache` 与 `_stats`；改用访问器后无状态，`generator.py` 相应改为 `ImageProcessor()`。
+4. **契约测试重钉**：`TestGlobalImageCacheLock` 原断言"两模块锁定同一把锁对象"；`avatar_prefetch` 不再持锁后，改为断言"预取写入的键 == 渲染侧查的键，且缓存唯一"（用例数不变）。
+   另新增 `avatar_prefetch.avatar_cache_key(url)`：原缓存键在两处内联拼装，改为单一函数（也为契约测试提供锚点）。
+
+### 验收结果
+
+| 项 | 结果 |
+|---|---|
+| 验收 1：`core/optimization.py` 不存在；`core/` 只剩 `__init__.py` 与 `render/` | ✅ |
+| 验收 2：`import core` 公开名 | ✅ `['EnemyCardGenerator', 'render']`；`import main` / `models` / `gui_main` 自证通过 |
+| 验收 3：`core.optimization` 零命中 | ✅ 代码与 `spec` 命中 0（`todos/`、`CHANGELOG.md` 的历史记录不改写） |
+| 验收 4：像素回归 | ✅ **S1–S5 五组 sha256 与基线逐字一致**（含 S5 的 1950×1795 增高路径）；改动前基线也已复核一致 |
+| 导入冒烟 / 铁律 14 | ✅ 79 个模块全通过；`models`/`core`/`main`/`gui_main` 各自独立导入通过 |
+| 受影响测试 | ✅ `test_layout` + `test_wiki_span_parser` + `test_prts_pipeline_refactor` 共 41 passed |
+| 清缓存路径（`clear_caches`） | ✅ 实测：调用后可变 Surface 丢弃、字体缓存 0、文本布局缓存 0、图像缓存未命中（GUI 关窗调用点 `gui/main_window.py`） |
+| 旧路径残留 | ✅ `wiki_span_parser` / `wiki_paragraph_renderer` / `core.fonts` / `render.stars` / `render.radar` / `RenderResourceManager` / `get_resource_manager` 命中均为 0 |
+| `_GLOBAL_IMAGE_CACHE` 唯一性 | ✅ 只出现在 `core/render/image_cache.py` 与契约测试 |
+| `core → utils` 剩余边 | ✅ 仅 `utils.net.image_fetch`（×2）、`utils.fs.filenames`（×1）；任务书预期的 `utils.errors` 边在 `core` 内不存在 |
+| `pyside6-qmllint -I gui/qml` | exit 0（未改 QML） |
+
+### 待用户执行
+
+全量 `uv run pytest -q`；`uv run --group build -- pyinstaller --noconfirm --clean enemyEval.spec` + `scripts/build_release.py`（本批改 `core` 结构，需复核 `hiddenimports` 的 `core.render.generator` / `core.render.avatar_prefetch` 仍在包内）；GUI 冒烟：关窗清缓存路径 + §7.3 第 1–5 条。
+
+## 顺带发现

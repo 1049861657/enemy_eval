@@ -8,10 +8,10 @@ import skia
 
 from models import EnemyData, RenderOptions
 
-from core.fonts import FontManager
-from core.render import layout
-from core.render.radar import draw_rating_radar
-from core.render.stars import draw_star
+from .. import layout
+from ..fonts import FontManager
+from ..primitives.radar import draw_rating_radar
+from ..primitives.stars import draw_star
 
 if TYPE_CHECKING:
     from core.render.generator import EnemyCardGenerator

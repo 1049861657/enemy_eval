@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING
 import skia
 
 from models import EnemyData
-from utils.wiki_span_parser import WikiStyle
 
-from core.render import layout
-from core.render.wiki_paragraph_renderer import draw_wiki_paragraph
+from .. import layout
+from ..text.wikitext_renderer import draw_wiki_paragraph
+from ..text.wikitext_spans import WikiStyle
 
 if TYPE_CHECKING:
     from core.render.generator import EnemyCardGenerator

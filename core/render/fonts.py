@@ -1,5 +1,7 @@
-"""
-字体管理器 - 处理中文字体加载 (Windows专用)
+"""中文字体加载（Windows 专用）。
+
+平台假设：只枚举 `_FONT_PATHS` 里的 Windows 字体路径；一个都加载不到时 `chinese_font` 为
+None、中文按方框渲染，不抛异常（只记一条 warning）。
 """
 
 from __future__ import annotations

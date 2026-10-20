@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import skia
 
-from utils.wiki_span_parser import (
+from .wikitext_spans import (
     TextSpan,
     WikiStyle,
     hint_mark_advance,
@@ -12,9 +12,8 @@ from utils.wiki_span_parser import (
     wrap_spans_to_lines,
 )
 
-from core.fonts import FontManager
-
-from .layout import build_wiki_measurer
+from ..fonts import FontManager
+from ..layout import build_wiki_measurer
 
 
 def _span_draw_width(

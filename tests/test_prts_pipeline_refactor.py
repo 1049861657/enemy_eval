@@ -4,7 +4,7 @@ Covers:
 1. utils/prts/api_client.py — client/retry/timeout + JSON fetch + avatar imageinfo.
 2. utils/prts/pipeline.py — facade re-exports and error message mapping.
 3. utils/qt/prts_task.py::PrtsFetchThread — run() success/error/exception paths.
-4. core/optimization.py / core.render.avatar_prefetch — shared global image cache lock.
+4. core/render/image_cache.py / core/render/avatar_prefetch.py — 全局图像缓存与锁的唯一持有者。
 5. gui/main_window.py — QML 发起的 PRTS 请求并发保护。
 
 No real network calls, no real Skia network-image decodes, no hangs.
@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 
 import httpx
 import pytest
+import skia
 
 from models import EnemyData
 from utils.prts.field_mapping import EnemyLevel
@@ -321,19 +322,26 @@ class TestPrtsFetchThread:
 
 
 class TestGlobalImageCacheLock:
-    """core/optimization.py — shared lock between optimization and avatar_prefetch."""
+    """core/render/image_cache.py — 全局图像缓存与锁的唯一持有者。"""
 
     def test_global_image_cache_lock_exists(self):
-        from core import optimization as opt
+        from core.render import image_cache
 
-        assert hasattr(opt, "_GLOBAL_IMAGE_CACHE_LOCK")
-        assert isinstance(opt._GLOBAL_IMAGE_CACHE_LOCK, threading.Lock)
+        assert isinstance(image_cache._GLOBAL_IMAGE_CACHE_LOCK, threading.Lock)
 
-    def test_avatar_prefetch_imports_same_lock(self):
-        import core.optimization as opt
-        import core.render.avatar_prefetch as prefetch
+    def test_avatar_prefetch_shares_the_single_cache(self):
+        from core.render import avatar_prefetch, image_cache
 
-        assert prefetch._GLOBAL_IMAGE_CACHE_LOCK is opt._GLOBAL_IMAGE_CACHE_LOCK
+        url = "https://example.com/avatar.png"
+        key = avatar_prefetch.avatar_cache_key(url)
+        image_cache.cache_put(key, skia.Surface(1, 1).makeImageSnapshot())
+        try:
+            assert image_cache.cache_has(key) is True
+            # 预取写入的键必须就是渲染侧查的键，否则头像永远画不出来
+            assert avatar_prefetch.is_avatar_cached(url) is True
+        finally:
+            image_cache.cache_clear()
+        assert avatar_prefetch.is_avatar_cached(url) is False
 
 
 class TestMainWindowPrtsFetchGuard:

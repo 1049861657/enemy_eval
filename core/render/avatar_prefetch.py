@@ -1,14 +1,11 @@
 """网络头像预下载 → 写入渲染层全局图像缓存。
 
-不变量：渲染侧对 URL 只查缓存、从不下载（`core.optimization.load_avatar_optimized`
+不变量：渲染侧对 URL 只查缓存、从不下载（`core/render/image_ops.py::load_avatar_optimized`
 未命中即跳过），因此网络头像必须先落进缓存。调用点：`PrtsFetchThread`（拿到
 EnemyData 之前）、`NetworkAvatarPrefetchThread`（加载配置 / 手填 URL 之后）。
 
-`_GLOBAL_IMAGE_CACHE` 可被渲染线程与上述两个线程并发读写，统一用
-core.optimization 的最小粒度锁。
-
-边界：`utils/net/image_fetch.py` 只下载字节、不碰缓存；写入由本模块负责，
-渲染侧（`core.optimization`）只读缓存、从不发网络。
+边界：`utils/net/image_fetch.py` 只下载字节、不碰缓存；写入由本模块负责，且一律经
+`core/render/image_cache.py` 的访问器（锁在访问器内），渲染侧只读缓存、不发网络。
 """
 
 from __future__ import annotations
@@ -18,22 +15,30 @@ import logging
 import httpx
 import skia
 
-from core.optimization import _GLOBAL_IMAGE_CACHE, _GLOBAL_IMAGE_CACHE_LOCK
 from models.media import is_url
 from utils.net.image_fetch import download_image_data, get_url_cache_key
+
+from .image_cache import cache_has, cache_put
 
 logger = logging.getLogger(__name__)
 
 _AVATAR_TARGET_SIZE = (330, 330)
 
 
+def avatar_cache_key(avatar_path: str) -> str:
+    """网络头像在全局图像缓存中的键：URL 键 + 目标尺寸。
+
+    与 `core/render/image_ops.py::load_avatar_optimized` 的取图口径必须同键，
+    否则预取写进去的图渲染侧读不到。
+    """
+    return f"{get_url_cache_key(avatar_path)}_{_AVATAR_TARGET_SIZE}"
+
+
 def is_avatar_cached(avatar_path: str) -> bool:
     """网络头像是否已在全局图像缓存中；已缓存则无需重新下载与重绘。"""
     if not avatar_path or not is_url(avatar_path):
         return False
-    cache_key = f"{get_url_cache_key(avatar_path)}_{_AVATAR_TARGET_SIZE}"
-    with _GLOBAL_IMAGE_CACHE_LOCK:
-        return _GLOBAL_IMAGE_CACHE.get(cache_key) is not None
+    return cache_has(avatar_cache_key(avatar_path))
 
 
 async def preload_network_avatar_image(
@@ -49,7 +54,7 @@ async def preload_network_avatar_image(
         if not image_data:
             return
 
-        cache_key = f"{get_url_cache_key(avatar_path)}_{_AVATAR_TARGET_SIZE}"
+        cache_key = avatar_cache_key(avatar_path)
         original_image = skia.Image.MakeFromEncoded(image_data)
         if not original_image:
             return
@@ -66,8 +71,7 @@ async def preload_network_avatar_image(
             scaled_image = scaled_surface.makeImageSnapshot()
         else:
             scaled_image = original_image
-        with _GLOBAL_IMAGE_CACHE_LOCK:
-            _GLOBAL_IMAGE_CACHE[cache_key] = scaled_image
+        cache_put(cache_key, scaled_image)
         logger.info("成功预缓存网络头像: %s", avatar_path)
     except Exception as e:
         logger.warning("预加载头像失败: %s", e)

@@ -6,14 +6,14 @@ import math
 from typing import Callable
 
 from models import EnemyData
-from utils.wiki_span_parser import (
+
+from .fonts import FontManager
+from .text.wikitext_spans import (
     WikiStyle,
     hint_mark_advance,
     parse_wikitext_to_spans,
     wrap_spans_to_lines,
 )
-
-from core.fonts import FontManager
 
 
 def measure_wiki_char(font: object, font_bold: object, font_size: int):
@@ -31,7 +31,7 @@ def build_wiki_measurer(font_manager: FontManager, font_size: int):
 
     返回 `(fn, fb, meas)`：`fn` 为常规字体、`fb` 为同 size 的粗体字体（各自
     独立实例，互不干扰），`meas` 为绑定了这两个字体的逐字符测量闭包
-    （见 `measure_wiki_char`）。`core/render/wiki_paragraph_renderer.py::draw_wiki_paragraph`
+    （见 `measure_wiki_char`）。`core/render/text/wikitext_renderer.py::draw_wiki_paragraph`
     与本模块的 `wiki_line_count` 共用此函数，避免测量口径与绘制口径各自
     手写同一段样板代码而漂移。
     """
