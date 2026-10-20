@@ -57,7 +57,8 @@ from .constants import (
     WINDOW_MIN_HEIGHT,
     WINDOW_MIN_WIDTH,
 )
-from .qml_bridge import CardImageProvider, QmlBridge
+from .bridge.preview import CardImageProvider
+from .qml_bridge import QmlBridge
 from .render_coordinator import RenderCoordinator
 
 logger = logging.getLogger(__name__)

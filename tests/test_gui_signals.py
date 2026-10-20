@@ -7,8 +7,9 @@ from unittest.mock import Mock
 
 import pytest
 
+from gui.bridge.preview import CardImageProvider
 from gui.card_model import CardModel
-from gui.qml_bridge import CardImageProvider, QmlBridge
+from gui.qml_bridge import QmlBridge
 from gui.render_coordinator import RenderCoordinator
 
 
