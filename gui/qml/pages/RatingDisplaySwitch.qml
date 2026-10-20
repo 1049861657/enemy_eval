@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 
-import "." as Design
+import ".." as Design
 
 Rectangle {
     id: root
@@ -95,7 +95,7 @@ Rectangle {
 
             radar: true
             text: "雷达"
-            icon.source: "icons/radar.svg"
+            icon.source: "../icons/radar.svg"
         }
 
         Segment {
@@ -103,7 +103,7 @@ Rectangle {
 
             radar: false
             text: "卡片"
-            icon.source: "icons/cards.svg"
+            icon.source: "../icons/cards.svg"
         }
     }
 

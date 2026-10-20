@@ -4,7 +4,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-import "." as Design
+import "../components"
+import ".." as Design
 
 ScrollView {
     id: root
@@ -25,7 +26,7 @@ ScrollView {
                 AppIconButton {
                     width: 40
                     height: 40
-                    icon.source: "icons/add.svg"
+                    icon.source: "../icons/add.svg"
                     icon.width: 24
                     icon.height: 24
                     display: AbstractButton.IconOnly
@@ -64,7 +65,7 @@ ScrollView {
                         AppIconButton {
                             width: 40
                             height: 40
-                            icon.source: "icons/delete.svg"
+                            icon.source: "../icons/delete.svg"
                             icon.width: 24
                             icon.height: 24
                             display: AbstractButton.IconOnly

@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 
-import "." as Design
+import ".." as Design
 
 Button {
     id: root
@@ -152,7 +152,7 @@ Button {
                 anchors.centerIn: parent
                 width: Math.round(Design.Theme.iconSize * 0.6)
                 height: width
-                source: "icons/chevron_down.svg"
+                source: "../icons/chevron_down.svg"
                 fillMode: Image.PreserveAspectFit
             }
         }

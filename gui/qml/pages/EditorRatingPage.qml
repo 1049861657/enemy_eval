@@ -4,7 +4,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-import "." as Design
+import "../components"
+import ".." as Design
 
 ScrollView {
     id: root
@@ -33,7 +34,7 @@ ScrollView {
                     visible: !root.workspace.schemaEditMode
                     width: 40
                     height: 40
-                    icon.source: "icons/sliders.svg"
+                    icon.source: "../icons/sliders.svg"
                     icon.width: 24
                     icon.height: 24
                     display: AbstractButton.IconOnly
@@ -101,7 +102,7 @@ ScrollView {
                         visible: root.workspace.schemaEditMode
                         Layout.preferredWidth: 40
                         Layout.preferredHeight: 40
-                        icon.source: "icons/delete.svg"
+                        icon.source: "../icons/delete.svg"
                         icon.width: 24
                         icon.height: 24
                         display: AbstractButton.IconOnly
@@ -121,7 +122,7 @@ ScrollView {
                 visible: root.workspace.schemaEditMode
                 width: parent.width
                 text: atLimit ? "" : "+ 添加维度"
-                iconSource: atLimit ? "icons/ban.svg" : ""
+                iconSource: atLimit ? "../icons/ban.svg" : ""
                 appearance: "subtle"
                 enabled: !atLimit
                 ToolTip.visible: atLimit && hovered

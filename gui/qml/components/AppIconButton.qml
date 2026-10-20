@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 
-import "." as Design
+import ".." as Design
 
 ToolButton {
     id: root

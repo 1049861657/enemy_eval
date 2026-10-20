@@ -106,8 +106,9 @@ PY
 # 3) 单元测试
 uv run pytest -q
 
-# 4) QML 静态检查（按改动的目录扩展 -I）
-pyside6-qmllint -I gui/qml gui/qml/*.qml
+# 4) QML 静态检查（按改动的目录扩展 -I；批次 4.2 起 gui/qml 有子目录）
+pyside6-qmllint -I gui/qml -I gui/qml/components -I gui/qml/pages -I gui/qml/dialogs \
+    gui/qml/*.qml gui/qml/components/*.qml gui/qml/pages/*.qml gui/qml/dialogs/*.qml
 
 # 5) QML 装载冒烟（offscreen）
 QT_QPA_PLATFORM=offscreen uv run python gui_main.py    # 人工看日志：无 QML 警告、QML 就绪
@@ -217,8 +218,9 @@ uv run --group build -- python scripts/build_release.py                  # 校�
 | 9 | 架构要点·性能 | 图像缓存 `core/optimization.py`、预览防抖 `utils/debouncer.py` | `core/render/image_cache.py`、`utils/qt/debounce.py` | 1、3 |
 | 10 | 架构要点·文件名 | `utils/filenames.py::safe_filename` | `utils/fs/filenames.py::safe_filename` | 1 |
 | 11 | 架构要点·版本 | `utils/app_version.py` | `utils/app/version.py` | 1 |
-| 12 | 目录索引 | 目录树（含 `enemyEval.spec`、`core/render/`、`utils/`、`gui/qml/`） | 与新结构一致 | 1–5 |
+| 12 | 目录索引 | 目录树（含 `enemyEval.spec`、`core/render/`、`utils/`、`gui/qml/`） | 与新结构一致：`core/render/{text,primitives}/`、`utils/{app,prts,ai,net,qt,fs}/`、`gui/bridge/`、`gui/qml/{components,pages,dialogs}/` | 1–5 |
 | 13 | 打包命令 | `pyinstaller --noconfirm --clean enemyEval.spec` | `enemy_eval.spec` | 5 |
+| 14 | 架构要点·gui | "Python 编排 `main_window` / `qml_bridge` / `card_model` / `skill_list_model` / `render_coordinator`" | 补 `gui/bridge/`（按域实现，声明面留在 `qml_bridge.py`）与 `CardImageProvider` 现位置 `gui/bridge/preview.py` | 4 |
 
 > 实测 `AGENTS.md` 共出现 17 个代码路径，其中 `models/media.py`、`Theme.qml`、`main.py`、`gui_main.py`、`pyproject.toml`、`data/{敌人名称}_config.json` 等**路径不变**，无需同步；上表 13 条覆盖全部会失效的引用。
 

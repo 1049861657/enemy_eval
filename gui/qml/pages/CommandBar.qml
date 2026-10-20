@@ -4,7 +4,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-import "." as Design
+import "../components"
+import ".." as Design
 
 ToolBar {
     id: root
@@ -131,7 +132,7 @@ ToolBar {
                             required property var modelData
 
                             text: recentItem.modelData.name
-                            icon.source: recentItem.modelData.exists ? "" : "icons/ban.svg"
+                            icon.source: recentItem.modelData.exists ? "" : "../icons/ban.svg"
                             icon.color: Design.Theme.warning
                             icon.width: 14
                             icon.height: 14
@@ -163,7 +164,7 @@ ToolBar {
                                 bottomPadding: 0
                                 opacity: recentItem.hovered ? 1 : 0
                                 display: AbstractButton.IconOnly
-                                icon.source: "icons/delete.svg"
+                                icon.source: "../icons/delete.svg"
                                 icon.color: Design.Theme.danger
                                 icon.width: 16
                                 icon.height: 16
@@ -241,7 +242,7 @@ ToolBar {
                     width: (historyCapsule.width - 1) / 2
                     height: historyCapsule.height
                     available: root.workspace.controller.canUndo
-                    iconSource: "icons/undo.svg"
+                    iconSource: "../icons/undo.svg"
                     tip: "撤销　Ctrl+Z"
                     accessibleName: "撤销"
                     leading: true
@@ -262,7 +263,7 @@ ToolBar {
                     width: (historyCapsule.width - 1) / 2
                     height: historyCapsule.height
                     available: root.workspace.controller.canRedo
-                    iconSource: "icons/redo.svg"
+                    iconSource: "../icons/redo.svg"
                     tip: "重做　Ctrl+Y"
                     accessibleName: "重做"
                     leading: false

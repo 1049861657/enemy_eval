@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-import "." as Design
+import ".." as Design
 
 Pane {
     id: root
@@ -82,7 +82,7 @@ Pane {
 
                     Layout.preferredWidth: 40
                     Layout.preferredHeight: 40
-                    icon.source: "icons/edit.svg"
+                    icon.source: "../icons/edit.svg"
                     icon.width: 24
                     icon.height: 24
                     display: AbstractButton.IconOnly

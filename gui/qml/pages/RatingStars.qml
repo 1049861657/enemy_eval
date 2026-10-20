@@ -3,7 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 
-import "." as Design
+import ".." as Design
 
 Row {
     id: root

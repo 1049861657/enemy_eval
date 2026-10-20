@@ -4,7 +4,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-import "." as Design
+import "../components"
+import ".." as Design
 
 ScrollView {
     id: root
