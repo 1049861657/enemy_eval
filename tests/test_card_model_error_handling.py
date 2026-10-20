@@ -14,7 +14,7 @@ import pytest
 
 from gui.card_model import CardModel
 from models import SkillEntry
-from utils.error_handler import FileOperationError
+from utils.errors import FileOperationError
 
 
 @pytest.fixture

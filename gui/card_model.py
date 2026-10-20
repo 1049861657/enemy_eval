@@ -12,8 +12,8 @@ from PySide6.QtGui import QUndoStack
 
 from models import EnemyData, SkillEntry, default_ratings
 from utils.app_settings_store import get_rating_names
-from utils.avatar_paths import resolve_stored_path, to_stored_path
-from utils.error_handler import FileOperationError
+from utils.fs.avatar_paths import resolve_stored_path, to_stored_path
+from utils.errors import FileOperationError
 
 from .undo_stack import _CardSnapshot, _StateCommand
 

@@ -2,7 +2,7 @@
 """
 MediaWiki API 人工联网冒烟脚本（非自动化测试，不接入 CI/pytest discovery）。
 
-连通性探测 + utils.prts_mediawiki_pipeline 管线人工核对；需要真实访问 https://prts.wiki。
+连通性探测 + utils.prts.pipeline 管线人工核对；需要真实访问 https://prts.wiki。
 自动化单元测试见 tests/（覆盖同一管线的纯函数部分，无需联网）。
 
 用法（项目根目录）:
@@ -26,9 +26,9 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from utils.filenames import safe_filename  # noqa: E402
-from utils.prts_api_client import build_client, request_timeout  # noqa: E402
-from utils.prts_mediawiki_pipeline import (  # noqa: E402
+from utils.fs.filenames import safe_filename  # noqa: E402
+from utils.prts.api_client import build_client, request_timeout  # noqa: E402
+from utils.prts.pipeline import (  # noqa: E402
     PRTS_MEDIAWIKI_API,
     fetch_enemy_from_prts_mediawiki_with_debug,
     strip_debug_keys,

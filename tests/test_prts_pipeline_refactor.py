@@ -1,8 +1,8 @@
 """PRTS 数据管线契约测试。
 
 Covers:
-1. utils/prts_api_client.py — client/retry/timeout + JSON fetch + avatar imageinfo.
-2. utils/prts_mediawiki_pipeline.py — facade re-exports and error message mapping.
+1. utils/prts/api_client.py — client/retry/timeout + JSON fetch + avatar imageinfo.
+2. utils/prts/pipeline.py — facade re-exports and error message mapping.
 3. utils/thread_manager.py::PrtsFetchThread — run() success/error/exception paths.
 4. core/optimization.py / core.render.avatar_prefetch — shared global image cache lock.
 5. gui/main_window.py — QML 发起的 PRTS 请求并发保护。
@@ -20,7 +20,7 @@ import httpx
 import pytest
 
 from models import EnemyData
-from utils.prts_field_mapping import EnemyLevel
+from utils.prts.field_mapping import EnemyLevel
 
 
 def _run(coro):
@@ -28,16 +28,16 @@ def _run(coro):
 
 
 class TestPrtsApiClient:
-    """utils/prts_api_client.py"""
+    """utils/prts/api_client.py"""
 
     def test_default_timeout_constants(self):
-        from utils.prts_api_client import DEFAULT_TIMEOUT_IMAGEINFO, DEFAULT_TIMEOUT_PARSE
+        from utils.prts.api_client import DEFAULT_TIMEOUT_IMAGEINFO, DEFAULT_TIMEOUT_PARSE
 
         assert DEFAULT_TIMEOUT_PARSE == 22.0
         assert DEFAULT_TIMEOUT_IMAGEINFO == 12.0
 
     def test_build_async_client_headers_and_timeout(self):
-        from utils.prts_api_client import (
+        from utils.prts.api_client import (
             CONNECT_TIMEOUT,
             DEFAULT_TIMEOUT_PARSE,
             build_async_client,
@@ -56,7 +56,7 @@ class TestPrtsApiClient:
             _run(client.aclose())
 
     def test_fetch_parse_json_success(self):
-        from utils.prts_api_client import _fetch_parse_json
+        from utils.prts.api_client import _fetch_parse_json
 
         expected_json = {"parse": {"title": "测试敌人"}}
         response = MagicMock()
@@ -74,7 +74,7 @@ class TestPrtsApiClient:
         assert call_kwargs["params"]["action"] == "parse"
 
     def test_fetch_parse_json_request_exception(self):
-        from utils.prts_api_client import _fetch_parse_json
+        from utils.prts.api_client import _fetch_parse_json
 
         client = MagicMock()
         client.get = AsyncMock(side_effect=httpx.HTTPError("网络超时"))
@@ -84,7 +84,7 @@ class TestPrtsApiClient:
         assert "网络超时" in err
 
     def test_fetch_avatar_imageinfo_success_strips_query_string(self):
-        from utils.prts_api_client import fetch_avatar_imageinfo
+        from utils.prts.api_client import fetch_avatar_imageinfo
 
         raw_json = {
             "query": {
@@ -108,7 +108,7 @@ class TestPrtsApiClient:
         assert data is raw_json
 
     def test_fetch_avatar_imageinfo_missing_page(self):
-        from utils.prts_api_client import fetch_avatar_imageinfo
+        from utils.prts.api_client import fetch_avatar_imageinfo
 
         raw_json = {"query": {"pages": [{"missing": True}]}}
         response = MagicMock()
@@ -122,7 +122,7 @@ class TestPrtsApiClient:
         assert data is raw_json
 
     def test_fetch_avatar_imageinfo_no_imageinfo(self):
-        from utils.prts_api_client import fetch_avatar_imageinfo
+        from utils.prts.api_client import fetch_avatar_imageinfo
 
         raw_json = {"query": {"pages": [{}]}}
         response = MagicMock()
@@ -136,7 +136,7 @@ class TestPrtsApiClient:
         assert data is raw_json
 
     def test_fetch_avatar_imageinfo_exception(self):
-        from utils.prts_api_client import fetch_avatar_imageinfo
+        from utils.prts.api_client import fetch_avatar_imageinfo
 
         client = MagicMock()
         client.get = AsyncMock(side_effect=httpx.HTTPError("连接失败"))
@@ -147,10 +147,10 @@ class TestPrtsApiClient:
 
 
 class TestPrtsMediawikiPipelineFacade:
-    """utils/prts_mediawiki_pipeline.py — facade error mapping and re-export identity."""
+    """utils/prts/pipeline.py — facade error mapping and re-export identity."""
 
     def test_error_message_for_raw_mappings(self):
-        from utils.prts_mediawiki_pipeline import error_message_for_raw
+        from utils.prts.pipeline import error_message_for_raw
 
         missing = {"error_type": "missing_page", "error": "无"}
         assert "未找到敌人" in error_message_for_raw(missing, "测试敌人")
@@ -167,10 +167,10 @@ class TestPrtsMediawikiPipelineFacade:
         assert "出错了" in msg
 
     def test_facade_re_exports_source_objects(self):
-        import utils.prts_enemy_builder as builder
-        import utils.prts_field_mapping as mapping
-        import utils.prts_mediawiki_pipeline as facade
-        import utils.prts_api_client as api
+        import utils.prts.enemy_builder as builder
+        import utils.prts.field_mapping as mapping
+        import utils.prts.pipeline as facade
+        import utils.prts.api_client as api
 
         assert facade.to_enemy_data is builder.to_enemy_data
         assert facade.strip_debug_keys is builder.strip_debug_keys
@@ -189,7 +189,7 @@ class TestPrtsMediawikiPipelineFacade:
         assert facade.PRTS_MEDIAWIKI_API is api.PRTS_MEDIAWIKI_API
 
     def test_fetch_enemy_data_and_raw_importable(self):
-        from utils.prts_mediawiki_pipeline import fetch_enemy_data, fetch_enemy_data_raw
+        from utils.prts.pipeline import fetch_enemy_data, fetch_enemy_data_raw
 
         assert callable(fetch_enemy_data)
         assert callable(fetch_enemy_data_raw)
@@ -240,8 +240,8 @@ class TestPrtsFetchThread:
 
     def test_run_success_emits_enemy_data(self, qapp, enemy_data, monkeypatch):
         import core.render.avatar_prefetch as prefetch
-        import utils.prts_enemy_builder as builder
-        import utils.prts_mediawiki_pipeline as pipeline
+        import utils.prts.enemy_builder as builder
+        import utils.prts.pipeline as pipeline
         from utils.thread_manager import PrtsFetchThread
 
         monkeypatch.setattr(
@@ -278,7 +278,7 @@ class TestPrtsFetchThread:
         )
 
     def test_run_error_dict_emits_mapped_message(self, qapp, monkeypatch):
-        import utils.prts_mediawiki_pipeline as pipeline
+        import utils.prts.pipeline as pipeline
         from utils.thread_manager import PrtsFetchThread
 
         monkeypatch.setattr(
@@ -299,7 +299,7 @@ class TestPrtsFetchThread:
         spy.assert_called_once_with(None, "网络错误：boom", None)
 
     def test_run_exception_emits_message_with_exception_text(self, qapp, monkeypatch):
-        import utils.prts_mediawiki_pipeline as pipeline
+        import utils.prts.pipeline as pipeline
         from utils.thread_manager import PrtsFetchThread
 
         monkeypatch.setattr(

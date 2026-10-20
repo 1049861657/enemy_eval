@@ -7,7 +7,7 @@ from typing import Optional
 import skia
 
 from models import EnemyData, RenderOptions
-from utils.filenames import safe_filename
+from utils.fs.filenames import safe_filename
 
 from core.fonts import FontManager, get_font_manager
 from core.optimization import (

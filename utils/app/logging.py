@@ -14,7 +14,7 @@ import structlog
 from platformdirs import user_log_path
 from structlog.typing import BindableLogger, EventDict
 
-from .app_identity import APP_AUTHOR, APP_NAME
+from .identity import APP_AUTHOR, APP_NAME
 
 _LOG_FILENAME = "enemy-eval.log"
 _LOG_MAX_BYTES = 1_000_000

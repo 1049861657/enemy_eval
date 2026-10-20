@@ -30,17 +30,17 @@ from utils.app_settings_store import (
     set_update_seen,
     set_update_skip_tag,
 )
-from utils.app_version import get_app_version
-from utils.update_checker import is_newer
-from utils.debouncer import AdaptiveDebouncer
-from utils.error_handler import (
+from utils.app.version import get_app_version
+from utils.app.update_check import is_newer
+from utils.qt.debounce import AdaptiveDebouncer
+from utils.errors import (
     EnemyEvalException,
     categorize_error_message,
     error_handler,
 )
-from utils.filenames import safe_filename
-from utils.prts_enemy_builder import rebuild_enemy_data
-from utils.prts_field_mapping import build_enemy_raw
+from utils.fs.filenames import safe_filename
+from utils.prts.enemy_builder import rebuild_enemy_data
+from utils.prts.field_mapping import build_enemy_raw
 from utils.thread_manager import (
     AiEvaluateThread,
     NetworkAvatarPrefetchThread,

@@ -8,8 +8,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from .error_handler import FileOperationError
-from .resource_manager import resource_manager
+from ..errors import FileOperationError
+from ..app.resources import resource_manager
 
 _BASELINE_RELATIVE_PATH = "resource/baseline/jesselton_config.json"
 

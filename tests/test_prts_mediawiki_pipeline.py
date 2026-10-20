@@ -6,9 +6,9 @@ prts_field_mapping（字段映射）、prts_enemy_builder（EnemyData 组装）�
 
 from __future__ import annotations
 
-from utils.prts_enemy_builder import to_enemy_data
-from utils.prts_field_mapping import _map_common_block, _map_level_block, build_enemy_raw
-from utils.wiki_template_parser import (
+from utils.prts.enemy_builder import to_enemy_data
+from utils.prts.field_mapping import _map_common_block, _map_level_block, build_enemy_raw
+from utils.prts.wikitext_templates import (
     _extract_all_template_bodies,
     _extract_template_body,
     _parse_template_params,

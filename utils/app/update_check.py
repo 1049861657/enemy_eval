@@ -11,7 +11,7 @@ from typing import Literal
 
 import httpx
 
-from utils.app_version import get_app_version
+from utils.app.version import get_app_version
 
 logger = logging.getLogger(__name__)
 

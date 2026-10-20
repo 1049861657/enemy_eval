@@ -11,12 +11,12 @@ from PySide6.QtGui import QImage, QPixmap
 
 from models import EnemyData, RenderOptions
 
-from . import prts_enemy_builder as builder
-from . import prts_mediawiki_pipeline as pipeline
-from .ai_client import aevaluate
+from .prts import enemy_builder as builder
+from .prts import pipeline as pipeline
+from .ai.client import aevaluate
 from .app_settings_store import AiRequestConfig
-from .error_handler import RenderError
-from .update_checker import fetch_latest
+from .errors import RenderError
+from .app.update_check import fetch_latest
 
 
 class CardGeneratorThread(QThread):

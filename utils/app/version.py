@@ -16,7 +16,8 @@ def _build_info_path() -> Path:
         root = getattr(sys, "_MEIPASS", None)
         if isinstance(root, str):
             return Path(root) / "build_info.json"
-    return Path(__file__).resolve().parent.parent / "build_info.json"
+    # 本文件位于 utils/app/：项目根 = parents[2]（改目录深度必须同步这一行）
+    return Path(__file__).resolve().parents[2] / "build_info.json"
 
 
 def _load_build_info() -> dict[str, object]:
@@ -43,7 +44,7 @@ def get_app_version() -> str:
     if isinstance(build_version, str):
         return build_version
 
-    root = Path(__file__).resolve().parent.parent
+    root = Path(__file__).resolve().parents[2]
     pyproject = root / "pyproject.toml"
     try:
         with pyproject.open("rb") as f:

@@ -9,7 +9,7 @@ from typing import Optional
 import httpx
 
 from models.media import is_url
-from utils.prts_api_client import request_timeout
+from utils.prts.api_client import request_timeout
 
 logger = logging.getLogger(__name__)
 

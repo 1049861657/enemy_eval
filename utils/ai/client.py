@@ -14,9 +14,9 @@ import httpx
 
 from models import AiEvaluationResult, EnemyData
 
-from .ai_prompt import build_messages
-from .app_settings_store import AiRequestConfig
-from .error_handler import (
+from .prompt import build_messages
+from ..app_settings_store import AiRequestConfig
+from ..errors import (
     AiCredentialError,
     AiNetworkError,
     AiRateLimitError,

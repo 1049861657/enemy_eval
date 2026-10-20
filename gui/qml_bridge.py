@@ -18,16 +18,16 @@ from models import (
     RatingSchema,
     scores_for_rating_draft,
 )
-from utils.ai_baseline import load_baseline
-from utils.ai_client import build_current_payload
-from utils.ai_prompt import (
+from utils.ai.baseline import load_baseline
+from utils.ai.client import build_current_payload
+from utils.ai.prompt import (
     CONTRACT,
     DEFAULT_PERSONA,
     effective_persona,
     persona_for_storage,
     render_preview,
 )
-from utils.app_identity import APP_NAME, APP_SUMMARY
+from utils.app.identity import APP_NAME, APP_SUMMARY
 from utils.app_settings_store import (
     ai_base_url_preview,
     ai_request_config,
@@ -41,9 +41,9 @@ from utils.app_settings_store import (
     set_rating_radar,
     set_update_check_enabled,
 )
-from utils.app_version import get_app_build_time, get_app_version
-from utils.error_handler import FileOperationError, categorize_error_message
-from utils.resource_manager import resource_manager
+from utils.app.version import get_app_build_time, get_app_version
+from utils.errors import FileOperationError, categorize_error_message
+from utils.app.resources import resource_manager
 
 from .card_model import CardModel
 from .render_coordinator import RenderCoordinator

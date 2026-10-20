@@ -22,8 +22,8 @@ from pydantic_settings import (
 
 from models import DEFAULT_RATING_NAMES, RatingSchema, RenderOptions
 
-from .app_identity import APP_AUTHOR, APP_NAME
-from .error_handler import FileOperationError
+from .app.identity import APP_AUTHOR, APP_NAME
+from .errors import FileOperationError
 
 logger = structlog.get_logger(__name__)
 

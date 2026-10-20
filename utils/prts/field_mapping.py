@@ -1,6 +1,6 @@
 """PRTS 字段名映射表与映射业务规则。
 
-把 wikitext 模板解析出的中文字段键值对（utils/wiki_template_parser.py 的输出）
+把 wikitext 模板解析出的中文字段键值对（utils/prts/wikitext_templates.py 的输出）
 转换为 EnemyData 使用的英文字段字典，不涉及 HTTP/Pydantic。
 """
 
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from models import SkillEntry
-from .wiki_template_parser import (
+from .wikitext_templates import (
     _extract_all_template_bodies,
     _extract_template_body,
     _parse_template_params,

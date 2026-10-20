@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .app_settings_store import load_app_settings
+from ..app_settings_store import load_app_settings
 
 # 输出契约：任务、口径、格式与数据语义。不含人设，界面不提供编辑入口。
 CONTRACT = """【任务】

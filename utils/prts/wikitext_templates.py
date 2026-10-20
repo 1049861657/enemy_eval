@@ -1,7 +1,7 @@
 """wikitext 模板手写递归下降解析器 —— 纯字符串处理，零外部依赖。
 
 只负责从原始 wikitext 中抠出 `{{模板名|...}}` 的文本边界与参数键值对，
-不理解任何业务字段含义（字段名映射见 utils/prts_field_mapping.py）。
+不理解任何业务字段含义（字段名映射见 utils/prts/field_mapping.py）。
 """
 
 from __future__ import annotations

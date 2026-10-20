@@ -16,10 +16,10 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from utils.app_identity import APP_AUTHOR, APP_NAME
-from utils.app_logging import setup_logging
-from utils.app_version import get_app_build_time, get_app_version
-from utils.resource_manager import resource_manager
+from utils.app.identity import APP_AUTHOR, APP_NAME
+from utils.app.logging import setup_logging
+from utils.app.version import get_app_build_time, get_app_version
+from utils.app.resources import resource_manager
 
 try:
     from gui.main_window import MainWindow

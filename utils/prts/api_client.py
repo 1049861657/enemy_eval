@@ -1,7 +1,7 @@
 """PRTS MediaWiki API 客户端：超时、重试、原始 JSON 拉取。
 
-只负责网络层：不理解 wikitext 语义（见 utils/wiki_template_parser.py /
-utils/prts_field_mapping.py），也不组装 Pydantic 模型（见 utils/prts_enemy_builder.py）。
+只负责网络层：不理解 wikitext 语义（见 utils/prts/wikitext_templates.py /
+utils/prts/field_mapping.py），也不组装 Pydantic 模型（见 utils/prts/enemy_builder.py）。
 """
 
 from __future__ import annotations

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from utils.error_handler import categorize_error_message
+from utils.errors import categorize_error_message
 
 
 class TestCategorizeErrorMessage:

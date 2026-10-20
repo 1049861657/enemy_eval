@@ -25,7 +25,7 @@ from PySide6.QtGui import QImage
 
 sys.path.insert(0, str(Path(SPECPATH)))
 
-from utils.app_identity import APP_AUTHOR, APP_NAME  # noqa: E402
+from utils.app.identity import APP_AUTHOR, APP_NAME  # noqa: E402
 
 
 project_root = Path(SPECPATH)

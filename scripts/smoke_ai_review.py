@@ -21,11 +21,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from models import AiEvaluationResult, EnemyData  # noqa: E402
-from utils.ai_baseline import load_baseline  # noqa: E402
-from utils.ai_client import build_current_payload, evaluate, extract_comment  # noqa: E402
-from utils.ai_prompt import CONTRACT, build_messages, effective_persona  # noqa: E402
+from utils.ai.baseline import load_baseline  # noqa: E402
+from utils.ai.client import build_current_payload, evaluate, extract_comment  # noqa: E402
+from utils.ai.prompt import CONTRACT, build_messages, effective_persona  # noqa: E402
 from utils.app_settings_store import AiRequestConfig, ai_request_config  # noqa: E402
-from utils.error_handler import (  # noqa: E402
+from utils.errors import (  # noqa: E402
     AiCredentialError,
     AiNetworkError,
     AiServiceError,
