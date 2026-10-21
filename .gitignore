@@ -36,5 +36,8 @@ dist/
 # 用户自身资源
 /enemy
 
+# 助手本地技能与 openspec 目标标记
+.agents/
+
 # PRTS 调试导出（敌人 parse dump）
 data/prts_debug/
