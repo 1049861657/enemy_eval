@@ -21,7 +21,7 @@ jobs:
       PYTHONIOENCODING: utf-8
       PYTHONUTF8: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: 要求 tag 引用
         shell: pwsh
@@ -30,7 +30,7 @@ jobs:
             throw "请在 Actions 页面选择已有 tag 运行此工作流。"
           }
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
           enable-cache: true
