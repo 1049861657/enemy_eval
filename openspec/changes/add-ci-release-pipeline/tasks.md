@@ -5,8 +5,8 @@
 - [x] 1.1 新建 `.github/workflows/ci.yml`：监听 `pull_request` 与 `push` 到 `master`，`permissions` 只给 `contents: read`，按分支设置并发并在新推送时取消旧运行
 - [x] 1.2 配置 `windows-latest`、Python 3.13 与 `astral-sh/setup-uv` 缓存，执行 `uv sync --locked`，设置 `QT_QPA_PLATFORM=offscreen`
 - [x] 1.3 依次执行 `uv run pytest -q` 与 `pyside6-qmllint -I gui/qml` 全量 QML 校验；验证：任一命令失败时 job 失败
-- [ ] 1.4 在仓库设置中把 CI 的 `test` 检查设为 `master` 必需状态；验证：未通过的 PR 无法合并
-- [ ] 1.5 推送测试分支并发起 PR；验证：安装、pytest、QML 校验依次通过，日志可见
+- [ ] 1.4 在仓库设置中把 CI 的 `test` 检查设为 `master` 必需状态；验证：未通过的 PR 无法合并（私有免费仓库无法启用分支保护，需 GitHub Pro 或公开仓库）
+- [x] 1.5 推送测试分支并发起 PR；验证：安装、pytest、QML 校验依次通过，日志可见
 
 ## 2. 发布辅助脚本
 
@@ -26,7 +26,7 @@
 ## 4. 端到端验收
 
 - [x] 4.1 本地执行 `uv sync --locked`、`uv run pytest -q`、全量 qmllint；验证：全部通过
-- [ ] 4.2 在 PR 上验证 CI 门禁：成功时检查为绿，临时制造测试或 QML 失败时检查为红，恢复后重新变绿
+- [x] 4.2 在 PR 上验证 CI 门禁：成功时检查为绿，临时制造测试或 QML 失败时检查为红，恢复后重新变绿
 - [ ] 4.3 在测试分支手动运行 Release 工作流：验证版本校验、构建、两个资产与说明均正确，日志显示创建草稿、上传完成后才公开
 - [ ] 4.4 在下一个真实 `v*` tag 上验收自动发布；失败时确认只留下草稿、没有公开的半成品 Release
 - [x] 4.5 确认发版提交同时包含 `pyproject.toml`、`uv.lock` 与 `CHANGELOG.md`，且 workflow 不创建 commit/tag
