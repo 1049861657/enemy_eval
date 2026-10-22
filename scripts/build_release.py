@@ -163,6 +163,16 @@ def _zip(dist: Path, archive_path: Path) -> None:
                 archive.write(item, item.relative_to(dist.parent).as_posix())
 
 
+def _write_checksum(archive_path: Path, digest: str) -> Path:
+    checksum_path = archive_path.with_name(f"{archive_path.name}.sha256")
+    checksum_path.write_text(
+        f"{digest}  {archive_path.name}\n",
+        encoding="ascii",
+        newline="\n",
+    )
+    return checksum_path
+
+
 def main() -> int:
     version = _project_version()
     subprocess.run(
@@ -185,12 +195,14 @@ def main() -> int:
     archive_path = ROOT / "dist" / f"enemyEval-v{version}-win64.zip"
     _zip(dist, archive_path)
     digest = hashlib.sha256(archive_path.read_bytes()).hexdigest()
+    checksum_path = _write_checksum(archive_path, digest)
     unpacked = _dir_size(dist)
     packed = archive_path.stat().st_size
     print(f"解压后体积 {unpacked} 字节")
     print(f"zip 体积 {packed} 字节")
     print(f"SHA256 {digest}")
     print(archive_path)
+    print(checksum_path)
     return 0
 
 
