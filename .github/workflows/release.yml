@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REF_TYPE: ${{ github.ref_type }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 要求 tag 引用
+        shell: pwsh
+        run: |
+          if ($env:REF_TYPE -ne "tag") {
+            throw "请在 Actions 页面选择已有 tag 运行此工作流。"
+          }
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: 校验版本一致性
+        shell: python
+        run: |
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          match = re.fullmatch(r"v(\d+\.\d+\.\d+)", tag)
+          if not match:
+              raise SystemExit(f"tag 必须是 vX.Y.Z：{tag}")
+          version = match.group(1)
+
+          with Path("pyproject.toml").open("rb") as file:
+              project_version = str(tomllib.load(file)["project"]["version"])
+          if project_version != version:
+              raise SystemExit(f"tag {version} 与 pyproject {project_version} 不一致")
+
+          with Path("uv.lock").open("rb") as file:
+              packages = tomllib.load(file).get("package", [])
+          project = next((item for item in packages if item.get("name") == "enemy-eval"), None)
+          if project is None or str(project.get("version")) != version:
+              locked = None if project is None else project.get("version")
+              raise SystemExit(f"uv.lock 项目版本 {locked!r} 与 tag {version} 不一致")
+
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          heading = re.compile(
+              rf"^## \[{re.escape(version)}\](?:\s*-\s*\d{{4}}-\d{{2}}-\d{{2}})?\s*$",
+              re.MULTILINE,
+          )
+          if heading.search(changelog) is None:
+              raise SystemExit(f"CHANGELOG.md 缺少 ## [{version}] 版本节")
+
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as file:
+              file.write(f"VERSION={version}\n")
+
+      - name: 同步锁定依赖
+        run: uv sync --locked
+
+      - name: 运行测试
+        run: uv run pytest -q
+
+      - name: 构建便携包
+        run: uv run python scripts/build_release.py
+
+      - name: 提取发布说明
+        run: uv run python scripts/extract_changelog.py "$env:VERSION" --output release-notes.md
+
+      - name: 发布 Release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
+          $tag = $env:GITHUB_REF_NAME
+          $zip = Get-ChildItem dist/*.zip | Select-Object -First 1
+          if (-not $zip) { throw "dist 下没有 zip" }
+          $checksum = Get-Item "$($zip.FullName).sha256" -ErrorAction SilentlyContinue
+          if (-not $checksum) { throw "缺少 SHA256 校验文件" }
+
+          $existing = gh release list --json tagName,isDraft --limit 100 | ConvertFrom-Json |
+            Where-Object { $_.tagName -eq $tag }
+          if ($LASTEXITCODE -ne 0) { throw "查询 Release 失败" }
+          if ($existing) {
+            gh release edit $tag --draft --notes-file release-notes.md
+            if ($LASTEXITCODE -ne 0) { throw "转草稿失败" }
+          } else {
+            gh release create $tag --draft --verify-tag --title $tag --notes-file release-notes.md
+            if ($LASTEXITCODE -ne 0) { throw "创建草稿失败" }
+          }
+
+          gh release upload $tag $zip.FullName $checksum.FullName --clobber
+          if ($LASTEXITCODE -ne 0) { throw "上传资产失败" }
+
+          gh release edit $tag --draft=false
+          if ($LASTEXITCODE -ne 0) { throw "公开 Release 失败" }

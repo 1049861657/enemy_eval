@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: 同步锁定依赖
+        run: uv sync --locked
+      - name: 运行测试
+        run: uv run pytest -q
+      - name: 校验 QML
+        shell: bash
+        run: uv run pyside6-qmllint -I gui/qml $(find gui/qml -name '*.qml')
