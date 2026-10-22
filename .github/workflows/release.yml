@@ -18,6 +18,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REF_TYPE: ${{ github.ref_type }}
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
 
