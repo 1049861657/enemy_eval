@@ -3,7 +3,20 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    readonly property string fontFamily: "Microsoft YaHei UI"
+    readonly property string fontFamily: {
+        var wanted = [
+            "Microsoft YaHei UI",
+            "Microsoft YaHei",
+            "Segoe UI",
+            "HarmonyOS Sans SC"
+        ]
+        var installed = Qt.fontFamilies()
+        for (var i = 0; i < wanted.length; ++i) {
+            if (installed.indexOf(wanted[i]) >= 0)
+                return wanted[i]
+        }
+        return ""
+    }
     readonly property int space1: 4
     readonly property int space2: 8
     readonly property int space3: 12

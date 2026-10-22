@@ -116,6 +116,8 @@ def _validate(dist: Path) -> None:
         internal / "build_info.json",
         internal / "gui" / "qml",
         internal / "resource",
+        internal / "resource" / "fonts" / "HarmonyOS_Sans_SC_Regular.ttf",
+        internal / "resource" / "fonts" / "LICENSE.txt",
         internal / "PySide6" / "qml" / "QtQuick" / "Controls",
     ]
     missing = [str(path.relative_to(dist)) for path in required if not path.exists()]

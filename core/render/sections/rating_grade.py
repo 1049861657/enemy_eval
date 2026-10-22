@@ -345,10 +345,10 @@ def draw_grade_section(
 
     raw = (enemy.brief_comment or "").strip()
     lines = gen._wrap_text(raw, layout.COMMENT_WRAP_WIDTH, layout.GRADE_COMMENT_FONT_SIZE) if raw else [""]
+    prefix = "简评："
+    text_x = 510 + comment_font.measureText(prefix)
     for i, line in enumerate(lines):
         y_pos = grade_start_y + layout.COMMENT_FIRST_BASELINE + i * layout.COMMENT_LINE_STEP
         if i == 0:
-            line = f"简评：{line}"
-        else:
-            line = f"      {line}"
-        gen.canvas.drawString(line, 510, y_pos, comment_font, comment_text_paint)
+            gen.canvas.drawString(prefix, 510, y_pos, comment_font, comment_text_paint)
+        gen.canvas.drawString(line, text_x, y_pos, comment_font, comment_text_paint)

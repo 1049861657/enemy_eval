@@ -135,6 +135,15 @@ Dialog {
                 font.pixelSize: Design.Theme.captionFontSize
                 color: Design.Theme.textSecondary
             }
+
+            Label {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                text: "字体：HarmonyOS Sans"
+                font.family: Design.Theme.fontFamily
+                font.pixelSize: Design.Theme.captionFontSize
+                color: Design.Theme.textSecondary
+            }
         }
 
         Rectangle {

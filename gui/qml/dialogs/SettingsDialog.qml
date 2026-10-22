@@ -110,9 +110,17 @@ Dialog {
             Item { Layout.fillWidth: true }
 
             AppIconButton {
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: 32
+                implicitHeight: 32
+                leftPadding: 0
+                rightPadding: 0
+                topPadding: 0
+                bottomPadding: 0
                 icon.source: "../icons/close.svg"
-                icon.width: Design.Theme.iconSize
-                icon.height: Design.Theme.iconSize
+                icon.width: 20
+                icon.height: 20
+                display: AbstractButton.IconOnly
                 toolTipText: "关闭"
                 Accessible.name: "关闭"
                 onClicked: root.close()

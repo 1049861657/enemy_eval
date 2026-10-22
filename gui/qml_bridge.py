@@ -426,7 +426,7 @@ class QmlBridge(QObject):
             self.aiCommentConfirmRequested.emit(text.strip())
             return False
         ai.write_comment(self._card_model, text)
-        self.show_toast("已写入简评，可 Ctrl+Z 撤销", "success")
+        self.show_toast("已写入简评", "success")
         return True
 
     @Slot(str)
@@ -435,7 +435,7 @@ class QmlBridge(QObject):
         if not text.strip():
             return
         ai.write_comment(self._card_model, text)
-        self.show_toast("已写入简评，可 Ctrl+Z 撤销", "success")
+        self.show_toast("已写入简评", "success")
 
     @Slot()
     def abandonAiReview(self) -> None:  # noqa: N802

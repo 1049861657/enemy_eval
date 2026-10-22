@@ -1,32 +1,69 @@
-"""中文字体加载（Windows 专用）。
+"""中文字体加载：随包字体优先，系统字体族兜底。
 
-平台假设：只枚举 `_FONT_PATHS` 里的 Windows 字体路径；一个都加载不到时 `chinese_font` 为
-None、中文按方框渲染，不抛异常（只记一条 warning）。
+卡片渲染始终使用随包 HarmonyOS Sans SC，保证同一份数据在不同机器上的字形、测量与换行一致。
+随包文件缺失或损坏时才按族名匹配系统中文字体；仍找不到时 `chinese_font` 为 None、
+中文按方框渲染，不抛异常（只记一条 warning）。
 """
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Optional
 
 import skia
 import structlog
 
+from utils.app.resources import resource_manager
+
 logger = structlog.get_logger(__name__)
 
-_FONT_PATHS = (
-    "C:/Windows/Fonts/simhei.ttf",
-    "C:/Windows/Fonts/simsun.ttc",
-    "C:/Windows/Fonts/msyh.ttc",
-    "C:/Windows/Fonts/SIMHEI.TTF",
+_BUNDLED_FONT_PATH = "resource/fonts/HarmonyOS_Sans_SC_Regular.ttf"
+
+# 随包字体不可用时的兜底顺序；只做族名匹配，不再依赖固定的字体文件路径。
+_SYSTEM_FAMILIES = (
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    "SimHei",
+    "HarmonyOS Sans SC",
+    "Noto Sans CJK SC",
+    "Source Han Sans SC",
 )
 
 _shared_chinese_typeface: Optional[skia.Typeface] = None
 _load_attempted: bool = False
 
 
+def _load_bundled_typeface() -> Optional[skia.Typeface]:
+    """从随包资源加载字体；失败时返回 None，由调用方回退系统字体。"""
+    font_path = resource_manager.get_resource_path(_BUNDLED_FONT_PATH)
+    try:
+        face = skia.Typeface.MakeFromFile(font_path)
+    except Exception as error:
+        logger.warning("随包字体加载失败", font_path=font_path, error=str(error))
+        return None
+    if face:
+        logger.info("成功加载随包中文字体(已缓存，进程内复用)", font_path=font_path)
+    else:
+        logger.warning("随包字体无法解析", font_path=font_path)
+    return face
+
+
+def _match_system_typeface() -> Optional[skia.Typeface]:
+    """按族名匹配系统中文字体；用于随包字体不可用的兜底路径。"""
+    manager = skia.FontMgr()
+    for family in _SYSTEM_FAMILIES:
+        try:
+            face = manager.matchFamilyStyle(family, skia.FontStyle.Normal())
+        except Exception as error:
+            logger.warning("系统字体匹配失败", family=family, error=str(error))
+            continue
+        if face:
+            logger.info("回退到系统中文字体", family=family)
+            return face
+    return None
+
+
 def _ensure_shared_chinese_typeface() -> Optional[skia.Typeface]:
-    """进程内只从磁盘加载一次 Typeface；每次预览新建 FontManager 时复用。"""
+    """进程内只加载一次 Typeface；每次预览新建 FontManager 时复用。"""
     global _shared_chinese_typeface, _load_attempted
 
     if _shared_chinese_typeface is not None:
@@ -35,21 +72,10 @@ def _ensure_shared_chinese_typeface() -> Optional[skia.Typeface]:
         return None
     _load_attempted = True
 
-    for font_path in _FONT_PATHS:
-        p = Path(font_path)
-        if not p.exists():
-            continue
-        try:
-            face = skia.Typeface.MakeFromFile(str(p))
-            if face:
-                _shared_chinese_typeface = face
-                logger.info("成功加载中文字体(已缓存，进程内复用)", font_path=font_path)
-                return _shared_chinese_typeface
-        except Exception as e:
-            logger.warning("字体加载失败", font_path=font_path, error=str(e))
-
-    logger.warning("未能加载中文字体，中文可能显示为方框")
-    return None
+    _shared_chinese_typeface = _load_bundled_typeface() or _match_system_typeface()
+    if _shared_chinese_typeface is None:
+        logger.warning("未能加载中文字体，中文可能显示为方框")
+    return _shared_chinese_typeface
 
 
 class FontManager:

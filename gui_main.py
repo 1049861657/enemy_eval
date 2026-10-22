@@ -8,7 +8,7 @@ from pathlib import Path
 
 import structlog
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QFontDatabase, QIcon, QPixmap
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtQuickWidgets import QQuickWidget
 from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
@@ -44,6 +44,22 @@ def create_splash_screen():
     splash.show()
     
     return splash
+
+
+def register_bundled_font() -> None:
+    """把随包中文字体注册给 Qt，供界面字体回退栈使用。"""
+    font_path = resource_manager.get_resource_path(
+        "resource/fonts/HarmonyOS_Sans_SC_Regular.ttf"
+    )
+    font_id = QFontDatabase.addApplicationFont(font_path)
+    logger = structlog.get_logger(__name__)
+    if font_id < 0:
+        logger.warning("随包字体注册失败", font_path=font_path)
+        return
+    logger.info(
+        "已注册随包字体",
+        families=QFontDatabase.applicationFontFamilies(font_id),
+    )
 
 
 def check_dependencies() -> list[str]:
@@ -101,6 +117,7 @@ def main():
     app.setApplicationVersion(get_app_version())
     app.setOrganizationName(APP_AUTHOR)
     setup_logging()
+    register_bundled_font()
     
     splash = create_splash_screen()
     app.processEvents()
