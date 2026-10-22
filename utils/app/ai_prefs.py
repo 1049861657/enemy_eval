@@ -10,16 +10,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
 
+from .net_prefs import proxy_mode
 from .settings import load_app_settings, update_settings
 
 
 @dataclass(frozen=True)
 class AiRequestConfig:
-    """AI 评价调用配置；三项均非空才有效。"""
+    """AI 评价调用配置；Base URL / 模型 / 密钥三项均非空才有效。
+
+    `trust_env` 表示是否跟随系统代理；False 时显式直连，但保留环境 CA。
+    """
 
     base_url: str
     model: str
     api_key: str
+    trust_env: bool
 
 
 def ai_request_config() -> AiRequestConfig | None:
@@ -29,6 +34,7 @@ def ai_request_config() -> AiRequestConfig | None:
         base_url=settings.ai_base_url.strip(),
         model=settings.ai_model.strip(),
         api_key=settings.ai_api_key.strip(),
+        trust_env=proxy_mode() == "system",
     )
     if not all((config.base_url, config.model, config.api_key)):
         return None

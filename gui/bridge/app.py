@@ -1,9 +1,10 @@
-"""应用外壳域：身份、版本、更新检查开关、应用图标路径。"""
+"""应用外壳域：身份、版本、更新检查开关、代理模式、应用图标路径。"""
 
 from __future__ import annotations
 
 from PySide6.QtCore import QUrl
 
+from utils.app import net_prefs
 from utils.app.identity import APP_NAME, APP_SUMMARY
 from utils.app.resources import resource_manager
 from utils.app.settings import load_app_settings
@@ -45,3 +46,15 @@ def update_check_enabled() -> bool:
 def save_update_check_enabled(enabled: bool) -> None:
     """写入自动检查开关。"""
     set_update_check_enabled(enabled)
+
+
+def proxy_mode() -> str:
+    """当前代理模式：`system` 或 `none`。"""
+    return net_prefs.proxy_mode()
+
+
+def save_proxy_mode(mode: str) -> None:
+    """写入代理模式；未知取值抛 ValueError。"""
+    if mode not in ("system", "none"):
+        raise ValueError(f"未知代理模式: {mode}")
+    net_prefs.set_proxy_mode(mode)

@@ -56,10 +56,11 @@ class QmlBridge(QObject):
     undoStateChanged = Signal()
     updateBannerChanged = Signal()
     updateCheckEnabledChanged = Signal()
+    proxyModeChanged = Signal()
     checkUpdatesRequested = Signal()
     dismissUpdateRequested = Signal(str)
     aiSettingsChanged = Signal()
-    aiSettingsRequested = Signal()
+    settingsRequested = Signal(str)
     aiBusyChanged = Signal()
     aiReviewRequested = Signal(object, object, object, object, int)
     aiCommentReady = Signal()
@@ -173,6 +174,11 @@ class QmlBridge(QObject):
     @Property(bool, notify=updateCheckEnabledChanged)
     def updateCheckEnabled(self) -> bool:  # noqa: N802
         return app.update_check_enabled()
+
+    @Property(str, notify=proxyModeChanged)
+    def proxyMode(self) -> str:  # noqa: N802
+        """当前代理模式：`system` 或 `none`。"""
+        return app.proxy_mode()
 
     @Property(str, notify=aiSettingsChanged)
     def aiBaseUrl(self) -> str:  # noqa: N802
@@ -332,11 +338,18 @@ class QmlBridge(QObject):
         app.save_update_check_enabled(enabled)
         self.updateCheckEnabledChanged.emit()
 
-    # ---- AI 评价 ----
+    @Slot(str)
+    def setProxyMode(self, mode: str) -> None:  # noqa: N802
+        """写入代理模式；下次外发请求生效。"""
+        app.save_proxy_mode(mode)
+        self.proxyModeChanged.emit()
 
-    @Slot()
-    def requestAiSettings(self) -> None:  # noqa: N802
-        self.aiSettingsRequested.emit()
+    @Slot(str)
+    def requestSettings(self, section: str) -> None:  # noqa: N802
+        """打开设置对话框并定位到指定分区。"""
+        self.settingsRequested.emit(section)
+
+    # ---- AI 评价 ----
 
     @Slot(str, result=str)
     def aiBaseUrlPreview(self, base_url: str) -> str:  # noqa: N802
@@ -393,7 +406,7 @@ class QmlBridge(QObject):
             return
         config = ai.request_config()
         if config is None:
-            self.aiSettingsRequested.emit()
+            self.settingsRequested.emit("ai")
             return
         try:
             baseline = ai.load_review_baseline()

@@ -8,10 +8,13 @@ utils/prts/field_mapping.py），也不组装 Pydantic 模型（见 utils/prts/e
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Optional
 
 import httpx
 
+from ..app.net_prefs import proxy_mode
+from ..net.proxy import proxy_url_for
 from ..net.transport import (
     CONNECT_TIMEOUT,
     build_retry_transport,
@@ -44,25 +47,45 @@ def request_timeout(read: float) -> httpx.Timeout:
     return build_timeout(connect=CONNECT_TIMEOUT, read=read)
 
 
-def build_async_client() -> httpx.AsyncClient:
-    """带默认 headers、超时、连接重试与 502/503/504 重试的异步客户端。"""
+def _proxy_for(proxy_target: str) -> str | None:
+    """当前模式下该目标使用的代理；`none` 不解析系统设置。"""
+    if proxy_mode() == "none":
+        return None
+    return proxy_url_for(proxy_target)
+
+
+def build_async_client(proxy_target: str = PRTS_MEDIAWIKI_API) -> httpx.AsyncClient:
+    """带默认 headers、超时、代理与 502/503/504 重试的异步客户端。
+
+    `proxy_target` 只用于「跟随系统」时的主机绕过与代理解析；默认面向 PRTS API。
+    """
     return httpx.AsyncClient(
         http2=True,
         headers=DEFAULT_HEADERS,
         timeout=request_timeout(DEFAULT_TIMEOUT_PARSE),
-        transport=build_retry_transport(async_mode=True),
+        transport=build_retry_transport(async_mode=True, proxy=_proxy_for(proxy_target)),
         follow_redirects=True,
     )
 
 
-def build_client() -> httpx.Client:
-    """同步客户端，headers/超时/重试与异步客户端一致（smoke 脚本使用）。"""
+def build_client(proxy_target: str = PRTS_MEDIAWIKI_API) -> httpx.Client:
+    """同步客户端，headers/超时/代理/重试与异步客户端一致（smoke 脚本使用）。"""
     return httpx.Client(
         http2=True,
         headers=DEFAULT_HEADERS,
         timeout=request_timeout(DEFAULT_TIMEOUT_PARSE),
-        transport=build_retry_transport(async_mode=False),
+        transport=build_retry_transport(async_mode=False, proxy=_proxy_for(proxy_target)),
         follow_redirects=True,
+    )
+
+
+def _log_request(action: str, response: httpx.Response, started: float) -> None:
+    """按 DEBUG 记录一次 PRTS 请求的动作、状态码与耗时。"""
+    logger.debug(
+        "PRTS %s 完成：status=%s 耗时=%.2fs",
+        action,
+        response.status_code,
+        time.perf_counter() - started,
     )
 
 
@@ -72,6 +95,7 @@ async def _fetch_parse_json(
     timeout: float = DEFAULT_TIMEOUT_PARSE,
 ) -> tuple[Optional[dict[str, Any]], Optional[str]]:
     """请求 MediaWiki `action=parse`，返回 `(json, None)` 或 `(None, error_message)`。"""
+    started = time.perf_counter()
     try:
         r = await client.get(
             PRTS_MEDIAWIKI_API,
@@ -86,6 +110,7 @@ async def _fetch_parse_json(
         )
         r.raise_for_status()
         log_http_version(r)
+        _log_request("parse", r, started)
         return r.json(), None
     except httpx.HTTPError as e:
         return None, str(e)
@@ -106,9 +131,10 @@ async def resolve_enemy_page_title(
     这只是精确定位页面标题的加分项而非必需项——多数敌人裸名本来就直接命中页面。
     单次请求用短 read 超时，避免 ask 抖动拖累 ask → parse → imageinfo 串行链路。
 
-    返回 `(page_title, None)`；未命中返回 `(None, None)`；网络错误返回 `(None, error_message)`。
+    返回 `(page_title, None)`；未命中返回 `(None, None)`；网络错误或响应不是合法 JSON 返回 `(None, error_message)`。
     """
     query = f"[[分类:敌人]][[名称::{enemy_name}]]"
+    started = time.perf_counter()
     try:
         r = await client.get(
             PRTS_MEDIAWIKI_API,
@@ -121,8 +147,9 @@ async def resolve_enemy_page_title(
         )
         r.raise_for_status()
         log_http_version(r)
+        _log_request("ask", r, started)
         j = r.json()
-    except httpx.HTTPError as e:
+    except (httpx.HTTPError, ValueError) as e:
         return None, str(e)
 
     if "error" in j:
@@ -144,6 +171,7 @@ async def fetch_avatar_imageinfo(
 ) -> tuple[Optional[str], dict[str, Any]]:
     """查询敌人头像文件的 imageinfo，返回 `(去除查询串的 URL 或 None, 原始响应/错误)`。"""
     file_title = f"文件:头像_敌人_{enemy_name}.png"
+    started = time.perf_counter()
     try:
         r = await client.get(
             PRTS_MEDIAWIKI_API,
@@ -159,6 +187,7 @@ async def fetch_avatar_imageinfo(
         )
         r.raise_for_status()
         log_http_version(r)
+        _log_request("imageinfo", r, started)
         data = r.json()
         pages = data.get("query", {}).get("pages", [])
         if not pages or pages[0].get("missing"):

@@ -191,6 +191,23 @@ def _interpret_response(
     return AiEvaluationResult(comment=comment)
 
 
+def _new_client(trust_env: bool) -> httpx.Client:
+    """按代理策略构造同步客户端；不跟随系统代理时显式直连，但保留环境 CA。"""
+    if trust_env:
+        return httpx.Client(timeout=AI_TIMEOUT)
+    return httpx.Client(timeout=AI_TIMEOUT, transport=httpx.HTTPTransport(trust_env=True))
+
+
+def _new_async_client(trust_env: bool) -> httpx.AsyncClient:
+    """异步版 `_new_client`；其余行为一致。"""
+    if trust_env:
+        return httpx.AsyncClient(timeout=AI_TIMEOUT)
+    return httpx.AsyncClient(
+        timeout=AI_TIMEOUT,
+        transport=httpx.AsyncHTTPTransport(trust_env=True),
+    )
+
+
 def evaluate(
     config: AiRequestConfig | None,
     persona: str,
@@ -208,7 +225,7 @@ def evaluate(
     url, headers, payload = _build_request(ready, persona, baseline, current)
     started = time.perf_counter()
     try:
-        with httpx.Client(timeout=AI_TIMEOUT) as client:
+        with _new_client(ready.trust_env) as client:
             response = client.post(url, headers=headers, json=payload)
     except httpx.HTTPError as error:
         raise _network_error(error, ready.model, started) from error
@@ -229,7 +246,7 @@ async def aevaluate(
     url, headers, payload = _build_request(ready, persona, baseline, current)
     started = time.perf_counter()
     try:
-        async with httpx.AsyncClient(timeout=AI_TIMEOUT) as client:
+        async with _new_async_client(ready.trust_env) as client:
             response = await client.post(url, headers=headers, json=payload)
     except httpx.HTTPError as error:
         raise _network_error(error, ready.model, started) from error

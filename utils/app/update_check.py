@@ -14,6 +14,7 @@ import httpx
 from utils.app.version import get_app_version
 
 from ..net.transport import build_timeout
+from .net_prefs import proxy_mode
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,18 @@ def is_newer(local: str, remote: str) -> bool:
     return right > left
 
 
+def _new_client(headers: dict[str, str]) -> httpx.Client:
+    """按代理策略构造客户端；不使用代理时显式直连，但保留环境 CA。"""
+    if proxy_mode() == "system":
+        return httpx.Client(timeout=_TIMEOUT, headers=headers, follow_redirects=True)
+    return httpx.Client(
+        timeout=_TIMEOUT,
+        headers=headers,
+        follow_redirects=True,
+        transport=httpx.HTTPTransport(trust_env=True),
+    )
+
+
 def fetch_latest(etag: str) -> CheckResult:
     """GET releases/latest。etag 非空时带 If-None-Match。异常变成 error。"""
     headers = {
@@ -74,11 +87,7 @@ def fetch_latest(etag: str) -> CheckResult:
     if etag:
         headers["If-None-Match"] = etag
     try:
-        with httpx.Client(
-            timeout=_TIMEOUT,
-            headers=headers,
-            follow_redirects=True,
-        ) as client:
+        with _new_client(headers) as client:
             response = client.get(API_URL)
     except Exception:
         logger.debug("版本检查失败", exc_info=True)

@@ -25,6 +25,7 @@ from utils.ai.baseline import load_baseline  # noqa: E402
 from utils.ai.client import build_current_payload, evaluate, extract_comment  # noqa: E402
 from utils.ai.prompt import CONTRACT, build_messages, effective_persona  # noqa: E402
 from utils.app.ai_prefs import AiRequestConfig, ai_request_config  # noqa: E402
+from utils.app.net_prefs import proxy_mode  # noqa: E402
 from utils.errors import (  # noqa: E402
     AiCredentialError,
     AiNetworkError,
@@ -112,7 +113,9 @@ def run_offline_checks(baseline: dict[str, Any], enemy: EnemyData) -> None:
     except Exception as error:  # noqa: BLE001
         check("空响应抛 AiServiceError", False, f"{type(error).__name__}: {error}")
 
-    config = AiRequestConfig(base_url=UNREACHABLE_BASE_URL, model="smoke", api_key="sk-smoke")
+    config = AiRequestConfig(
+        base_url=UNREACHABLE_BASE_URL, model="smoke", api_key="sk-smoke", trust_env=False
+    )
     try:
         evaluate(config, effective_persona(), baseline, enemy)
         check("连接失败抛 AiNetworkError", False, "未抛异常")
@@ -189,6 +192,7 @@ def main() -> int:
                 base_url=args.base_url.strip() or (settings.base_url if settings else ""),
                 model=args.model.strip() or (settings.model if settings else ""),
                 api_key=args.api_key.strip() or (settings.api_key if settings else ""),
+                trust_env=(settings.trust_env if settings else proxy_mode() == "system"),
             )
             run_live_call(baseline, enemy, config if all((config.base_url, config.model, config.api_key)) else None)
 

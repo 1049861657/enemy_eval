@@ -11,7 +11,7 @@ import json
 import os
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import structlog
 from platformdirs import user_config_path
@@ -65,7 +65,7 @@ class _TolerantJsonConfigSettingsSource(JsonConfigSettingsSource):
 
 
 class AppSettings(BaseSettings):
-    """应用偏好。rating_names 是新建卡片的维度模板，合法性由 RatingSchema 校验；ai_* 三项为空即未配置。"""
+    """应用偏好。rating_names 是新建卡片的维度模板，合法性由 RatingSchema 校验；ai_* 三项为空即未配置；proxy_mode 默认直连。"""
 
     model_config = SettingsConfigDict(extra="ignore", json_file_encoding="utf-8")
 
@@ -79,6 +79,7 @@ class AppSettings(BaseSettings):
     update_seen_tag: str = ""
     update_seen_url: str = ""
     update_check_skip_tag: str = ""
+    proxy_mode: Literal["system", "none"] = "none"
     ai_base_url: str = ""
     ai_model: str = ""
     ai_api_key: str = ""

@@ -65,8 +65,12 @@ class PrtsFetchThread(QThread):
                 return
 
             clean = builder.strip_debug_keys(raw)
-            if clean.get("avatar_path"):
-                await preload_network_avatar_image(client, clean["avatar_path"])
+            avatar_url = str(clean.get("avatar_path") or "")
+            if avatar_url:
+                async with pipeline.build_async_client(
+                    proxy_target=avatar_url
+                ) as avatar_client:
+                    await preload_network_avatar_image(avatar_client, avatar_url)
 
             if self.isInterruptionRequested():
                 return

@@ -118,7 +118,15 @@ async def _fetch_enemy_on_client(
     resolved_title, _resolve_err = await resolve_enemy_page_title(client, enemy_name)
     page_title = resolved_title or enemy_name
 
-    j, err = await _fetch_parse_json(client, page_title, timeout)
+    try:
+        j, err = await _fetch_parse_json(client, page_title, timeout)
+    except ValueError as error:
+        return {"error": str(error), "error_type": "parse_error"}, {
+            "parse_json": None,
+            "html": "",
+            "wikitext": "",
+            "imageinfo_json": None,
+        }
     if err is not None:
         return {"error": err, "error_type": "network"}, {
             "parse_json": None,
@@ -196,6 +204,8 @@ def error_message_for_raw(raw: dict[str, Any], enemy_name: str) -> str:
         return f"在PRTS中未找到敌人「{enemy_name}」，请检查名称是否正确。"
     if err_type == "parse_empty":
         return f"PRTS 页面无法解析出敌人属性：{msg}"
+    if err_type == "parse_error":
+        return f"PRTS 返回内容不是合法 JSON：{msg}"
     if err_type == "network":
         return f"网络错误：{msg}"
     return f"获取PRTS数据失败：{msg}"

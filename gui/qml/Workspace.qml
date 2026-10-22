@@ -168,8 +168,8 @@ Item {
         function onAboutRequested() {
             aboutDialog.open()
         }
-        function onAiSettingsRequested() {
-            aiSettingsDialog.open()
+        function onSettingsRequested(section) {
+            settingsDialog.openAt(section)
         }
         function onAiCommentConfirmRequested(text) {
             aiStaleCommentDialog.pendingComment = text
@@ -407,8 +407,8 @@ Item {
         controller: root.controller
     }
 
-    AiSettingsDialog {
-        id: aiSettingsDialog
+    SettingsDialog {
+        id: settingsDialog
         controller: root.controller
         workspace: root
     }

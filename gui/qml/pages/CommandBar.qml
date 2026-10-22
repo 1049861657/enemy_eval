@@ -220,7 +220,7 @@ ToolBar {
                 MenuItem { text: "刷新预览\tF5"; onTriggered: root.workspace.controller.requestRefresh() }
                 MenuItem { text: "重置数据"; onTriggered: root.workspace.confirmNewCard(true) }
                 MenuSeparator {}
-                MenuItem { text: "AI 设置"; onTriggered: root.workspace.controller.requestAiSettings() }
+                MenuItem { text: "设置…"; onTriggered: root.workspace.controller.requestSettings("ai") }
                 MenuItem { text: "检查更新"; onTriggered: root.workspace.controller.requestCheckUpdates() }
                 MenuItem { text: "关于"; onTriggered: root.workspace.controller.requestAbout() }
                 MenuItem { text: "退出\tCtrl+Q"; onTriggered: root.workspace.controller.requestQuit() }

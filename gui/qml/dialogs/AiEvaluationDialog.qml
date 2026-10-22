@@ -53,7 +53,7 @@ Dialog {
 
     function generate() {
         if (!root.configured) {
-            root.controller.requestAiSettings()
+            root.controller.requestSettings("ai")
             return
         }
         root.controller.requestAiReview(personaPanel.text)

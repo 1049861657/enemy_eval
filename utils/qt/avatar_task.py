@@ -50,7 +50,7 @@ class NetworkAvatarPrefetchThread(QThread):
             preload_network_avatar_image,
         )
 
-        async with pipeline.build_async_client() as client:
+        async with pipeline.build_async_client(proxy_target=self.avatar_url) as client:
             if self.isInterruptionRequested():
                 return
             await preload_network_avatar_image(client, self.avatar_url)
